@@ -164,6 +164,9 @@ bool unify(
 
 // void substitute_params(const bool_node&, const std::vector<bool_node>&, bool_node&);
 
+////////////////////////////////////////////////////
+////////////////////// TESTING /////////////////////
+////////////////////////////////////////////////////
 #ifdef UNIT_TEST
 
 #include "test_utils.hpp"
@@ -172,8 +175,81 @@ void test_zero_construct_and_equality_check()
 {
     assert(zero() == zero());
     bool_node l_node = zero();
-    // make sure the data field is actually a zero
+    // check data field
     assert(std::get_if<zero_t>(&l_node.m_data));
+}
+
+void test_one_construct_and_equality_check()
+{
+    assert(one() == one());
+    bool_node l_node = one();
+    // check data field
+    assert(std::get_if<one_t>(&l_node.m_data));
+}
+
+void test_var_construct_and_equality_check()
+{
+    assert(var(0) == var(0));
+    assert(var(0) != var(1));
+    bool_node l_node = var(1);
+    // check data field
+    var_t* l_data;
+    assert(l_data = std::get_if<var_t>(&l_node.m_data));
+    assert(l_data->m_index == 1);
+}
+
+void test_invert_construct_and_equality_check()
+{
+    assert(invert(var(0)) == invert(var(0)));
+    assert(invert(var(0)) != invert(var(1)));
+    bool_node l_node = invert(var(1));
+    // check data field
+    assert(std::get_if<invert_t>(&l_node.m_data));
+}
+
+void test_disjoin_construct_and_equality_check()
+{
+    assert(disjoin(var(0), var(1)) == disjoin(var(0), var(1)));
+    assert(disjoin(var(0), var(1)) != disjoin(var(1), var(1)));
+    assert(disjoin(var(0), var(1)) != disjoin(var(0), var(2)));
+    bool_node l_node = disjoin(var(0), var(1));
+    // check data field
+    assert(std::get_if<disjoin_t>(&l_node.m_data));
+}
+
+void test_conjoin_construct_and_equality_check()
+{
+    assert(conjoin(var(0), var(1)) == conjoin(var(0), var(1)));
+    assert(conjoin(var(0), var(1)) != conjoin(var(1), var(1)));
+    assert(conjoin(var(0), var(1)) != conjoin(var(0), var(2)));
+    bool_node l_node = conjoin(var(0), var(1));
+    // check data field
+    assert(std::get_if<conjoin_t>(&l_node.m_data));
+}
+
+void test_param_construct_and_equality_check()
+{
+    assert(param(0) == param(0));
+    assert(param(0) != param(1));
+    bool_node l_node = param(1);
+    // check data field
+    param_t* l_data;
+    assert(l_data = std::get_if<param_t>(&l_node.m_data));
+    assert(l_data->m_index == 1);
+}
+
+void test_helper_construct_and_equality_check()
+{
+    assert(helper(0, {var(0), var(1)}) == helper(0, {var(0), var(1)}));
+    assert(helper(0, {var(0), var(1)}) != helper(1, {var(0), var(1)}));
+    assert(helper(0, {var(0), var(1)}) != helper(0, {var(1), var(1)}));
+    assert(helper(0, {var(0), var(1)}) != helper(0, {var(0), var(0)}));
+    assert(helper(0, {var(0), var(1)}) != helper(0, {var(0), var(0), var(1)}));
+    bool_node l_node = helper(2, {var(0), var(1)});
+    // check data field
+    helper_t* l_data;
+    assert(l_data = std::get_if<helper_t>(&l_node.m_data));
+    assert(l_data->m_index == 2);
 }
 
 void bool_reduce_test_main()
@@ -181,6 +257,14 @@ void bool_reduce_test_main()
     constexpr bool ENABLE_DEBUG_LOGS = true;
     
     TEST(test_zero_construct_and_equality_check);
+    TEST(test_one_construct_and_equality_check);
+    TEST(test_var_construct_and_equality_check);
+    TEST(test_invert_construct_and_equality_check);
+    TEST(test_disjoin_construct_and_equality_check);
+    TEST(test_conjoin_construct_and_equality_check);
+    TEST(test_param_construct_and_equality_check);
+    TEST(test_helper_construct_and_equality_check);
+    
 }
 
 #endif

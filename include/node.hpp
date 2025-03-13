@@ -11,8 +11,8 @@ struct node
 {
     DATA m_data;
     std::vector<node> m_children;
-    node(const DATA& a_data, const std::vector<node>& a_children) :
-        m_data(a_data), m_children(a_children) {}
+    // node(const DATA& a_data, const std::vector<node>& a_children) :
+    //     m_data(a_data), m_children(a_children) {}
     bool operator==(const node& a_other) const
     {
         return

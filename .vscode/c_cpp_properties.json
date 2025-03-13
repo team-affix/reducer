@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "Linux Debug",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include/"
+            ],
+            "defines": ["UNIT_TEST"],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        },
+        {
+            "name": "Linux Release",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include/"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

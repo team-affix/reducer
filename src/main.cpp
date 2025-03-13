@@ -10,10 +10,23 @@
 #include "./mcts/include/mcts.hpp"
 #include "./include/bool_reduce.hpp"
 
+#include "test_utils.hpp"
+
 #include <iostream>
+
+extern void bool_reduce_test_main();
+
+void unit_test_main()
+{
+    constexpr bool ENABLE_DEBUG_LOGS = true;
+    
+    TEST(bool_reduce_test_main);
+}
 
 int main()
 {
+    unit_test_main();
+    
     node n1 = var(10);
     std::cout << n1 << std::endl;
     node n2 = conjoin(

@@ -130,6 +130,7 @@ std::list<std::pair<bool_node, bool_node>> g_bidirectional_rules =
 
 };
 
+// unifies a parameterized lhs with a concrete rhs, leaving a resolutions map
 bool unify(
     const bool_node& a_parameterized,
     const bool_node& a_concrete,
@@ -146,10 +147,10 @@ bool unify(
         else if (l_resolution->second != a_concrete)
             return false;
     }
-    
     // both lhs and rhs are concrete, just ensure the datas match
-    if (a_parameterized.m_data != a_concrete.m_data)
+    else if (a_parameterized.m_data != a_concrete.m_data)
         return false;
+    
 
     // loop through the children and make sure they all unify
     for (int i = 0; i < a_parameterized.m_children.size(); ++i)
@@ -313,6 +314,43 @@ void test_bool_node_ostream_inserter()
     
 }
 
+void test_unify()
+{
+    std::map<size_t, bool_node> l_bindings;
+
+    // test unify same thing
+    assert(unify(var(0), var(0), l_bindings));
+    assert(l_bindings.size() == 0);
+    l_bindings.clear();
+
+    // test unify different things
+    assert(!unify(var(0), var(1), l_bindings));
+    assert(l_bindings.size() == 0);
+    l_bindings.clear();
+
+    // test unify parameter with var
+    assert(unify(param(0), var(2), l_bindings));
+    assert(l_bindings.size() == 1);
+    assert(l_bindings[0] == var(2));
+    l_bindings.clear();
+
+    // test unify invert with invert
+    assert(unify(invert(var(0)), invert(var(0)), l_bindings));
+    assert(l_bindings.size() == 0);
+    l_bindings.clear();
+
+    // test unify fails with inequal inners
+    assert(!unify(invert(var(0)), invert(var(1)), l_bindings));
+    assert(l_bindings.size() == 0);
+    l_bindings.clear();
+
+    // test unify param with internal of invert
+    assert(unify(invert(param(0)), invert(var(3)), l_bindings));
+    assert(l_bindings.size() == 1);
+    assert(l_bindings[0] == var(3));
+    l_bindings.clear();
+}
+
 void bool_reduce_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -326,6 +364,7 @@ void bool_reduce_test_main()
     TEST(test_param_construct_and_equality_check);
     TEST(test_helper_construct_and_equality_check);
     TEST(test_bool_node_ostream_inserter);
+    TEST(test_unify);
     
 }
 

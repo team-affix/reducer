@@ -349,6 +349,22 @@ void test_unify()
     assert(l_bindings.size() == 1);
     assert(l_bindings[0] == var(3));
     l_bindings.clear();
+
+    // test unify fails with multiple resolutions of same parameter
+    assert(!unify(disjoin(param(0), param(0)), disjoin(var(0), var(1)), l_bindings));
+    assert(l_bindings.size() == 1);
+    l_bindings.clear();
+
+    // test unify fails with multiple resolutions of same parameter
+    assert(!unify(disjoin(param(0), invert(param(0))), disjoin(var(0), invert(var(1))), l_bindings));
+    assert(l_bindings.size() == 1);
+    l_bindings.clear();
+
+    // test unify succeeds with single resolution of same parameter
+    assert(unify(disjoin(param(0), invert(param(0))), disjoin(var(2), invert(var(2))), l_bindings));
+    assert(l_bindings.size() == 1);
+    l_bindings.clear();
+    
 }
 
 void bool_reduce_test_main()

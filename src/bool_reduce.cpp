@@ -169,6 +169,7 @@ bool unify(
 ////////////////////////////////////////////////////
 #ifdef UNIT_TEST
 
+#include <sstream>
 #include "test_utils.hpp"
 
 void test_zero_construct_and_equality_check()
@@ -252,6 +253,66 @@ void test_helper_construct_and_equality_check()
     assert(l_data->m_index == 2);
 }
 
+void test_bool_node_ostream_inserter()
+{
+    {
+        bool_node l_node = zero();
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "zero");
+    }
+
+    {
+        bool_node l_node = one();
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "one");
+    }
+
+    {
+        bool_node l_node = var(3);
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "3");
+    }
+
+    {
+        bool_node l_node = invert(var(4));
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "~{4}");
+    }
+
+    {
+        bool_node l_node = disjoin(var(5), var(6));
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "[5]|[6]");
+    }
+
+    {
+        bool_node l_node = conjoin(var(5), var(6));
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "(5)&(6)");
+    }
+
+    {
+        bool_node l_node = param(7);
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "param7");
+    }
+
+    {
+        bool_node l_node = helper(8, {var(5), param(0), invert(param(1))});
+        std::stringstream l_ss;
+        l_ss << l_node;
+        assert(l_ss.str() == "helper8<5,param0,~{param1}>");
+    }
+    
+}
+
 void bool_reduce_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -264,6 +325,7 @@ void bool_reduce_test_main()
     TEST(test_conjoin_construct_and_equality_check);
     TEST(test_param_construct_and_equality_check);
     TEST(test_helper_construct_and_equality_check);
+    TEST(test_bool_node_ostream_inserter);
     
 }
 

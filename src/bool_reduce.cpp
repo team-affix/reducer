@@ -2,6 +2,8 @@
 #include <functional>
 #include "include/bool_reduce.hpp"
 
+using two_way_rule = std::pair<bool_node, bool_node>;
+
 ////////////////////////////////////////////////////
 ////////////////// NODE DATA TYPES /////////////////
 ////////////////////////////////////////////////////
@@ -50,6 +52,17 @@ bool_node param(size_t a_index)
 bool_node helper(size_t a_index, const std::vector<bool_node>& a_children)
 {
     return bool_node(helper_t{a_index}, a_children);
+}
+bool_node new_goal(std::list<two_way_rule>& a_helpers)
+{
+    // get index of new goal
+    size_t l_goal_index = a_helpers.size();
+    // construct functor
+    bool_node l_functor = helper(l_goal_index, {});
+    // make definition cyclic to indicate definition DNE
+    a_helpers.push_back({l_functor, l_functor});
+    // return new functor
+    return l_functor;
 }
 
 ////////////////////////////////////////////////////
@@ -100,19 +113,27 @@ std::ostream& operator<<(std::ostream& a_ostream, const bool_node& a_node)
 //////////////// RULES OF REPLACEMENT //////////////
 ////////////////////////////////////////////////////
 
-std::list<std::pair<bool_node, bool_node>> g_bidirectional_rules =
+std::list<two_way_rule> g_two_way_rules =
 {
     // basic rules involving 1 and 0
     {zero(), invert(one())},
     {zero(), disjoin(zero(), zero())},
     {zero(), conjoin(zero(), zero())},
-    {zero(), conjoin(zero(), one())},
-    {zero(), conjoin(one(), zero())},
+    {zero(), conjoin(zero(),  one())},
+    {zero(), conjoin(one(),  zero())},
     {one(), invert(zero())},
     {one(), disjoin(zero(), one())},
     {one(), disjoin(one(), zero())},
     {one(), disjoin(one(), one())},
     {one(), conjoin(one(), one())},
+
+    // andtrue, orfalse
+    {param(0), conjoin(param(0), one())},
+    {param(0), disjoin(param(0), zero())},
+
+    // summoning rules
+    {zero(), conjoin(invert(param(0)), param(0))},
+    {one (), disjoin(invert(param(0)), param(0))},
 
     // associativity
     {conjoin(param(0), conjoin(param(1), param(2))), conjoin(conjoin(param(0), param(1)), param(2))},
@@ -129,23 +150,29 @@ std::list<std::pair<bool_node, bool_node>> g_bidirectional_rules =
     {invert(conjoin(param(0), param(1))), disjoin(invert(param(0)), invert(param(1)))},
     {invert(disjoin(param(0), param(1))), conjoin(invert(param(0)), invert(param(1)))},
 
+    // absorption
+    {disjoin(param(0), conjoin(param(0), param(1))), param(0)},
+    {conjoin(param(0), disjoin(param(0), param(1))), param(0)},
+    {disjoin(param(0), param(0)), param(0)},
+    {conjoin(param(0), param(0)), param(0)},
+
 };
 
-// unifies a parameterized lhs with a concrete rhs, leaving a resolutions map
+// unifies a parameterized lhs with a concrete rhs, leaving a bindings map
 bool unify(
     const bool_node& a_parameterized,
     const bool_node& a_concrete,
-    std::map<size_t, bool_node>& a_resolutions)
+    std::map<size_t, bool_node>& a_bindings)
 {
     if (const param_t* l_param = std::get_if<param_t>(&a_parameterized.m_data))
     {
-        // look up current resolution in map
-        auto l_resolution = a_resolutions.find(l_param->m_index);
+        // look up current binding in map
+        auto l_binding = a_bindings.find(l_param->m_index);
         // if not found, store current concrete
-        if (l_resolution == a_resolutions.end())
-            a_resolutions[l_param->m_index] = a_concrete;
+        if (l_binding == a_bindings.end())
+        a_bindings[l_param->m_index] = a_concrete;
         // if found, check that concrete values match
-        else if (l_resolution->second != a_concrete)
+        else if (l_binding->second != a_concrete)
             return false;
     }
     // both lhs and rhs are concrete, just ensure the datas match
@@ -156,7 +183,7 @@ bool unify(
     // loop through the children and make sure they all unify
     for (int i = 0; i < a_parameterized.m_children.size(); ++i)
     {
-        if (!unify(a_parameterized.m_children[i], a_concrete.m_children[i], a_resolutions))
+        if (!unify(a_parameterized.m_children[i], a_concrete.m_children[i], a_bindings))
             return false;
     }
 
@@ -164,28 +191,46 @@ bool unify(
 
 }
 
-bool_node substitute_params(const bool_node& a_original, const std::map<size_t, bool_node>& a_bindings)
+bool_node substitute_params(const bool_node& a_original, std::map<size_t, bool_node>& a_bindings, std::list<two_way_rule>& a_helpers)
 {
     // look up param if parameter
     if (const param_t* l_param = std::get_if<param_t>(&a_original.m_data))
-        return a_bindings.at(l_param->m_index);
+    {
+        // look up current binding in map
+        auto l_binding = a_bindings.find(l_param->m_index);
+        // if not found, generate global goal and bind
+        if (l_binding == a_bindings.end())
+            return a_bindings[l_param->m_index] = new_goal(a_helpers);
+        // if found, just return the binding value
+        return l_binding->second;
+    }
     
     std::vector<bool_node> l_result_children;
 
     // loop through the children and make sure they all unify
     for (const bool_node& l_child : a_original.m_children)
-        l_result_children.push_back(substitute_params(l_child, a_bindings));
+        l_result_children.push_back(substitute_params(l_child, a_bindings, a_helpers));
 
     // substitute children
     return bool_node(a_original.m_data, l_result_children);
 }
 
-std::function<void()> stage_rule_fwd(const std::pair<bool_node, bool_node>& a_pair, bool_node& a_node)
+// staging function, takes a pair specifying a two-way rule, and stages the evaluation of the forward rule
+std::function<void()> stage_rule_fwd(bool_node& a_node, const std::pair<bool_node, bool_node>& a_pair, std::list<two_way_rule>& a_helpers)
 {
     std::map<size_t, bool_node> l_bindings;
     if (!unify(a_pair.first, a_node, l_bindings))
         return nullptr;
-    return [&a_node, &a_pair, l_bindings] { a_node = substitute_params(a_pair.second, l_bindings); };
+    return [&a_node, &a_pair, &l_bindings, &a_helpers] { a_node = substitute_params(a_pair.second, l_bindings, a_helpers); };
+}
+
+// staging function, takes a pair specifying a two-way rule, and stages the evaluation of the backward rule
+std::function<void()> stage_rule_bwd(bool_node& a_node, const std::pair<bool_node, bool_node>& a_pair, std::list<two_way_rule>& a_helpers)
+{
+    std::map<size_t, bool_node> l_bindings;
+    if (!unify(a_pair.second, a_node, l_bindings))
+        return nullptr;
+    return [&a_node, &a_pair, &l_bindings, &a_helpers] { a_node = substitute_params(a_pair.first, l_bindings, a_helpers); };
 }
 
 ////////////////////////////////////////////////////
@@ -399,14 +444,34 @@ void test_substitute_params()
         {2, invert(conjoin(var(4), var(5)))},
     };
 
+    std::list<two_way_rule> l_helpers;
+
     // sub with 0 params
-    assert(disjoin(var(1), var(2)) == substitute_params(disjoin(var(1), var(2)), l_bindings));
+    assert(disjoin(var(1), var(2)) == substitute_params(disjoin(var(1), var(2)), l_bindings, l_helpers));
+    assert(l_helpers.size() == 0);
 
     // sub with 1 params
-    assert(disjoin(var(1), invert(invert(conjoin(var(4), var(5))))) == substitute_params(disjoin(var(1), invert(param(2))), l_bindings));
+    assert(disjoin(var(1), invert(invert(conjoin(var(4), var(5))))) == substitute_params(disjoin(var(1), invert(param(2))), l_bindings, l_helpers));
+    assert(l_helpers.size() == 0);
 
     // sub with 2 params
-    assert(disjoin(invert(var(1)), disjoin(var(0), var(3))) == substitute_params(disjoin(param(0), param(1)), l_bindings));
+    assert(disjoin(invert(var(1)), disjoin(var(0), var(3))) == substitute_params(disjoin(param(0), param(1)), l_bindings, l_helpers));
+    assert(l_helpers.size() == 0);
+
+    // sub with unbound params
+    assert(helper(0, {}) == substitute_params(param(3), l_bindings, l_helpers));
+    assert(l_bindings.size() == 4);
+    assert(l_helpers.size() == 1);
+
+    // sub with multiple unbound params
+    assert(disjoin(helper(1, {}), helper(2, {})) == substitute_params(disjoin(param(4), param(5)), l_bindings, l_helpers));
+    assert(l_bindings.size() == 6);
+    assert(l_helpers.size() == 3);
+
+    // sub with multiple unbound params, and multiple occurrances of same param
+    assert(disjoin(helper(3, {}), helper(3, {})) == substitute_params(disjoin(param(6), param(6)), l_bindings, l_helpers));
+    assert(l_bindings.size() == 7);
+    assert(l_helpers.size() == 4);
     
 }
 

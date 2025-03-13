@@ -163,7 +163,21 @@ bool unify(
 
 }
 
-// void substitute_params(const bool_node&, const std::vector<bool_node>&, bool_node&);
+bool_node substitute_params(const bool_node& a_original, const std::map<size_t, bool_node>& a_bindings)
+{
+    // look up param if parameter
+    if (const param_t* l_param = std::get_if<param_t>(&a_original.m_data))
+        return a_bindings.at(l_param->m_index);
+    
+    std::vector<bool_node> l_result_children;
+
+    // loop through the children and make sure they all unify
+    for (const bool_node& l_child : a_original.m_children)
+        l_result_children.push_back(substitute_params(l_child, a_bindings));
+
+    // substitute children
+    return bool_node(a_original.m_data, l_result_children);
+}
 
 ////////////////////////////////////////////////////
 ////////////////////// TESTING /////////////////////
@@ -367,6 +381,26 @@ void test_unify()
     
 }
 
+void test_substitute_params()
+{
+    std::map<size_t, bool_node> l_bindings =
+    {
+        {0, invert(var(1))},
+        {1, disjoin(var(0), var(3))},
+        {2, invert(conjoin(var(4), var(5)))},
+    };
+
+    // sub with 0 params
+    assert(disjoin(var(1), var(2)) == substitute_params(disjoin(var(1), var(2)), l_bindings));
+
+    // sub with 1 params
+    assert(disjoin(var(1), invert(invert(conjoin(var(4), var(5))))) == substitute_params(disjoin(var(1), invert(param(2))), l_bindings));
+
+    // sub with 2 params
+    assert(disjoin(invert(var(1)), disjoin(var(0), var(3))) == substitute_params(disjoin(param(0), param(1)), l_bindings));
+    
+}
+
 void bool_reduce_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -381,6 +415,7 @@ void bool_reduce_test_main()
     TEST(test_helper_construct_and_equality_check);
     TEST(test_bool_node_ostream_inserter);
     TEST(test_unify);
+    TEST(test_substitute_params);
     
 }
 

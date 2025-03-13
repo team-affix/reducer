@@ -3,7 +3,6 @@
 
 #include <variant>
 #include <ostream>
-#include <functional>
 #include <list>
 #include "node.hpp"
 

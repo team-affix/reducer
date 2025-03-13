@@ -1,4 +1,5 @@
 #include <map>
+#include <functional>
 #include "include/bool_reduce.hpp"
 
 ////////////////////////////////////////////////////
@@ -177,6 +178,14 @@ bool_node substitute_params(const bool_node& a_original, const std::map<size_t, 
 
     // substitute children
     return bool_node(a_original.m_data, l_result_children);
+}
+
+std::function<void()> stage_rule_fwd(const std::pair<bool_node, bool_node>& a_pair, bool_node& a_node)
+{
+    std::map<size_t, bool_node> l_bindings;
+    if (!unify(a_pair.first, a_node, l_bindings))
+        return nullptr;
+    return [&a_node, &a_pair, l_bindings] { a_node = substitute_params(a_pair.second, l_bindings); };
 }
 
 ////////////////////////////////////////////////////

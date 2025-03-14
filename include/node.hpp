@@ -19,6 +19,12 @@ struct node
             std::tie(m_data, m_children) ==
             std::tie(a_other.m_data, a_other.m_children);
     }
+    bool operator<(const node& a_other) const
+    {
+        return
+            std::tie(m_data, m_children) <
+            std::tie(a_other.m_data, a_other.m_children);
+    }
 };
 
 #endif

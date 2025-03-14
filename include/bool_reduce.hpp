@@ -28,6 +28,16 @@ bool operator==(const conjoin_t&, const conjoin_t&);
 bool operator==(const param_t&, const param_t&);
 bool operator==(const helper_t&, const helper_t&);
 
+// less than comparisons
+bool operator<(const zero_t&, const zero_t&);
+bool operator<(const one_t&, const one_t&);
+bool operator<(const var_t&, const var_t&);
+bool operator<(const invert_t&, const invert_t&);
+bool operator<(const disjoin_t&, const disjoin_t&);
+bool operator<(const conjoin_t&, const conjoin_t&);
+bool operator<(const param_t&, const param_t&);
+bool operator<(const helper_t&, const helper_t&);
+
 // define the data type for the expression nodes
 using bool_op_data = std::variant<
     zero_t,

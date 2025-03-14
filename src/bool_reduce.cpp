@@ -801,7 +801,7 @@ void bool_reduce_test_main()
     TEST(test_disjoin_construct_and_equality_check);
     TEST(test_conjoin_construct_and_equality_check);
     TEST(test_param_construct_and_equality_check);
-    TEST(test_helper_construct_and_equality_check)
+    TEST(test_helper_construct_and_equality_check);
     TEST(test_new_goal);
     TEST(test_bool_node_ostream_inserter);
     TEST(test_unify);

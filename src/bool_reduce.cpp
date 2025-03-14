@@ -21,6 +21,7 @@ bool operator==(const helper_t& a_lhs, const helper_t& a_rhs) { return a_lhs.m_i
 ////////////////////////////////////////////////////
 ////////////////// MAKER FUNCTIONS /////////////////
 ////////////////////////////////////////////////////
+
 bool_node zero()
 {
     return bool_node(zero_t{}, {});
@@ -110,53 +111,8 @@ std::ostream& operator<<(std::ostream& a_ostream, const bool_node& a_node)
 }
 
 ////////////////////////////////////////////////////
-//////////////// RULES OF REPLACEMENT //////////////
+/////////////// UNIFICATION & PARAMS ///////////////
 ////////////////////////////////////////////////////
-
-std::list<two_way_rule> g_two_way_rules =
-{
-    // basic rules involving 1 and 0
-    {zero(), invert(one())},
-    {zero(), disjoin(zero(), zero())},
-    {zero(), conjoin(zero(), zero())},
-    {zero(), conjoin(zero(),  one())},
-    {zero(), conjoin(one(),  zero())},
-    {one(), invert(zero())},
-    {one(), disjoin(zero(), one())},
-    {one(), disjoin(one(), zero())},
-    {one(), disjoin(one(), one())},
-    {one(), conjoin(one(), one())},
-
-    // andtrue, orfalse
-    {param(0), conjoin(param(0), one())},
-    {param(0), disjoin(param(0), zero())},
-
-    // summoning rules
-    {zero(), conjoin(invert(param(0)), param(0))},
-    {one (), disjoin(invert(param(0)), param(0))},
-
-    // associativity
-    {conjoin(param(0), conjoin(param(1), param(2))), conjoin(conjoin(param(0), param(1)), param(2))},
-    {disjoin(param(0), disjoin(param(1), param(2))), disjoin(disjoin(param(0), param(1)), param(2))},
-
-    // commutativity
-    {conjoin(param(0), param(1)), conjoin(param(1), param(0))},
-    {disjoin(param(0), param(1)), disjoin(param(1), param(0))},
-
-    // double-negation
-    {param(0), invert(invert(param(0)))},
-    
-    // demorgans
-    {invert(conjoin(param(0), param(1))), disjoin(invert(param(0)), invert(param(1)))},
-    {invert(disjoin(param(0), param(1))), conjoin(invert(param(0)), invert(param(1)))},
-
-    // absorption
-    {disjoin(param(0), conjoin(param(0), param(1))), param(0)},
-    {conjoin(param(0), disjoin(param(0), param(1))), param(0)},
-    {disjoin(param(0), param(0)), param(0)},
-    {conjoin(param(0), param(0)), param(0)},
-
-};
 
 // unifies a parameterized lhs with a concrete rhs, leaving a bindings map
 bool unify(
@@ -191,6 +147,8 @@ bool unify(
 
 }
 
+// takes a lhs which contains parameters. It replaces each parameter with the value of its binding. If no binding is present, a goal
+//     is produced, and that parameter is bound to and replaced with that new goal.
 bool_node substitute_params(const bool_node& a_original, std::map<size_t, bool_node>& a_bindings, std::list<two_way_rule>& a_helpers)
 {
     // look up param if parameter
@@ -215,22 +173,77 @@ bool_node substitute_params(const bool_node& a_original, std::map<size_t, bool_n
     return bool_node(a_original.m_data, l_result_children);
 }
 
+////////////////////////////////////////////////////
+//////////////// RULES OF REPLACEMENT //////////////
+////////////////////////////////////////////////////
+
+std::list<two_way_rule> g_two_way_rules =
+{
+    // invert rules
+    {invert(zero()), one()},
+    {invert(one()), zero()},
+
+    // disjoin rules
+    {disjoin(param(0), one()), one()},
+    {disjoin(zero(), zero()), zero()},
+
+    // conjoin rules
+    {conjoin(param(0), zero()), zero()},
+    {conjoin(one(), one()), one()},
+
+    // andtrue, orfalse
+    {param(0), conjoin(param(0), one())},
+    {param(0), disjoin(param(0), zero())},
+
+    // annihilation rules
+    {conjoin(invert(param(0)), param(0)), zero()},
+    {disjoin(invert(param(0)), param(0)), one ()},
+
+    // associativity
+    {conjoin(param(0), conjoin(param(1), param(2))), conjoin(conjoin(param(0), param(1)), param(2))},
+    {disjoin(param(0), disjoin(param(1), param(2))), disjoin(disjoin(param(0), param(1)), param(2))},
+
+    // commutativity
+    {conjoin(param(0), param(1)), conjoin(param(1), param(0))},
+    {disjoin(param(0), param(1)), disjoin(param(1), param(0))},
+
+    // double-negation
+    {param(0), invert(invert(param(0)))},
+    
+    // demorgans
+    {invert(conjoin(param(0), param(1))), disjoin(invert(param(0)), invert(param(1)))},
+    {invert(disjoin(param(0), param(1))), conjoin(invert(param(0)), invert(param(1)))},
+
+    // absorption
+    {disjoin(param(0), conjoin(param(0), param(1))), param(0)},
+    {conjoin(param(0), disjoin(param(0), param(1))), param(0)},
+    {disjoin(param(0), param(0)), param(0)},
+    {conjoin(param(0), param(0)), param(0)},
+
+    // distribution
+    {conjoin(param(0), disjoin(param(1), param(2))), disjoin(conjoin(param(0), param(1)), conjoin(param(0), param(2)))},
+    {disjoin(param(0), conjoin(param(1), param(2))), conjoin(disjoin(param(0), param(1)), disjoin(param(0), param(2)))},
+
+};
+
 // staging function, takes a pair specifying a two-way rule, and stages the evaluation of the forward rule
 std::function<void()> stage_rule_fwd(bool_node& a_node, const std::pair<bool_node, bool_node>& a_pair, std::list<two_way_rule>& a_helpers)
 {
     std::map<size_t, bool_node> l_bindings;
     if (!unify(a_pair.first, a_node, l_bindings))
         return nullptr;
-    return [&a_node, &a_pair, &l_bindings, &a_helpers] { a_node = substitute_params(a_pair.second, l_bindings, a_helpers); };
+    return [&a_node, &a_pair, l_bindings, &a_helpers]
+    {
+        std::map<size_t, bool_node> l_curried_bindings = l_bindings;
+        a_node = substitute_params(a_pair.second, l_curried_bindings, a_helpers);
+    };
 }
 
 // staging function, takes a pair specifying a two-way rule, and stages the evaluation of the backward rule
 std::function<void()> stage_rule_bwd(bool_node& a_node, const std::pair<bool_node, bool_node>& a_pair, std::list<two_way_rule>& a_helpers)
 {
-    std::map<size_t, bool_node> l_bindings;
-    if (!unify(a_pair.second, a_node, l_bindings))
-        return nullptr;
-    return [&a_node, &a_pair, &l_bindings, &a_helpers] { a_node = substitute_params(a_pair.first, l_bindings, a_helpers); };
+    // just swap order of pair, and refer to stage_rule_fwd
+    return stage_rule_fwd(a_node, {a_pair.second, a_pair.first}, a_helpers);
 }
 
 ////////////////////////////////////////////////////
@@ -320,6 +333,23 @@ void test_helper_construct_and_equality_check()
     helper_t* l_data;
     assert(l_data = std::get_if<helper_t>(&l_node.m_data));
     assert(l_data->m_index == 2);
+}
+
+void test_new_goal()
+{
+    std::list<two_way_rule> l_helpers;
+
+    assert(new_goal(l_helpers) == helper(0, {}));
+    assert(l_helpers.size() == 1);
+    assert((l_helpers.back() == two_way_rule{helper(0, {}), helper(0, {})}));
+    
+    assert(new_goal(l_helpers) == helper(1, {}));
+    assert(l_helpers.size() == 2);
+    assert((l_helpers.back() == two_way_rule{helper(1, {}), helper(1, {})}));
+    
+    assert(new_goal(l_helpers) == helper(2, {}));
+    assert(l_helpers.size() == 3);
+    assert((l_helpers.back() == two_way_rule{helper(2, {}), helper(2, {})}));
 }
 
 void test_bool_node_ostream_inserter()
@@ -437,41 +467,326 @@ void test_unify()
 
 void test_substitute_params()
 {
-    std::map<size_t, bool_node> l_bindings =
+    
     {
-        {0, invert(var(1))},
-        {1, disjoin(var(0), var(3))},
-        {2, invert(conjoin(var(4), var(5)))},
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with 0 params
+        assert(disjoin(var(1), var(2)) == substitute_params(disjoin(var(1), var(2)), l_bindings, l_helpers));
+        assert(l_helpers.size() == 0);    
+    }
+
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with 1 params
+        assert(disjoin(var(1), invert(invert(conjoin(var(4), var(5))))) == substitute_params(disjoin(var(1), invert(param(2))), l_bindings, l_helpers));
+        assert(l_helpers.size() == 0);
+    }
+    
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with 2 params
+        assert(disjoin(invert(var(1)), disjoin(var(0), var(3))) == substitute_params(disjoin(param(0), param(1)), l_bindings, l_helpers));
+        assert(l_helpers.size() == 0);
+    }
+
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with unbound params
+        assert(helper(0, {}) == substitute_params(param(3), l_bindings, l_helpers));
+        assert(l_bindings.size() == 4);
+        assert(l_helpers.size() == 1);
+    }
+
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with multiple unbound params
+        assert(disjoin(helper(0, {}), helper(1, {})) == substitute_params(disjoin(param(3), param(4)), l_bindings, l_helpers));
+        assert(l_bindings.size() == 5);
+        assert(l_helpers.size() == 2);
+    }
+
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with multiple unbound params, and multiple occurrances of same param
+        assert(disjoin(helper(0, {}), helper(0, {})) == substitute_params(disjoin(param(3), param(3)), l_bindings, l_helpers));
+        assert(l_bindings.size() == 4);
+        assert(l_helpers.size() == 1);
+    }
+
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers;
+        // sub with multiple unbound params, and multiple occurrances of same param
+        assert(disjoin(helper(0, {}), helper(0, {})) == substitute_params(disjoin(param(3), param(3)), l_bindings, l_helpers));
+        assert(l_bindings.size() == 4);
+        assert(l_helpers.size() == 1);
+    }
+
+    {
+        std::map<size_t, bool_node> l_bindings =
+        {
+            {0, invert(var(1))},
+            {1, disjoin(var(0), var(3))},
+            {2, invert(conjoin(var(4), var(5)))},
+        };
+        std::list<two_way_rule> l_helpers
+        {
+            {helper(0, {}), helper(0, {})},
+            {helper(1, {param(0)}), invert(invert(invert(param(0))))}, // just random helper definitions
+        };
+        // test with helpers already present
+        // sub with multiple unbound params, and multiple occurrances of same param
+        assert(disjoin(helper(2, {}), helper(2, {})) == substitute_params(disjoin(param(3), param(3)), l_bindings, l_helpers));
+        assert(l_bindings.size() == 4);
+        assert(l_helpers.size() == 3);
+    }
+}
+
+void test_stage_rule_fwd()
+{
+    // THIS IS ONE OF THE MOST IMPORTANT TEST FUNCTIONS, AS
+    //     THIS stage_rule_fwd IS ONE OF THE MOST USED FXNS
+    //     AND IT IS COMPLEX.
+
+    struct test_data
+    {
+        bool_node               m_original_node;
+        std::list<two_way_rule> m_original_helpers;
+        bool_node               m_final_node;
+        std::list<two_way_rule> m_final_helpers;
     };
 
-    std::list<two_way_rule> l_helpers;
+    data_points<two_way_rule, test_data> l_data_points
+    {
+        {
+            two_way_rule{ zero(), invert(one()) },
+            test_data{
+                zero(),
+                {},
+                invert(one()),
+                {},
+            },
+        },
+        {
+            two_way_rule{ param(0), invert(invert(param(0))) },
+            test_data{
+                var(0),
+                {},
+                invert(invert(var(0))),
+                {},
+            },
+        },
+        {
+            two_way_rule{ disjoin(param(0), param(0)), param(0) },
+            test_data{
+                disjoin(var(0), var(0)),
+                {},
+                var(0),
+                {},
+            },
+        },
+        {
+            two_way_rule{ disjoin(param(0), param(0)), param(0) },
+            test_data{
+                disjoin(var(3), var(3)),
+                {},
+                var(3),
+                {},
+            },
+        },
+        {
+            two_way_rule{ param(0), conjoin(param(0), param(0)) },
+            test_data{
+                var(5),
+                {},
+                conjoin(var(5), var(5)),
+                {},
+            },
+        },
+        {
+            two_way_rule{ param(0), conjoin(param(0), param(0)) },
+            test_data{
+                helper(0, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+                conjoin(helper(0, {}), helper(0, {})),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+            },
+        },
+        {
+            two_way_rule{ zero(), conjoin(zero(), param(0)) },
+            test_data{
+                zero(),
+                {},
+                conjoin(zero(), helper(0, {})),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+            },
+        },
+        {
+            two_way_rule{ conjoin(disjoin(param(0), invert(param(1))), disjoin(param(2), param(1))), disjoin(param(0), param(2)) },
+            test_data{
+                conjoin(disjoin(var(13), invert(var(10))), disjoin(var(14), var(10))),
+                {},
+                disjoin(var(13), var(14)),
+                {},
+            },
+        },
+        {
+            two_way_rule{ disjoin(param(0), param(2)), conjoin(disjoin(param(0), invert(param(1))), disjoin(param(2), param(1))) },
+            test_data{
+                disjoin(var(13), var(14)),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+                conjoin(disjoin(var(13), invert(helper(1, {}))), disjoin(var(14), helper(1, {}))),
+                {
+                    {helper(0, {}), helper(0, {})},
+                    {helper(1, {}), helper(1, {})},
+                },
+            },
+        },
+        {
+            two_way_rule{ helper(0, {}), invert(var(0)) }, // contrived example
+            test_data{
+                helper(0, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+                invert(var(0)),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+            },
+        },
+    };
 
-    // sub with 0 params
-    assert(disjoin(var(1), var(2)) == substitute_params(disjoin(var(1), var(2)), l_bindings, l_helpers));
-    assert(l_helpers.size() == 0);
+    // loop thru checking all test data points
+    for (const auto& [l_rule, l_data] : l_data_points)
+    {
+        // construct test fields
+        bool_node l_node = l_data.m_original_node;
+        std::list<two_way_rule> l_helpers = l_data.m_original_helpers;
+        // stage change
+        auto l_staged = stage_rule_fwd(l_node, l_rule, l_helpers);
+        // make sure staging succeeded
+        assert(l_staged != nullptr);
+        // make sure everything is the same still
+        assert(l_node == l_data.m_original_node);
+        assert(l_helpers == l_data.m_original_helpers);
+        // commit change
+        l_staged();
+        std::cout << l_node << std::endl;
+        assert(l_node == l_data.m_final_node);
+        assert(l_helpers == l_data.m_final_helpers);
+    }
 
-    // sub with 1 params
-    assert(disjoin(var(1), invert(invert(conjoin(var(4), var(5))))) == substitute_params(disjoin(var(1), invert(param(2))), l_bindings, l_helpers));
-    assert(l_helpers.size() == 0);
+    struct failure_test_data
+    {
+        bool_node               m_original_node;
+        std::list<two_way_rule> m_original_helpers;
+    };
 
-    // sub with 2 params
-    assert(disjoin(invert(var(1)), disjoin(var(0), var(3))) == substitute_params(disjoin(param(0), param(1)), l_bindings, l_helpers));
-    assert(l_helpers.size() == 0);
+    // designate some failure tests (staging should fail)
+    data_points<two_way_rule, failure_test_data> l_failure_tests =
+    {
+        {
+            two_way_rule{ zero(), invert(one()) },
+            failure_test_data{
+                one(),
+                {},
+            },
+        },
+        {
+            two_way_rule{ zero(), invert(one()) },
+            failure_test_data{
+                var(0),
+                {},
+            },
+        },
+        {
+            two_way_rule{ disjoin(param(0), param(0)), param(0) },
+            failure_test_data{
+                disjoin(var(3), var(4)),
+                {},
+            },
+        },
+        {
+            two_way_rule{ conjoin(disjoin(param(0), invert(param(1))), disjoin(param(2), param(1))), disjoin(param(0), param(2)) },
+            failure_test_data{
+                conjoin(disjoin(var(13), invert(var(10))), disjoin(var(14), var(11))),
+                {},
+            },
+        },
+        {
+            two_way_rule{ helper(0, {}), invert(var(0)) }, // contrived example
+            failure_test_data{
+                var(1),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+            },
+        },
+    };
 
-    // sub with unbound params
-    assert(helper(0, {}) == substitute_params(param(3), l_bindings, l_helpers));
-    assert(l_bindings.size() == 4);
-    assert(l_helpers.size() == 1);
-
-    // sub with multiple unbound params
-    assert(disjoin(helper(1, {}), helper(2, {})) == substitute_params(disjoin(param(4), param(5)), l_bindings, l_helpers));
-    assert(l_bindings.size() == 6);
-    assert(l_helpers.size() == 3);
-
-    // sub with multiple unbound params, and multiple occurrances of same param
-    assert(disjoin(helper(3, {}), helper(3, {})) == substitute_params(disjoin(param(6), param(6)), l_bindings, l_helpers));
-    assert(l_bindings.size() == 7);
-    assert(l_helpers.size() == 4);
+    for (const auto& [l_rule, l_data] : l_failure_tests)
+    {
+        // construct test fields
+        bool_node l_node = l_data.m_original_node;
+        std::list<two_way_rule> l_helpers = l_data.m_original_helpers;
+        // stage change
+        auto l_staged = stage_rule_fwd(l_node, l_rule, l_helpers);
+        // make sure staging failed
+        assert(l_staged == nullptr);
+        // make sure everything is the same still
+        assert(l_node == l_data.m_original_node);
+        assert(l_helpers == l_data.m_original_helpers);
+    }
     
 }
 
@@ -486,10 +801,12 @@ void bool_reduce_test_main()
     TEST(test_disjoin_construct_and_equality_check);
     TEST(test_conjoin_construct_and_equality_check);
     TEST(test_param_construct_and_equality_check);
-    TEST(test_helper_construct_and_equality_check);
+    TEST(test_helper_construct_and_equality_check)
+    TEST(test_new_goal);
     TEST(test_bool_node_ostream_inserter);
     TEST(test_unify);
     TEST(test_substitute_params);
+    TEST(test_stage_rule_fwd);
     
 }
 

@@ -194,7 +194,7 @@ bool_node build_model(
     ////////////////////////////////////////////////////
     //////////////// CONSTRUCT HELPERS /////////////////
     ////////////////////////////////////////////////////
-    std::vector<choice_t> l_choices {terminate_t{}, make_function_t{}};
+    std::vector<choice_t> l_termination_choices {terminate_t{}, make_function_t{}};
     
     choice_t l_choice;
 
@@ -206,7 +206,7 @@ bool_node build_model(
         l_helper_arities.push_back(l_helper_arity);
         l_helpers.push_back(l_helper);
         
-        l_choice = a_simulation.choose(l_choices);
+        l_choice = a_simulation.choose(l_termination_choices);
     }
     while(std::get_if<make_function_t>(&l_choice));
 
@@ -233,7 +233,6 @@ bool_node build_model(
 
     // construct the final node
     return helper(a_helpers.size() - 1, l_model_children);
-
 }
 
 ////////////////////////////////////////////////////
@@ -242,6 +241,7 @@ bool_node build_model(
 #ifdef UNIT_TEST
 
 #include <sstream>
+#include <random>
 #include "test_utils.hpp"
 
 void test_zero_construct_and_equality_check()
@@ -360,6 +360,53 @@ void test_bool_node_ostream_inserter()
     
 }
 
+void test_build_function()
+{
+    
+    struct test_data
+    {
+        uint32_t m_rnd_gen_seed;
+        std::vector<size_t> m_helper_arities;
+        size_t    m_desired_func_arity;
+        bool_node m_desired_func;
+    };
+    
+    std::list<test_data> l_examples
+    {
+        test_data{
+            17,
+            {},
+            0,
+            one(),
+        },
+        test_data{
+            18,
+            {},
+            0,
+            invert(zero()),
+        },
+        test_data{
+            20,
+            {},
+            4,
+            invert(conjoin(conjoin(conjoin(conjoin(var(0), var(1)), var(2)), zero()), var(3))),
+        },
+    };
+    
+    for (const test_data& l_example : l_examples)
+    {
+        std::mt19937 l_rnd_gen(l_example.m_rnd_gen_seed);
+        monte_carlo::tree_node<choice_t> l_root;
+        monte_carlo::simulation<choice_t, std::mt19937> l_sim(l_root, 5, l_rnd_gen);
+        size_t    l_func_arity = 0;
+        bool_node l_func = build_function(l_func_arity, l_example.m_helper_arities, l_sim, 5);
+        std::cout << l_func << std::endl;
+        assert(l_func_arity == l_example.m_desired_func_arity);
+        assert(l_func == l_example.m_desired_func);
+    }
+    
+}
+
 void bool_reduce_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -372,6 +419,7 @@ void bool_reduce_test_main()
     TEST(test_conjoin_construct_and_equality_check);
     TEST(test_helper_construct_and_equality_check);
     TEST(test_bool_node_ostream_inserter);
+    TEST(test_build_function);
     
 }
 

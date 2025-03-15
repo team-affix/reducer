@@ -5,6 +5,7 @@
 #include <ostream>
 #include <list>
 #include "node.hpp"
+#include "../mcts/include/mcts.hpp"
 
 ////////////////////////////////////////////////////
 ////////////////// NODE DATA TYPES /////////////////
@@ -15,7 +16,6 @@ struct var_t     { size_t m_index; };
 struct invert_t  {};
 struct disjoin_t {};
 struct conjoin_t {};
-struct param_t   { size_t m_index; };
 struct helper_t  { size_t m_index; };
 
 // equality comparisons
@@ -25,7 +25,6 @@ bool operator==(const var_t&, const var_t&);
 bool operator==(const invert_t&, const invert_t&);
 bool operator==(const disjoin_t&, const disjoin_t&);
 bool operator==(const conjoin_t&, const conjoin_t&);
-bool operator==(const param_t&, const param_t&);
 bool operator==(const helper_t&, const helper_t&);
 
 // less than comparisons
@@ -35,7 +34,6 @@ bool operator<(const var_t&, const var_t&);
 bool operator<(const invert_t&, const invert_t&);
 bool operator<(const disjoin_t&, const disjoin_t&);
 bool operator<(const conjoin_t&, const conjoin_t&);
-bool operator<(const param_t&, const param_t&);
 bool operator<(const helper_t&, const helper_t&);
 
 // define the data type for the expression nodes
@@ -46,7 +44,6 @@ using bool_op_data = std::variant<
     invert_t,
     disjoin_t,
     conjoin_t,
-    param_t,
     helper_t>;
 
 using bool_node = node<bool_op_data>;
@@ -60,7 +57,6 @@ bool_node var(size_t a_index);
 bool_node invert(const node<bool_op_data>& a_x);
 bool_node disjoin(const node<bool_op_data>& a_x, const node<bool_op_data>& a_y);
 bool_node conjoin(const node<bool_op_data>& a_x, const node<bool_op_data>& a_y);
-bool_node param(size_t a_index);
 bool_node helper(size_t a_index, const std::vector<node<bool_op_data>>& a_children);
 
 ////////////////////////////////////////////////////
@@ -68,5 +64,16 @@ bool_node helper(size_t a_index, const std::vector<node<bool_op_data>>& a_childr
 ////////////////////////////////////////////////////
 std::ostream& operator<<(std::ostream& a_ostream, const bool_node& a_node);
 
+////////////////////////////////////////////////////
+/////////////////// CHOICE TYPES ///////////////////
+////////////////////////////////////////////////////
+struct terminate_t     {};
+struct make_function_t {};
+
+using choice_t = std::variant<bool_op_data, terminate_t, make_function_t>;
+
+// less than comparisons
+bool operator<(const terminate_t&,const terminate_t&);
+bool operator<(const make_function_t&,const make_function_t&);
 
 #endif

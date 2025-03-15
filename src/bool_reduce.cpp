@@ -1,5 +1,6 @@
 #include <map>
 #include <functional>
+#include <set>
 #include "include/bool_reduce.hpp"
 
 using replacement_rule = std::pair<bool_node, bool_node>;
@@ -207,14 +208,73 @@ std::function<void()> stage_rule_bwd(bool_node& a_node, const std::pair<bool_nod
     return stage_rule_fwd(a_node, {a_pair.second, a_pair.first}, a_helpers);
 }
 
+bool is_resolved_goal(size_t a_goal_index, const std::map<bool_node, bool_node>& a_helpers)
+{
+    // look up helper in map
+    auto l_binding = a_helpers.find(helper(a_goal_index, {}));
+
+    // if helper DNE, it is not even a helper
+    if (l_binding == a_helpers.end())
+        return false;
+
+    // if first == second, unresolved. else resolved
+    return l_binding->first != l_binding->second;
+}
+
+// gets a set of fundamental dependencies of the expression. These are terminal dependencies
+void get_fundamental_dependencies(std::set<bool_node>& a_result, const bool_node& a_node, const std::map<bool_node, bool_node>& a_helpers)
+{
+    if (const helper_t* l_helper_data = std::get_if<helper_t>(&a_node.m_data))
+    {
+        // look up helper in map
+        auto l_binding = a_helpers.find(a_node);
+
+        if (l_binding->first != l_binding->second)
+        {
+            // if goal is resolved, get the dependencies of the definition
+            get_fundamental_dependencies(a_result, l_binding->second, a_helpers);
+            return;
+        }
+    }
+
+    if (a_node.m_children.size() == 0)
+    {
+        a_result.insert(a_node);
+        return;
+    }
+
+    for (const auto& l_child : a_node.m_children)
+        get_fundamental_dependencies(a_result, l_child, a_helpers);
+
+}
+
 // staging function, takes a goal that is to be resolved and stages definition of that goal
-// std::function<void()> stage_resolve_goal(bool_node& a_goal, const bool_node& a_rule_value, std::map<bool_node, bool_node>& a_helpers)
-// {
-//     const helper_t* l_helper = std::get_if<helper_t>(&a_goal.m_data);
-//     if (!l_helper)
-//         return nullptr;
-    
-// }
+std::function<void()> stage_resolve_goal(const bool_node& a_goal, const bool_node& a_rule_value, std::map<bool_node, bool_node>& a_helpers)
+{
+    // look up helper in map
+    auto l_binding = a_helpers.find(a_goal);
+
+    // if helper DNE, staging fails
+    if (l_binding == a_helpers.end())
+        return nullptr;
+
+    // check if self-defined. If so, it is an unresolved goal.
+    //     If not equal, some other kind of helper (maybe a resolved goal).
+    if (l_binding->second != l_binding->first)
+        return nullptr;
+
+    // commit function simply resolves the entry in the helper map.
+    return [&a_goal, &a_rule_value, &a_helpers, l_binding]
+    {
+        const helper_t& l_helper_data = std::get<helper_t>(a_goal.m_data);
+        
+        std::map<size_t, bool_node> l_bindings;
+        
+        l_binding->second = substitute_params(a_rule_value, l_bindings, a_helpers);
+
+    };
+
+}
 
 ////////////////////////////////////////////////////
 //////////////// RULES OF REPLACEMENT //////////////
@@ -634,7 +694,7 @@ void test_stage_rule_fwd()
         std::map<bool_node, bool_node> m_final_helpers;
     };
 
-    data_points<replacement_rule, test_data> l_data_points
+    const data_points<replacement_rule, test_data> l_data_points
     {
         {
             replacement_rule{ zero(), invert(one()) },
@@ -758,7 +818,7 @@ void test_stage_rule_fwd()
         assert(l_helpers == l_data.m_original_helpers);
         // commit change
         l_staged();
-        std::cout << l_node << std::endl;
+        // std::cout << l_node << std::endl;
         assert(l_node == l_data.m_final_node);
         assert(l_helpers == l_data.m_final_helpers);
     }
@@ -770,7 +830,7 @@ void test_stage_rule_fwd()
     };
 
     // designate some failure tests (staging should fail)
-    data_points<replacement_rule, failure_test_data> l_failure_tests =
+    const data_points<replacement_rule, failure_test_data> l_failure_tests =
     {
         {
             replacement_rule{ zero(), invert(one()) },
@@ -827,6 +887,141 @@ void test_stage_rule_fwd()
     
 }
 
+void test_stage_resolve_goal()
+{
+    struct test_data
+    {
+        bool_node                      m_goal;
+        std::map<bool_node, bool_node> m_original_helpers;
+        std::map<bool_node, bool_node> m_final_helpers;
+    };
+
+    const data_points<bool_node, test_data> l_data_points
+    {
+        {
+            zero(),
+            {
+                helper(0, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+                {
+                    {helper(0, {}), zero()},
+                },
+            }
+        },
+        {
+            one(),
+            {
+                helper(0, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+                {
+                    {helper(0, {}), one()},
+                },
+            }
+        },
+        {
+            var(11),
+            {
+                helper(0, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                },
+                {
+                    {helper(0, {}), var(11)},
+                },
+            }
+        },
+        {
+            var(11),
+            {
+                helper(0, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                    {helper(1, {}), helper(1, {})},
+                },
+                {
+                    {helper(0, {}), var(11)},
+                    {helper(1, {}), helper(1, {})},
+                },
+            }
+        },
+        {
+            var(11),
+            {
+                helper(1, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                    {helper(1, {}), helper(1, {})},
+                },
+                {
+                    {helper(0, {}), helper(0, {})},
+                    {helper(1, {}), var(11)},
+                },
+            }
+        },
+        {
+            helper(2, {}),
+            {
+                helper(1, {}),
+                {
+                    {helper(0, {}), helper(0, {})},
+                    {helper(1, {}), helper(1, {})},
+                    {helper(2, {}), helper(2, {})},
+                },
+                {
+                    {helper(0, {}), helper(0, {})},
+                    {helper(1, {}), helper(2, {})},
+                    {helper(2, {}), helper(2, {})},
+                },
+            }
+        }
+    };
+
+    // loop thru checking all test data points
+    for (const auto& [l_rule_value, l_data] : l_data_points)
+    {
+        // construct test fields
+        std::map<bool_node, bool_node> l_helpers = l_data.m_original_helpers;
+        // stage change
+        auto l_staged = stage_resolve_goal(l_data.m_goal, l_rule_value, l_helpers);
+        // make sure staging succeeded
+        assert(l_staged != nullptr);
+        // make sure everything is the same still
+        assert(l_helpers == l_data.m_original_helpers);
+        // commit change
+        l_staged();
+        assert(l_helpers == l_data.m_final_helpers);
+    }
+
+    struct failure_test_data
+    {
+        bool_node                      m_goal;
+        std::map<bool_node, bool_node> m_original_helpers;
+    };
+
+    // designate some failure tests (staging should fail)
+    const data_points<bool_node, failure_test_data> l_failure_tests =
+    {
+        
+    };
+
+    for (const auto& [l_rule_value, l_data] : l_failure_tests)
+    {
+        // construct test fields
+        std::map<bool_node, bool_node> l_helpers = l_data.m_original_helpers;
+        // stage change
+        auto l_staged = stage_resolve_goal(l_data.m_goal, l_rule_value, l_helpers);
+        // make sure staging failed
+        assert(l_staged == nullptr);
+        // make sure everything is the same still
+        assert(l_helpers == l_data.m_original_helpers);
+    }
+    
+}
+
 void bool_reduce_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -844,6 +1039,7 @@ void bool_reduce_test_main()
     TEST(test_unify);
     TEST(test_substitute_params);
     TEST(test_stage_rule_fwd);
+    TEST(test_stage_resolve_goal);
     
 }
 

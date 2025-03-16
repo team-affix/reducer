@@ -391,6 +391,65 @@ void test_build_function()
             4,
             invert(conjoin(conjoin(conjoin(conjoin(var(0), var(1)), var(2)), zero()), var(3))),
         },
+        test_data{
+            23,
+            {
+                1,
+            },
+            0,
+            invert(disjoin(helper(0, {one()}), conjoin(conjoin(one(), disjoin(zero(), one())) ,disjoin(one(), one())))),
+        },
+        test_data{
+            24,
+            {
+                1,
+                2,
+                3,
+                4,
+            },
+            4,
+            helper(3, {
+                var(0),
+                helper(0, {zero()}),
+                helper(3, {
+                    var(1),
+                    var(0),
+                    helper(3, {
+                        var(2),
+                        invert(helper(0, {var(2)})),
+                        helper(3, {
+                            invert(one()),
+                            conjoin(zero(), one()),
+                            var(2),
+                            disjoin(one(), zero()),
+                        }),
+                        var(2),
+                    }),
+                    conjoin(
+                        helper(0, {var(3)}),
+                        helper(2, {
+                            helper(2, {
+                                var(1),
+                                var(3),
+                                one(),
+                            }),
+                            var(1),
+                            conjoin(var(1), var(1)),
+                        })
+                    ),
+                }),
+                invert(
+                    invert(
+                        helper(3, {
+                            helper(2, {var(1), var(3), var(0)}),
+                            var(2),
+                            invert(var(2)),
+                            invert(var(2)),
+                        })
+                    )
+                )
+            }),
+        },
     };
     
     for (const test_data& l_example : l_examples)

@@ -293,9 +293,9 @@ bool_node learn_model(
         std::vector<size_t>    l_helper_arities = a_helper_arities;
         std::vector<bool_node> l_helpers = a_helpers;
 
-        monte_carlo::simulation<choice_t, std::mt19937> l_sim(l_root, 15000, l_rnd_gen);
+        monte_carlo::simulation<choice_t, std::mt19937> l_sim(l_root, 1000, l_rnd_gen);
 
-        bool_node l_model = build_model(a_arity, l_helper_arities, l_helpers, l_sim, 5);
+        bool_node l_model = build_model(a_arity, l_helper_arities, l_helpers, l_sim, 3);
 
         for (const auto& l_helper : l_helpers)
             std::cout << l_helper << std::endl;

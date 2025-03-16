@@ -27,20 +27,20 @@ int main()
 {
     unit_test_main();
     
-    node n1 = var(10);
-    std::cout << n1 << std::endl;
-    node n2 = conjoin(
-        invert(var(10)),
-        disjoin(
-            var(11),
-            var(12)
-        )
-    );
-    std::cout << n2 << std::endl;
-    node n3 = helper(0, {disjoin(var(13), var(12)), var(14)});
-    std::cout << n3 << std::endl;
-    node n4 = disjoin(one(), zero());
-    std::cout << n4 << std::endl;
+    // node n1 = var(10);
+    // std::cout << n1 << std::endl;
+    // node n2 = conjoin(
+    //     invert(var(10)),
+    //     disjoin(
+    //         var(11),
+    //         var(12)
+    //     )
+    // );
+    // std::cout << n2 << std::endl;
+    // node n3 = helper(0, {disjoin(var(13), var(12)), var(14)});
+    // std::cout << n3 << std::endl;
+    // node n4 = disjoin(one(), zero());
+    // std::cout << n4 << std::endl;
     
     // std::cout << (n1 == n2) << std::endl;
     // node n4 = op(101, {disjoin(var(13), var(12)), var(14)});

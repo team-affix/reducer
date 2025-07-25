@@ -3,9 +3,7 @@
 
 #include <variant>
 #include <ostream>
-#include <list>
 #include "node.hpp"
-#include "../mcts/include/mcts.hpp"
 
 ////////////////////////////////////////////////////
 ////////////////// NODE DATA TYPES /////////////////

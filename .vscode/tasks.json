@@ -16,10 +16,21 @@
             "type": "shell",
             "command": "make release",
             "group": {
-                "kind": "build",
-                "isDefault": true
+                "kind": "build"
             },
             "problemMatcher": []
         },
+        {
+            "label": "set_intellisense_debug",
+            "type": "shell",
+            "command": "cp .clangd-debug .clangd",
+            "problemMatcher": []
+        },
+        {
+            "label": "set_intellisense_release",
+            "type": "shell",
+            "command": "cp .clangd-release .clangd",
+            "problemMatcher": []
+        }
     ]
 }

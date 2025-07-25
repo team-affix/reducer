@@ -1,7 +1,8 @@
 #include <map>
-#include <functional>
 #include <iostream>
-#include "include/bool_reduce.hpp"
+#include <random>
+#include "../mcts/include/mcts.hpp"
+#include "../include/bool_reduce.hpp"
 
 using replacement_rule = std::pair<bool_node, bool_node>;
 
@@ -33,31 +34,31 @@ bool operator<(const helper_t& a_lhs, const helper_t& a_rhs) { return a_lhs.m_in
 
 bool_node zero()
 {
-    return bool_node(zero_t{}, {});
+    return bool_node{zero_t{}, {}};
 }
 bool_node one()
 {
-    return bool_node(one_t{}, {});
+    return bool_node{one_t{}, {}};
 }
 bool_node var(size_t a_index)
 {
-    return bool_node(var_t{a_index}, {});
+    return bool_node{var_t{a_index}, {}};
 }
 bool_node invert(const bool_node& a_x)
 {
-    return bool_node(invert_t{}, {a_x});
+    return bool_node{invert_t{}, {a_x}};
 }
 bool_node disjoin(const bool_node& a_x, const bool_node& a_y)
 {
-    return bool_node(disjoin_t{}, {a_x, a_y});
+    return bool_node{disjoin_t{}, {a_x, a_y}};
 }
 bool_node conjoin(const bool_node& a_x, const bool_node& a_y)
 {
-    return bool_node(conjoin_t{}, {a_x, a_y});
+    return bool_node{conjoin_t{}, {a_x, a_y}};
 }
 bool_node helper(size_t a_index, const std::vector<bool_node>& a_children)
 {
-    return bool_node(helper_t{a_index}, a_children);
+    return bool_node{helper_t{a_index}, a_children};
 }
 
 ////////////////////////////////////////////////////
@@ -175,7 +176,7 @@ bool_node build_function(
     ////////////////////////////////////////////////////
     //////////////// CONSTRUCT THE NODE ////////////////
     ////////////////////////////////////////////////////
-    return bool_node(l_op_data, l_children);
+    return bool_node{l_op_data, l_children};
 
 }
 
@@ -223,7 +224,7 @@ bool_node build_model(
     {
         choice_t l_choice = a_simulation.choose(l_mapping_choices);
         const bool_op_data l_op_data = std::get<bool_op_data>(l_choice);
-        l_model_children.push_back(bool_node(l_op_data, {}));
+        l_model_children.push_back(bool_node{l_op_data, {}});
     }
 
     // construct the final node

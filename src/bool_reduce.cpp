@@ -167,7 +167,7 @@ bool operator<(const make_function_t&,
 }
 
 bool evaluate(const bool_node& a_expr,
-              const std::vector<bool_node>& a_helpers,
+              const std::vector<function>& a_helpers,
               const std::vector<bool>& a_x)
 {
     if(std::get_if<zero_t>(&a_expr.m_data))
@@ -193,14 +193,22 @@ bool evaluate(const bool_node& a_expr,
     if(const helper_t* l_helper =
            std::get_if<helper_t>(&a_expr.m_data))
     {
-        std::vector<bool> l_helper_x;
+        // get the helper function
+        const function& l_helper_function =
+            a_helpers[l_helper->m_index];
 
-        for(const auto& l_child : a_expr.m_children)
+        // initialize the helper x to the input x (in-scope
+        // vars are inherited)
+        std::vector<bool> l_helper_x = a_x;
+
+        // evaluate the arguments
+        for(const auto& l_argument : a_expr.m_children)
             l_helper_x.push_back(
-                evaluate(l_child, a_helpers, a_x));
+                evaluate(l_argument, a_helpers, a_x));
 
-        return evaluate(a_helpers[l_helper->m_index],
-                        a_helpers, l_helper_x);
+        return evaluate(l_helper_function.m_definition,
+                        l_helper_function.m_helpers,
+                        l_helper_x);
     }
 
     throw std::runtime_error(
@@ -211,9 +219,10 @@ bool evaluate(const bool_node& a_expr,
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-bool_node build_function(
-    const size_t& a_arity,
-    const std::vector<size_t>& a_helper_arities,
+void build_function(
+    function& a_function,
+    const size_t& a_in_scope_var_count,
+    const bool& a_allow_parameters,
     monte_carlo::simulation<choice_t, std::mt19937>&
         a_simulation,
     const size_t& a_recursion_limit)
@@ -227,8 +236,16 @@ bool_node build_function(
     l_choices.push_back(one_t{});
 
     // allow choosing any variable
-    for(int i = 0; i < a_arity; ++i)
+    for(int i = 0; i < a_in_scope_var_count; ++i)
         l_choices.push_back(var_t{(size_t)i});
+
+    // compute the new parameter index, if it is to be added
+    // to the scope
+    const size_t l_new_param_index =
+        a_in_scope_var_count + a_arity;
+
+    if(a_allow_parameters)
+        l_choices.push_back(var_t{l_new_param_index});
 
     if(a_recursion_limit > 0)
     {
@@ -240,7 +257,7 @@ bool_node build_function(
         l_choices.push_back(conjoin_t{});
 
         // allow choosing any helper
-        for(int i = 0; i < a_helper_arities.size(); ++i)
+        for(int i = 0; i < a_helpers.size(); ++i)
             l_choices.push_back(helper_t{(size_t)i});
     }
 
@@ -262,10 +279,10 @@ bool_node build_function(
     if(const var_t* l_var_data =
            std::get_if<var_t>(&l_op_data))
     {
-        // // allow overshooting by 1. In this case,
-        // increment var count. if(l_var_data->m_index ==
-        // a_arity)
-        //     ++a_arity;
+        // allow overshooting by 1. In this case,
+        // increment var count.
+        if(l_var_data->m_index == l_new_param_index)
+            ++a_arity;
     }
     else if(std::get_if<invert_t>(&l_op_data))
         l_node_arity = 1;
@@ -275,20 +292,22 @@ bool_node build_function(
     else if(const helper_t* l_helper_data =
                 std::get_if<helper_t>(&l_op_data))
         l_node_arity =
-            a_helper_arities[l_helper_data->m_index];
+            a_helpers[l_helper_data->m_index].m_arity;
 
-    std::vector<bool_node> l_children;
+    // create the children vector (pre-allocate)
+    std::vector<bool_node> l_children(l_node_arity);
 
-    // loop through, construct children
+    // loop through, construct children in places
     for(int i = 0; i < l_node_arity; ++i)
-        l_children.push_back(build_function(
-            a_arity, a_helper_arities, a_simulation,
-            a_recursion_limit - 1));
+        build_function(a_arity, l_children[i], a_helpers,
+                       a_in_scope_var_count,
+                       a_allow_parameters, a_simulation,
+                       a_recursion_limit - 1);
 
     ////////////////////////////////////////////////////
     //////////////// CONSTRUCT THE NODE ////////////////
     ////////////////////////////////////////////////////
-    return bool_node{l_op_data, l_children};
+    a_definition = bool_node{l_op_data, l_children};
 }
 
 bool_node

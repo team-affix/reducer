@@ -1,6 +1,7 @@
 #include "../include/bool_reduce.hpp"
 #include "../mcts/include/mcts.hpp"
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <random>
 
@@ -220,9 +221,10 @@ bool evaluate(const bool_node& a_expr,
 ////////////////////////////////////////////////////
 
 void build_function(
-    function& a_function,
+    size_t& a_arity, bool_node& a_definition,
+    std::vector<function>& a_helpers,
     const size_t& a_in_scope_var_count,
-    const bool& a_allow_parameters,
+    const bool& a_allow_non_nullary,
     monte_carlo::simulation<choice_t, std::mt19937>&
         a_simulation,
     const size_t& a_recursion_limit)
@@ -244,7 +246,7 @@ void build_function(
     const size_t l_new_param_index =
         a_in_scope_var_count + a_arity;
 
-    if(a_allow_parameters)
+    if(a_allow_non_nullary)
         l_choices.push_back(var_t{l_new_param_index});
 
     if(a_recursion_limit > 0)
@@ -301,7 +303,7 @@ void build_function(
     for(int i = 0; i < l_node_arity; ++i)
         build_function(a_arity, l_children[i], a_helpers,
                        a_in_scope_var_count,
-                       a_allow_parameters, a_simulation,
+                       a_allow_non_nullary, a_simulation,
                        a_recursion_limit - 1);
 
     ////////////////////////////////////////////////////
@@ -312,9 +314,8 @@ void build_function(
 
 bool_node
 build_model(const std::map<std::vector<bool>, bool> a_data,
-            const size_t& a_arity,
-            std::vector<size_t>& a_helper_arities,
-            std::vector<bool_node>& a_helpers,
+            const size_t& a_in_scope_var_count,
+            std::vector<function>& a_helpers,
             monte_carlo::simulation<choice_t, std::mt19937>&
                 a_simulation,
             const size_t& a_recursion_limit)
@@ -360,6 +361,11 @@ build_model(const std::map<std::vector<bool>, bool> a_data,
     // declare the binning function
     bool_node l_binning_function;
 
+    // configure the binning function to be nullary, but
+    // to capture the in-scope variables
+    bool l_bf_allow_non_nullary = false;
+    size_t l_bf_arity = 0;
+
     // loop until neither output bin is empty
     // REASON: if one of the bins is empty, the binning
     // function is useless
@@ -371,9 +377,10 @@ build_model(const std::map<std::vector<bool>, bool> a_data,
 
         // create a binning function that will bin (evaluate
         // on) each data point
-        l_binning_function =
-            build_function(a_arity, a_helper_arities,
-                           a_simulation, a_recursion_limit);
+        build_function(l_bf_arity, l_binning_function,
+                       a_helpers, a_in_scope_var_count,
+                       l_bf_allow_non_nullary, a_simulation,
+                       a_recursion_limit);
 
         ////////////////////////////////////////////////////
         ////////////// EVALUATE BINNING FUNCTION ///////////
@@ -395,23 +402,40 @@ build_model(const std::map<std::vector<bool>, bool> a_data,
     }
 
     ////////////////////////////////////////////////////
+    //////////////// COMMIT HELPER FUNCTION ////////////
+    ////////////////////////////////////////////////////
+
+    // create the helper function
+    const function l_binning_function_helper{
+        l_bf_arity, l_binning_function, a_helpers};
+
+    // add the helper function to the helpers vector
+    a_helpers.push_back(l_binning_function_helper);
+
+    // construct an invocation of the helper function
+    bool_node l_binning_function_invocation =
+        helper(a_helpers.size() - 1, {});
+
+    ////////////////////////////////////////////////////
     //////////////////////// RECUR /////////////////////
     ////////////////////////////////////////////////////
 
     // construct the left child
     bool_node l_left_child = build_model(
-        l_negative_bin, a_arity, a_helper_arities,
-        a_helpers, a_simulation, a_recursion_limit);
+        l_negative_bin, a_in_scope_var_count, a_helpers,
+        a_simulation, a_recursion_limit);
 
     // construct the right child
     bool_node l_right_child = build_model(
-        l_positive_bin, a_arity, a_helper_arities,
-        a_helpers, a_simulation, a_recursion_limit);
+        l_positive_bin, a_in_scope_var_count, a_helpers,
+        a_simulation, a_recursion_limit);
 
     // construct the final node
     return disjoin(
-        conjoin(invert(l_binning_function), l_left_child),
-        conjoin(l_binning_function, l_right_child));
+        conjoin(invert(l_binning_function_invocation),
+                l_left_child),
+        conjoin(l_binning_function_invocation,
+                l_right_child));
 }
 
 // bool_node build_model(
@@ -455,14 +479,13 @@ size_t node_count(const bool_node& a_expr)
     return l_result;
 }
 
-bool_node
-learn_model(std::vector<size_t>& a_helper_arities,
-            std::vector<bool_node>& a_helpers,
-            const size_t& a_arity,
-            const std::map<std::vector<bool>, bool>& a_data,
-            const size_t& a_iterations,
-            const size_t& a_recursion_limit,
-            const double& a_exploration_constant)
+void learn_model(
+    bool_node& a_model, std::vector<function>& a_helpers,
+    const size_t& a_in_scope_var_count,
+    const std::map<std::vector<bool>, bool>& a_data,
+    const size_t& a_iterations,
+    const size_t& a_recursion_limit,
+    const double& a_exploration_constant)
 {
     std::mt19937 l_rnd_gen(27);
     monte_carlo::tree_node<choice_t> l_root;
@@ -472,14 +495,14 @@ learn_model(std::vector<size_t>& a_helper_arities,
     double l_best_reward =
         -std::numeric_limits<double>::infinity();
 
-    // initialize the best model to the zero node
-    bool_node l_best_model = zero();
+    // save the original helpers
+    std::vector<function> l_original_helpers = a_helpers;
 
     for(int i = 0; i < a_iterations; ++i)
     {
-        std::vector<size_t> l_helper_arities =
-            a_helper_arities;
-        std::vector<bool_node> l_helpers = a_helpers;
+        // restore the original helpers
+        std::vector<function> l_iteration_helpers =
+            l_original_helpers;
 
         // construct the simulation
         monte_carlo::simulation<choice_t, std::mt19937>
@@ -488,29 +511,48 @@ learn_model(std::vector<size_t>& a_helper_arities,
 
         // construct the model
         bool_node l_model = build_model(
-            a_data, a_arity, l_helper_arities, l_helpers,
-            l_sim, a_recursion_limit);
+            a_data, a_in_scope_var_count,
+            l_iteration_helpers, l_sim, a_recursion_limit);
+
+        // compute the number of nodes in the helpers
+        size_t l_helper_node_count = std::accumulate(
+            l_iteration_helpers.begin(),
+            l_iteration_helpers.end(), size_t{0},
+            [](size_t a_acc, const function& a_helper)
+            {
+                return a_acc +
+                       node_count(a_helper.m_definition);
+            });
+
+        // compute the number of nodes in the model
+        size_t l_model_node_count = node_count(l_model);
 
         // compute the reward (negative number of nodes)
-        size_t l_node_count = node_count(l_model);
-        double l_reward =
-            -static_cast<double>(l_node_count);
+        double l_reward = -static_cast<double>(
+            l_helper_node_count + l_model_node_count);
 
         // save best model
         if(l_reward > l_best_reward)
         {
             l_best_reward = l_reward;
-            l_best_model = l_model;
+            a_model = l_model;
+            a_helpers = l_iteration_helpers;
         }
 
-        std::cout << l_node_count << std::endl;
-        std::cout << l_model << std::endl;
+        std::cout << l_helper_node_count << " "
+                  << l_model_node_count << " " << l_reward
+                  << std::endl;
+
+        std::cout << "helpers: " << std::endl;
+        for(const auto& l_helper : l_iteration_helpers)
+            std::cout << "    " << l_helper.m_definition
+                      << std::endl;
+        std::cout << std::endl;
+        std::cout << "model: " << l_model << std::endl;
 
         // terminate the simulation
         l_sim.terminate(l_reward);
     }
-
-    return l_best_model;
 }
 
 ////////////////////////////////////////////////////
@@ -795,7 +837,7 @@ void test_evaluate()
 {
     struct test_data
     {
-        std::vector<bool_node> m_helpers;
+        std::vector<function> m_helpers;
         bool_node m_model;
         std::vector<bool> m_x;
         bool m_y;
@@ -899,37 +941,41 @@ void test_evaluate()
             1,
         },
         {
+            // demonstrate helper captures
             {
-                var(2),
+                function{0, var(2), {}},
             },
-            helper(0, {var(0), var(1), var(2)}),
+            helper(0, {}),
             {1, 0, 0},
             0,
         },
         {
+            // demonstrate helper captures
             {
-                var(2),
+                function{0, var(2), {}},
             },
-            helper(0, {var(0), var(1), var(2)}),
+            helper(0, {}),
             {1, 0, 1},
             1,
         },
         {
+            // demonstrate helper parameters
             {
-                var(0),
-                var(1),
+                function{1, var(3), {}},
             },
-            helper(1, {var(0), var(1), var(2)}),
+            helper(1, {var(1)}),
             {0, 1, 0},
             1,
         },
         {
+            // demonstrate helper uses captured val over
+            // param
             {
-                var(0),
-                var(1),
+                function{1, var(0), {}},
+                function{3, var(5), {}},
             },
-            helper(0, {var(0), var(1), var(2)}),
-            {0, 1, 0},
+            helper(0, {var(2)}),
+            {0, 1, 1},
             0,
         },
     };
@@ -944,21 +990,22 @@ void test_evaluate()
 
 void test_learn_model()
 {
-    constexpr size_t ARITY = 4;
+    constexpr size_t IN_SCOPE_VAR_COUNT = 4;
     constexpr size_t ITERATIONS = 1000000;
 
-    std::vector<size_t> l_helper_arities;
-    std::vector<bool_node> l_helpers;
-    std::map<std::vector<bool>, bool> l_data{
-        {{0, 0, 0, 0}, 0},
-        {{0, 0, 0, 1}, 1},
-        {{0, 0, 1, 0}, 1},
-        {{0, 0, 1, 1}, 0},
-    };
+    std::vector<function> l_helpers;
 
-    bool_node l_model =
-        learn_model(l_helper_arities, l_helpers, ARITY,
-                    l_data, ITERATIONS, 3, 10);
+    std::map<std::vector<bool>, bool> l_data{
+        {{0, 0, 0, 1}, 0},
+        {{0, 1, 0, 1}, 1},
+        {{1, 0, 0, 1}, 1},
+        {{1, 1, 0, 1}, 1},
+        {{1, 1, 0, 0}, 0}};
+
+    bool_node l_model;
+
+    learn_model(l_model, l_helpers, IN_SCOPE_VAR_COUNT,
+                l_data, ITERATIONS, 3, 10);
 
     // for(const auto& l_helper : l_helpers)
     //     std::cout << l_helper << std::endl;

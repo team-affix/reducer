@@ -1,5 +1,5 @@
-#include "../include/bool_reduce.hpp"
-#include "../include/node.hpp"
+// #include "../include/bool_reduce.hpp"
+// #include "../include/node.hpp"
 #include "../mcts/include/mcts.hpp"
 #include <assert.h>
 #include <functional>
@@ -8,10 +8,13 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <typeindex>
 #include <vector>
 
 #include "test_utils.hpp"
 
+#include <any>
+#include <functional>
 #include <iostream>
 
 extern void bool_reduce_test_main();
@@ -86,6 +89,7 @@ int main()
     // 12, var(5)) << " " << n9 << std::endl; std::cout <<
     // resolve_goal(n9, 13, var(6)) << " " << n9 <<
     // std::endl;
+    std::type_index(typeid(int));
 
     return 0;
 }

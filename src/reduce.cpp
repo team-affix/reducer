@@ -1,162 +1,26 @@
-#include "../include/bool_reduce.hpp"
+#include "../include/reduce.hpp"
+#include "../include/env.hpp"
+#include "../include/scope.hpp"
 #include "../mcts/include/mcts.hpp"
 #include <iostream>
-#include <iterator>
-#include <map>
+#include <memory>
 #include <random>
-
-// using replacement_rule = std::pair<bool_node, bool_node>;
+#include <sstream>
 
 ////////////////////////////////////////////////////
-////////////////// NODE DATA TYPES /////////////////
+//////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-// equality comparisons
-bool operator==(const zero_t&, const zero_t&)
+bool operator<(const place_node_t& a_lhs,
+               const place_node_t& a_rhs)
 {
-    return true;
+    return a_lhs.m_node < a_rhs.m_node;
 }
-bool operator==(const one_t&, const one_t&)
-{
-    return true;
-}
-bool operator==(const var_t& a_lhs, const var_t& a_rhs)
-{
-    return a_lhs.m_index == a_rhs.m_index;
-}
-bool operator==(const invert_t&, const invert_t&)
-{
-    return true;
-}
-bool operator==(const disjoin_t&, const disjoin_t&)
-{
-    return true;
-}
-bool operator==(const conjoin_t&, const conjoin_t&)
-{
-    return true;
-}
-bool operator==(const helper_t& a_lhs,
-                const helper_t& a_rhs)
-{
-    return a_lhs.m_index == a_rhs.m_index;
-}
-
-// less than comparisons
-bool operator<(const zero_t&, const zero_t&)
+bool operator<(const place_new_param_t& a_lhs,
+               const place_new_param_t& a_rhs)
 {
     return false;
 }
-bool operator<(const one_t&, const one_t&)
-{
-    return false;
-}
-bool operator<(const var_t& a_lhs, const var_t& a_rhs)
-{
-    return a_lhs.m_index < a_rhs.m_index;
-}
-bool operator<(const invert_t&, const invert_t&)
-{
-    return false;
-}
-bool operator<(const disjoin_t&, const disjoin_t&)
-{
-    return false;
-}
-bool operator<(const conjoin_t&, const conjoin_t&)
-{
-    return false;
-}
-bool operator<(const helper_t& a_lhs, const helper_t& a_rhs)
-{
-    return a_lhs.m_index < a_rhs.m_index;
-}
-
-////////////////////////////////////////////////////
-////////////////// MAKER FUNCTIONS /////////////////
-////////////////////////////////////////////////////
-
-bool_node zero()
-{
-    return bool_node{zero_t{}, {}};
-}
-bool_node one()
-{
-    return bool_node{one_t{}, {}};
-}
-bool_node var(size_t a_index)
-{
-    return bool_node{var_t{a_index}, {}};
-}
-bool_node invert(const bool_node& a_x)
-{
-    return bool_node{invert_t{}, {a_x}};
-}
-bool_node disjoin(const bool_node& a_x,
-                  const bool_node& a_y)
-{
-    return bool_node{disjoin_t{}, {a_x, a_y}};
-}
-bool_node conjoin(const bool_node& a_x,
-                  const bool_node& a_y)
-{
-    return bool_node{conjoin_t{}, {a_x, a_y}};
-}
-bool_node helper(size_t a_index,
-                 const std::vector<bool_node>& a_children)
-{
-    return bool_node{helper_t{a_index}, a_children};
-}
-
-////////////////////////////////////////////////////
-////////////////// OSTREAM INSERTER ////////////////
-////////////////////////////////////////////////////
-
-std::ostream& operator<<(std::ostream& a_ostream,
-                         const bool_node& a_node)
-{
-    if(std::get_if<zero_t>(&a_node.m_data))
-        return a_ostream << "low";
-
-    if(std::get_if<one_t>(&a_node.m_data))
-        return a_ostream << "high";
-
-    if(const var_t* l_data =
-           std::get_if<var_t>(&a_node.m_data))
-        return a_ostream << l_data->m_index;
-
-    if(std::get_if<invert_t>(&a_node.m_data))
-        return a_ostream << "~{" << a_node.m_children[0]
-                         << "}";
-
-    if(std::get_if<disjoin_t>(&a_node.m_data))
-        return a_ostream << "[" << a_node.m_children[0]
-                         << "]|[" << a_node.m_children[1]
-                         << "]";
-
-    if(std::get_if<conjoin_t>(&a_node.m_data))
-        return a_ostream << "(" << a_node.m_children[0]
-                         << ")&(" << a_node.m_children[1]
-                         << ")";
-
-    if(const helper_t* l_data =
-           std::get_if<helper_t>(&a_node.m_data))
-    {
-        a_ostream << "h" << l_data->m_index << "<";
-
-        if(a_node.m_children.size() > 0)
-            a_ostream << a_node.m_children[0];
-
-        for(int i = 1; i < a_node.m_children.size(); ++i)
-            a_ostream << "," << a_node.m_children[i];
-
-        return a_ostream << ">";
-    }
-
-    throw std::runtime_error(
-        "Error, invalid node data type.");
-}
-
 bool operator<(const terminate_t&, const terminate_t&)
 {
     return false;
@@ -167,313 +31,343 @@ bool operator<(const make_function_t&,
     return false;
 }
 
-bool evaluate(const bool_node& a_expr,
-              const std::vector<function>& a_helpers,
-              const std::vector<bool>& a_x)
-{
-    if(std::get_if<zero_t>(&a_expr.m_data))
-        return false;
-    if(std::get_if<one_t>(&a_expr.m_data))
-        return true;
-    if(const var_t* l_var =
-           std::get_if<var_t>(&a_expr.m_data))
-        return a_x[l_var->m_index];
-    if(std::get_if<invert_t>(&a_expr.m_data))
-        return !evaluate(a_expr.m_children[0], a_helpers,
-                         a_x);
-    if(std::get_if<disjoin_t>(&a_expr.m_data))
-        return evaluate(a_expr.m_children[0], a_helpers,
-                        a_x) ||
-               evaluate(a_expr.m_children[1], a_helpers,
-                        a_x);
-    if(std::get_if<conjoin_t>(&a_expr.m_data))
-        return evaluate(a_expr.m_children[0], a_helpers,
-                        a_x) &&
-               evaluate(a_expr.m_children[1], a_helpers,
-                        a_x);
-    if(const helper_t* l_helper =
-           std::get_if<helper_t>(&a_expr.m_data))
-    {
-        // get the helper function
-        const function& l_helper_function =
-            a_helpers[l_helper->m_index];
-
-        // initialize the helper x to the input x (in-scope
-        // vars are inherited)
-        std::vector<bool> l_helper_x = a_x;
-
-        // evaluate the arguments
-        for(const auto& l_argument : a_expr.m_children)
-            l_helper_x.push_back(
-                evaluate(l_argument, a_helpers, a_x));
-
-        return evaluate(l_helper_function.m_definition,
-                        l_helper_function.m_helpers,
-                        l_helper_x);
-    }
-
-    throw std::runtime_error(
-        "Error: invalid bool_op_data type in evaluate().");
-}
-
 ////////////////////////////////////////////////////
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-void build_function(
-    size_t& a_arity, bool_node& a_definition,
-    std::vector<function>& a_helpers,
-    const size_t& a_in_scope_var_count,
-    const bool& a_allow_non_nullary,
+func_t build_function(
+    env_t& a_env, scope_t& a_scope,
+    const std::type_index& a_return_type,
+    const bool& a_allow_params,
     monte_carlo::simulation<choice_t, std::mt19937>&
         a_simulation,
     const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
+    /////////////// GET THE SCOPE ENTRY ////////////////
+    ////////////////////////////////////////////////////
+    const auto& l_scope_entry =
+        a_scope.m_entries.at(a_return_type);
+
+    ////////////////////////////////////////////////////
     ////////////// POPULATE CHOICE VECTOR //////////////
     ////////////////////////////////////////////////////
-    std::vector<choice_t> l_choices;
+    std::vector<choice_t> l_node_choices;
 
-    l_choices.push_back(zero_t{});
-    l_choices.push_back(one_t{});
+    // allow choosing any nullary of this type
+    std::transform(l_scope_entry.m_nullaries.begin(),
+                   l_scope_entry.m_nullaries.end(),
+                   std::back_inserter(l_node_choices),
+                   [](const func_t* a_nullary)
+                   { return place_node_t{a_nullary}; });
 
-    // allow choosing any variable
-    for(int i = 0; i < a_in_scope_var_count; ++i)
-        l_choices.push_back(var_t{(size_t)i});
-
-    // compute the new parameter index, if it is to be added
-    // to the scope
-    const size_t l_new_param_index =
-        a_in_scope_var_count + a_arity;
-
-    if(a_allow_non_nullary)
-        l_choices.push_back(var_t{l_new_param_index});
+    if(a_allow_params)
+        l_node_choices.push_back(place_new_param_t{});
 
     if(a_recursion_limit > 0)
     {
-        // if the recursion limit has not been reached, push
-        // non-nullary function types into list
-
-        l_choices.push_back(invert_t{});
-        l_choices.push_back(disjoin_t{});
-        l_choices.push_back(conjoin_t{});
-
-        // allow choosing any helper
-        for(int i = 0; i < a_helpers.size(); ++i)
-            l_choices.push_back(helper_t{(size_t)i});
+        // if the recursion limit has not been reached,
+        // push non-nullary function types into list
+        std::transform(
+            l_scope_entry.m_non_nullaries.begin(),
+            l_scope_entry.m_non_nullaries.end(),
+            std::back_inserter(l_node_choices),
+            [](const func_t* a_non_nullary)
+            { return place_node_t{a_non_nullary}; });
     }
 
     ////////////////////////////////////////////////////
     ////////////// CHOOSE A NODE TO PLACE //////////////
     ////////////////////////////////////////////////////
-    choice_t l_choice = a_simulation.choose(l_choices);
+    choice_t l_node_choice =
+        a_simulation.choose(l_node_choices);
 
-    // extract the op data, it should always be an op data
-    // type.
-    bool_op_data l_op_data =
-        std::get<bool_op_data>(l_choice);
+    // if the choice is a place_new_param_t
+    if(std::holds_alternative<place_new_param_t>(
+           l_node_choice))
+    {
+        // add a new param to the env
+        auto l_value_it = a_env.m_values.insert(
+            a_env.m_values.end(), std::any{});
+
+        // construct the functor
+        auto l_functor =
+            [l_value_it](const std::list<std::any>& a_args)
+        { return *l_value_it; };
+
+        func_t l_new_param_func{
+            .m_param_types = {a_return_type},
+            .m_params = l_value_it,
+            .m_functor = l_functor,
+            .m_children = {},
+        };
+
+        // add the new param function to the env
+        auto l_func_it = a_env.m_funcs.insert(
+            a_env.m_funcs.end(), l_new_param_func);
+
+        // add the new param function to the scope
+        a_scope.m_entries.at(a_return_type)
+            .m_nullaries.push_back(&*l_func_it);
+
+        // return the new param function
+        return l_new_param_func;
+    }
+
+    // extract the func
+    const func_t* l_node_func =
+        std::get<place_node_t>(l_node_choice).m_node;
 
     ////////////////////////////////////////////////////
     //////////////// CONSTRUCT CHILDREN ////////////////
     ////////////////////////////////////////////////////
-    size_t l_node_arity = 0;
+    size_t l_node_arity = l_node_func->m_param_types.size();
 
-    if(const var_t* l_var_data =
-           std::get_if<var_t>(&l_op_data))
-    {
-        // allow overshooting by 1. In this case,
-        // increment var count.
-        if(l_var_data->m_index == l_new_param_index)
-            ++a_arity;
-    }
-    else if(std::get_if<invert_t>(&l_op_data))
-        l_node_arity = 1;
-    else if(std::get_if<disjoin_t>(&l_op_data) ||
-            std::get_if<conjoin_t>(&l_op_data))
-        l_node_arity = 2;
-    else if(const helper_t* l_helper_data =
-                std::get_if<helper_t>(&l_op_data))
-        l_node_arity =
-            a_helpers[l_helper_data->m_index].m_arity;
+    // pre-allocate the args vector
+    std::vector<func_t> l_node_args(l_node_arity);
 
-    // create the children vector (pre-allocate)
-    std::vector<bool_node> l_children(l_node_arity);
-
-    // loop through, construct children in places
+    // loop through, construct args in place
     for(int i = 0; i < l_node_arity; ++i)
-        build_function(a_arity, l_children[i], a_helpers,
-                       a_in_scope_var_count,
-                       a_allow_non_nullary, a_simulation,
-                       a_recursion_limit - 1);
+        l_node_args[i] = build_function(
+            a_funcs, a_scope, l_node_func->m_param_types[i],
+            a_allow_params, a_simulation,
+            a_recursion_limit - 1);
 
     ////////////////////////////////////////////////////
-    //////////////// CONSTRUCT THE NODE ////////////////
+    /////////// CONSTRUCT THE NATIVE FUNCTION //////////
     ////////////////////////////////////////////////////
-    a_definition = bool_node{l_op_data, l_children};
-}
-
-bool_node
-build_model(const std::map<std::vector<bool>, bool> a_data,
-            const size_t& a_in_scope_var_count,
-            std::vector<function>& a_helpers,
-            monte_carlo::simulation<choice_t, std::mt19937>&
-                a_simulation,
-            const size_t& a_recursion_limit)
-{
-    ////////////////////////////////////////////////////
-    //////////////// CHECK FOR TRIVIALITY //////////////
-    ////////////////////////////////////////////////////
-    if(a_data.empty())
-        throw std::runtime_error(
-            "Error: no data points to build model from.");
-
-    ////////////////////////////////////////////////////
-    //////////////// CHECK FOR HOMOGENEITY /////////////
-    ////////////////////////////////////////////////////
-
-    // get the first label
-    bool l_homogenous_value = a_data.begin()->second;
-
-    // loop through the data points, check for homogeneity
-    bool l_data_is_homogenous = std::all_of(
-        a_data.begin(), a_data.end(),
-        [l_homogenous_value](const auto& a_data_point)
-        {
-            return a_data_point.second ==
-                   l_homogenous_value;
-        });
-
-    // if the data is homogenous, return the appropriate
-    // constant
-    if(l_data_is_homogenous)
-        return l_homogenous_value ? one() : zero();
-
-    ////////////////////////////////////////////////////
-    //////////////// CREATE BINNING FUNCTION ///////////
-    ////////////////////////////////////////////////////
-
-    // construct the negative bin
-    std::map<std::vector<bool>, bool> l_negative_bin;
-
-    // construct the positive bin
-    std::map<std::vector<bool>, bool> l_positive_bin;
-
-    // declare the binning function
-    bool_node l_binning_function;
-
-    // configure the binning function to be nullary, but
-    // to capture the in-scope variables
-    bool l_bf_allow_non_nullary = false;
-    size_t l_bf_arity = 0;
-
-    // loop until neither output bin is empty
-    // REASON: if one of the bins is empty, the binning
-    // function is useless
-    while(l_negative_bin.empty() || l_positive_bin.empty())
+    std::function l_total_definition =
+        [l_node_func, l_node_args](
+            std::vector<std::any>::const_iterator a_begin,
+            std::vector<std::any>::const_iterator a_end)
     {
-        // clear BOTH bins in case one contains items
-        l_negative_bin.clear();
-        l_positive_bin.clear();
+        // construct temp iterator
+        std::vector<std::any>::const_iterator l_it =
+            a_begin;
 
-        // create a binning function that will bin (evaluate
-        // on) each data point
-        build_function(l_bf_arity, l_binning_function,
-                       a_helpers, a_in_scope_var_count,
-                       l_bf_allow_non_nullary, a_simulation,
-                       a_recursion_limit);
+        // construct the results vector for the node args
+        std::vector<std::any> l_node_arg_results;
 
-        ////////////////////////////////////////////////////
-        ////////////// EVALUATE BINNING FUNCTION ///////////
-        ////////////////////////////////////////////////////
-
-        // evaluate the binning function on all of the data
-        // points
-        for(const auto& [l_x, l_y] : a_data)
+        // iterate a_begin until end of node_arg's params,
+        // then go to next node_arg
+        for(const func_t& l_node_arg : l_node_args)
         {
-            // evaluate the binning function
-            bool l_binning_result = evaluate(
-                l_binning_function, a_helpers, l_x);
-            // store in the appropriate bin
-            if(l_binning_result)
-                l_positive_bin[l_x] = l_y;
-            else
-                l_negative_bin[l_x] = l_y;
+            // construct begin iterator for this node_arg
+            std::vector<std::any>::const_iterator
+                l_node_arg_begin = l_it;
+
+            // step forward by the number of parameter types
+            l_it += l_node_arg.m_param_types.size();
+            std::vector<std::any>::const_iterator
+                l_node_arg_end = l_it;
+
+            // evaluate the node_arg
+            std::any l_node_arg_result =
+                l_node_arg.m_definition(l_node_arg_begin,
+                                        l_node_arg_end);
+
+            // push the result to the results vector
+            l_node_arg_results.push_back(l_node_arg_result);
         }
+
+        // eval the node_func with the node arg results
+        return l_node_func->m_definition(
+            l_node_arg_results.begin(),
+            l_node_arg_results.end());
+    };
+
+    ////////////////////////////////////////////////////
+    /////////////// TOTAL PARAM VECTOR /////////////////
+    ////////////////////////////////////////////////////
+    std::vector<std::type_index> l_total_param_types;
+
+    // loop through args, and for each parameter types
+    // vector, push the parameter type to this vector
+    for(const func_t& l_node_arg : l_node_args)
+        l_total_param_types.insert(
+            l_total_param_types.end(),
+            l_node_arg.m_param_types.begin(),
+            l_node_arg.m_param_types.end());
+
+    ////////////////////////////////////////////////////
+    ///////////////// TOTAL NODE COUNT /////////////////
+    ////////////////////////////////////////////////////
+    size_t l_total_node_count = 1;
+
+    // loop through args, add the node count to the total
+    for(const func_t& l_node_arg : l_node_args)
+        l_total_node_count += l_node_arg.m_node_count;
+
+    ////////////////////////////////////////////////////
+    /////////////// TOTAL REPRESENTATION ////////////////
+    ////////////////////////////////////////////////////
+    std::string l_total_representation =
+        l_node_func->m_repr + "(";
+
+    // get an iterator to the first node arg
+    std::vector<func_t>::const_iterator l_node_arg_it =
+        l_node_args.begin();
+
+    if(l_node_arg_it != l_node_args.end())
+    {
+        l_total_representation += l_node_arg_it->m_repr;
+        ++l_node_arg_it;
     }
 
-    ////////////////////////////////////////////////////
-    //////////////// COMMIT HELPER FUNCTION ////////////
-    ////////////////////////////////////////////////////
+    // loop through remaining node args, add them to repr
+    for(; l_node_arg_it != l_node_args.end();
+        ++l_node_arg_it)
+        l_total_representation +=
+            ", " + l_node_arg_it->m_repr;
 
-    // create the helper function
-    const function l_binning_function_helper{
-        l_bf_arity, l_binning_function, a_helpers};
-
-    // add the helper function to the helpers vector
-    a_helpers.push_back(l_binning_function_helper);
-
-    // construct an invocation of the helper function
-    bool_node l_binning_function_invocation =
-        helper(a_helpers.size() - 1, {});
+    l_total_representation += ")";
 
     ////////////////////////////////////////////////////
-    //////////////////////// RECUR /////////////////////
+    /////////////// CONSTRUCT THE FUNC_T ///////////////
     ////////////////////////////////////////////////////
-
-    // construct the left child
-    bool_node l_left_child = build_model(
-        l_negative_bin, a_in_scope_var_count, a_helpers,
-        a_simulation, a_recursion_limit);
-
-    // construct the right child
-    bool_node l_right_child = build_model(
-        l_positive_bin, a_in_scope_var_count, a_helpers,
-        a_simulation, a_recursion_limit);
-
-    // construct the final node
-    return disjoin(
-        conjoin(invert(l_binning_function_invocation),
-                l_left_child),
-        conjoin(l_binning_function_invocation,
-                l_right_child));
+    return func_t{l_total_param_types, l_total_definition,
+                  l_total_node_count,
+                  l_total_representation};
 }
 
-// bool_node build_model(
-//     const size_t&           a_arity,
-//     std::vector<size_t>&    a_helper_arities,
-//     std::vector<bool_node>& a_helpers,
-//     monte_carlo::simulation<choice_t, std::mt19937>&
-//     a_simulation, const size_t& a_recursion_limit)
+// bool_node
+// build_model(const std::map<std::vector<bool>, bool>
+// a_data,
+//             const size_t& a_in_scope_var_count,
+//             std::vector<function>& a_helpers,
+//             monte_carlo::simulation<choice_t,
+//             std::mt19937>&
+//                 a_simulation,
+//             const size_t& a_recursion_limit)
 // {
 //     ////////////////////////////////////////////////////
-//     //////////////// CONSTRUCT HELPERS /////////////////
+//     //////////////// CHECK FOR TRIVIALITY //////////////
 //     ////////////////////////////////////////////////////
-//     std::vector<choice_t> l_termination_choices
-//     {terminate_t{}, make_function_t{}};
+//     if(a_data.empty())
+//         throw std::runtime_error(
+//             "Error: no data points to build model
+//             from.");
 
-//     choice_t l_choice;
+//     ////////////////////////////////////////////////////
+//     //////////////// CHECK FOR HOMOGENEITY /////////////
+//     ////////////////////////////////////////////////////
 
-//     while(
-//         (l_choice =
-//         a_simulation.choose(l_termination_choices)),
-//         std::get_if<make_function_t>(&l_choice))
+//     // get the first label
+//     bool l_homogenous_value = a_data.begin()->second;
+
+//     // loop through the data points, check for
+//     homogeneity bool l_data_is_homogenous = std::all_of(
+//         a_data.begin(), a_data.end(),
+//         [l_homogenous_value](const auto& a_data_point)
+//         {
+//             return a_data_point.second ==
+//                    l_homogenous_value;
+//         });
+
+//     // if the data is homogenous, return the appropriate
+//     // constant
+//     if(l_data_is_homogenous)
+//         return l_homogenous_value ? one() : zero();
+
+//     ////////////////////////////////////////////////////
+//     //////////////// CREATE BINNING FUNCTION ///////////
+//     ////////////////////////////////////////////////////
+
+//     // construct the negative bin
+//     std::map<std::vector<bool>, bool> l_negative_bin;
+
+//     // construct the positive bin
+//     std::map<std::vector<bool>, bool> l_positive_bin;
+
+//     // declare the binning function
+//     bool_node l_binning_function;
+
+//     // configure the binning function to be nullary, but
+//     // to capture the in-scope variables
+//     bool l_bf_allow_non_nullary = false;
+//     size_t l_bf_arity = 0;
+
+//     // loop until neither output bin is empty
+//     // REASON: if one of the bins is empty, the binning
+//     // function is useless
+//     while(l_negative_bin.empty() ||
+//     l_positive_bin.empty())
 //     {
-//         size_t    l_helper_arity = 0;
-//         bool_node l_helper =
-//         build_function(l_helper_arity, a_helper_arities,
-//         a_simulation, a_recursion_limit);
+//         // clear BOTH bins in case one contains items
+//         l_negative_bin.clear();
+//         l_positive_bin.clear();
 
-//         a_helper_arities.push_back(l_helper_arity);
-//         a_helpers.push_back(l_helper);
+//         // create a binning function that will bin
+//         (evaluate
+//         // on) each data point
+//         build_function(l_bf_arity, l_binning_function,
+//                        a_helpers, a_in_scope_var_count,
+//                        l_bf_allow_non_nullary,
+//                        a_simulation, a_recursion_limit);
+
+//         ////////////////////////////////////////////////////
+//         ////////////// EVALUATE BINNING FUNCTION
+//         ///////////
+//         ////////////////////////////////////////////////////
+
+//         // evaluate the binning function on all of the
+//         data
+//         // points
+//         for(const auto& [l_x, l_y] : a_data)
+//         {
+//             // evaluate the binning function
+//             bool l_binning_result = evaluate(
+//                 l_binning_function, a_helpers, l_x);
+//             // store in the appropriate bin
+//             if(l_binning_result)
+//                 l_positive_bin[l_x] = l_y;
+//             else
+//                 l_negative_bin[l_x] = l_y;
+//         }
 //     }
 
+//     ////////////////////////////////////////////////////
+//     //////////////// COMMIT HELPER FUNCTION ////////////
+//     ////////////////////////////////////////////////////
+
+//     // create the helper function
+//     const function l_binning_function_helper{
+//         l_bf_arity, l_binning_function, a_helpers};
+
+//     // add the helper function to the helpers vector
+//     a_helpers.push_back(l_binning_function_helper);
+
+//     // construct an invocation of the helper function
+//     bool_node l_binning_function_invocation =
+//         helper(a_helpers.size() - 1, {});
+
+//     ////////////////////////////////////////////////////
+//     //////////////////////// RECUR /////////////////////
+//     ////////////////////////////////////////////////////
+
+//     // construct the left child
+//     bool_node l_left_child = build_model(
+//         l_negative_bin, a_in_scope_var_count, a_helpers,
+//         a_simulation, a_recursion_limit);
+
+//     // construct the right child
+//     bool_node l_right_child = build_model(
+//         l_positive_bin, a_in_scope_var_count, a_helpers,
+//         a_simulation, a_recursion_limit);
+
+//     // construct the final node
+//     return disjoin(
+//         conjoin(invert(l_binning_function_invocation),
+//                 l_left_child),
+//         conjoin(l_binning_function_invocation,
+//                 l_right_child));
 // }
 
-size_t node_count(const bool_node& a_expr)
+size_t node_count(const op_node_t& a_expr)
 {
     size_t l_result = 1;
 
-    for(const auto& l_child : a_expr.m_children)
+    for(const auto& l_child : a_expr.m_args)
         l_result += node_count(l_child);
 
     return l_result;

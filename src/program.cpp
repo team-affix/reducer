@@ -51,7 +51,7 @@ const func_t* program_t::add_primitive(
     std::list<std::type_index> l_param_types = {
         typeid(Params)...};
 
-    func_node_t l_definition{
+    func_body_t l_body{
         .m_functor = l_general_function,
         .m_children = {},
     };
@@ -65,14 +65,14 @@ const func_t* program_t::add_primitive(
 
     // add the parameter nodes to the definition
     for(const auto& l_param_type : l_param_types)
-        l_definition.m_children.push_back(
-            func_node_t{*add_parameter(i++, l_param_type)});
+        l_body.m_children.push_back(
+            func_body_t{*add_parameter(i++, l_param_type)});
 
     // create the function
     func_t l_func{
         .m_param_types = l_param_types,
         .m_params = l_params,
-        .m_definition = l_definition,
+        .m_body = l_body,
         .m_repr = a_repr,
     };
 
@@ -99,7 +99,7 @@ program_t::add_parameter(const int a_param_index,
         "p" + std::to_string(a_param_index);
 
     // create the definition
-    func_node_t l_definition{
+    func_body_t l_body{
         .m_functor =
             [l_value_it](const std::list<std::any>&)
         { return *l_value_it; },
@@ -110,7 +110,7 @@ program_t::add_parameter(const int a_param_index,
     func_t l_func{
         .m_param_types = {},
         .m_params = m_param_heap.end(),
-        .m_definition = l_definition,
+        .m_body = l_body,
         .m_repr = l_repr,
     };
 

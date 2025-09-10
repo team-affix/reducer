@@ -34,7 +34,7 @@ bool operator<(const make_function_t&,
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-func_node_t build_function(
+func_body_t build_function(
     program_t& a_program, scope_t& a_scope,
     std::list<std::type_index> a_param_types,
     std::stringstream& a_repr_stream,
@@ -118,7 +118,7 @@ func_node_t build_function(
     size_t l_node_arity = l_node_func->m_param_types.size();
 
     // pre-allocate the args vector
-    std::list<func_node_t> l_node_children;
+    std::list<func_body_t> l_node_children;
 
     // loop through with iterator, construct args in place
     for(auto l_param_type_it =
@@ -142,7 +142,7 @@ func_node_t build_function(
     ////////////////////////////////////////////////////
     //////////// CONSTRUCT THE FUNC_NODE_T /////////////
     ////////////////////////////////////////////////////
-    return func_node_t{
+    return func_body_t{
         .m_functor = *l_node_func,
         .m_children = l_node_children,
     };

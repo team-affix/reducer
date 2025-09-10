@@ -34,7 +34,7 @@ bool operator<(const make_function_t&,
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-func_body_t build_function(
+func_body build_function(
     program_t& a_program, scope_t& a_scope,
     std::list<std::type_index> a_param_types,
     std::stringstream& a_repr_stream,
@@ -59,7 +59,7 @@ func_body_t build_function(
     std::transform(l_scope_entry.m_nullaries.begin(),
                    l_scope_entry.m_nullaries.end(),
                    std::back_inserter(l_node_choices),
-                   [](const func_t* a_nullary)
+                   [](const func* a_nullary)
                    { return place_node_t{a_nullary}; });
 
     if(a_allow_params)
@@ -73,7 +73,7 @@ func_body_t build_function(
             l_scope_entry.m_non_nullaries.begin(),
             l_scope_entry.m_non_nullaries.end(),
             std::back_inserter(l_node_choices),
-            [](const func_t* a_non_nullary)
+            [](const func* a_non_nullary)
             { return place_node_t{a_non_nullary}; });
     }
 
@@ -90,7 +90,7 @@ func_body_t build_function(
         ////////////////////////////////////////////////////
         /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
         ////////////////////////////////////////////////////
-        const func_t* l_func_ptr = a_program.add_parameter(
+        const func* l_func_ptr = a_program.add_parameter(
             a_param_types.size(), a_return_type);
 
         // add the parameter to the param types
@@ -106,7 +106,7 @@ func_body_t build_function(
     }
 
     // extract the func
-    const func_t* l_node_func =
+    const func* l_node_func =
         std::get<place_node_t>(l_node_choice).m_node;
 
     // add the node's representation to the stream
@@ -118,7 +118,7 @@ func_body_t build_function(
     size_t l_node_arity = l_node_func->m_param_types.size();
 
     // pre-allocate the args vector
-    std::list<func_body_t> l_node_children;
+    std::list<func_body> l_node_children;
 
     // loop through with iterator, construct args in place
     for(auto l_param_type_it =
@@ -142,7 +142,7 @@ func_body_t build_function(
     ////////////////////////////////////////////////////
     //////////// CONSTRUCT THE FUNC_NODE_T /////////////
     ////////////////////////////////////////////////////
-    return func_body_t{
+    return func_body{
         .m_functor = *l_node_func,
         .m_children = l_node_children,
     };

@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 // adds a function based on its arity
-void scope_entry_t::add_function(const func_t* a_function)
+void scope_entry_t::add_function(const func* a_function)
 {
     if(a_function->m_param_types.empty())
         m_nullaries.push_back(a_function);
@@ -19,7 +19,7 @@ void scope_entry_t::validate() const
 
 // adds a function based on its return type
 void scope_t::add_function(std::type_index a_return_type,
-                           const func_t* a_function)
+                           const func* a_function)
 {
     m_entries[a_return_type].add_function(a_function);
 }
@@ -47,7 +47,7 @@ void test_scope_entry_add_function()
     // add nullary fxn
     {
         scope_entry_t l_entry;
-        func_t l_func;
+        func l_func;
         l_entry.add_function(&l_func);
         assert(l_entry.m_nullaries.size() == 1);
         assert(l_entry.m_non_nullaries.empty());
@@ -56,7 +56,7 @@ void test_scope_entry_add_function()
     // add non-nullary fxn
     {
         scope_entry_t l_entry;
-        func_t l_func{
+        func l_func{
             .m_param_types = {std::type_index(typeid(int))},
         };
         l_entry.add_function(&l_func);
@@ -76,10 +76,10 @@ void test_scope_entry_validate()
     // entry with nullary AND non-nullary validates
     {
         scope_entry_t l_entry;
-        func_t l_nullary{
+        func l_nullary{
             .m_param_types = {},
         };
-        func_t l_non_nullary{
+        func l_non_nullary{
             .m_param_types = {std::type_index(typeid(int))},
         };
         l_entry.add_function(&l_nullary);
@@ -89,7 +89,7 @@ void test_scope_entry_validate()
     // entry with only non-nullary does not validate
     {
         scope_entry_t l_entry;
-        func_t l_func{
+        func l_func{
             .m_param_types = {std::type_index(typeid(int))},
         };
         l_entry.add_function(&l_func);
@@ -111,7 +111,7 @@ void test_scope_add_function()
         scope_t l_scope;
         std::type_index l_return_type =
             std::type_index(typeid(int));
-        func_t l_func;
+        func l_func;
         l_scope.add_function(l_return_type, &l_func);
         assert(l_scope.m_entries.size() == 1);
         assert(l_scope.m_entries.contains(l_return_type));
@@ -126,7 +126,7 @@ void test_scope_add_function()
         scope_t l_scope;
         std::type_index l_return_type =
             std::type_index(typeid(int));
-        func_t l_func{
+        func l_func{
             .m_param_types = {std::type_index(
                 typeid(std::string))},
         };
@@ -144,7 +144,7 @@ void test_scope_add_function()
         scope_t l_scope;
         std::type_index l_return_type =
             std::type_index(typeid(std::string));
-        func_t l_func{
+        func l_func{
             .m_param_types = {std::type_index(
                 typeid(std::string))},
         };

@@ -37,7 +37,7 @@ make_general_function(
 }
 
 template <typename Ret, typename... Params>
-const func_t* program_t::add_primitive(
+const func* program_t::add_primitive(
     const std::string& a_repr,
     const std::function<Ret(Params...)>& a_func)
 {
@@ -51,7 +51,7 @@ const func_t* program_t::add_primitive(
     std::list<std::type_index> l_param_types = {
         typeid(Params)...};
 
-    func_body_t l_body{
+    func_body l_body{
         .m_functor = l_general_function,
         .m_children = {},
     };
@@ -66,10 +66,10 @@ const func_t* program_t::add_primitive(
     // add the parameter nodes to the definition
     for(const auto& l_param_type : l_param_types)
         l_body.m_children.push_back(
-            func_body_t{*add_parameter(i++, l_param_type)});
+            func_body{*add_parameter(i++, l_param_type)});
 
     // create the function
-    func_t l_func{
+    func l_func{
         .m_param_types = l_param_types,
         .m_params = l_params,
         .m_body = l_body,
@@ -80,13 +80,13 @@ const func_t* program_t::add_primitive(
     auto l_func_it = m_funcs.insert(m_funcs.end(), l_func);
 
     // get the pointer to the function
-    const func_t* l_func_ptr = &*l_func_it;
+    const func* l_func_ptr = &*l_func_it;
 
     // return the function
     return l_func_ptr;
 }
 
-const func_t*
+const func*
 program_t::add_parameter(const int a_param_index,
                          const std::type_index& a_type)
 {
@@ -99,7 +99,7 @@ program_t::add_parameter(const int a_param_index,
         "p" + std::to_string(a_param_index);
 
     // create the definition
-    func_body_t l_body{
+    func_body l_body{
         .m_functor =
             [l_value_it](const std::list<std::any>&)
         { return *l_value_it; },
@@ -107,7 +107,7 @@ program_t::add_parameter(const int a_param_index,
     };
 
     // create the func_t
-    func_t l_func{
+    func l_func{
         .m_param_types = {},
         .m_params = m_param_heap.end(),
         .m_body = l_body,
@@ -118,7 +118,7 @@ program_t::add_parameter(const int a_param_index,
     auto l_func_it = m_funcs.insert(m_funcs.end(), l_func);
 
     // get the pointer to the function
-    const func_t* l_func_ptr = &*l_func_it;
+    const func* l_func_ptr = &*l_func_it;
 
     // return the function
     return l_func_ptr;

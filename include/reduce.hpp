@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////////
 struct place_node_t
 {
-    const func_t* m_node;
+    const func* m_node;
 };
 struct place_new_param_t
 {

@@ -1,7 +1,7 @@
 #include "../include/func.hpp"
 #include <numeric>
 
-std::any func_body_t::eval() const
+std::any func_body::eval() const
 {
     // construct the arguments for the functor
     std::list<std::any> l_functor_args;
@@ -9,24 +9,24 @@ std::any func_body_t::eval() const
     // evaluate all children
     std::transform(m_children.begin(), m_children.end(),
                    std::back_inserter(l_functor_args),
-                   [](const func_body_t& a_child)
+                   [](const func_body& a_child)
                    { return a_child.eval(); });
 
     // evaluate the functor
     return m_functor(l_functor_args);
 }
 
-size_t func_body_t::node_count() const
+size_t func_body::node_count() const
 {
     // count nodes in children, add one for this node
     return std::accumulate(
         m_children.begin(), m_children.end(), 1,
-        [](size_t a_sum, const func_body_t& a_child)
+        [](size_t a_sum, const func_body& a_child)
         { return a_sum + a_child.node_count(); });
 }
 
 std::any
-func_t::operator()(const std::list<std::any>& a_args) const
+func::operator()(const std::list<std::any>& a_args) const
 {
     // set the parameters
     std::copy(a_args.begin(), a_args.end(), m_params);
@@ -40,14 +40,14 @@ func_t::operator()(const std::list<std::any>& a_args) const
 
 void test_func_construction()
 {
-    func_t l_func;
+    func l_func;
 }
 
 void test_func_body_eval()
 {
     // nullary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             { return std::any(10); },
@@ -61,7 +61,7 @@ void test_func_body_eval()
 
     // unary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -70,7 +70,7 @@ void test_func_body_eval()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [](const std::list<std::any>&
                                    a_args)
@@ -87,7 +87,7 @@ void test_func_body_eval()
 
     // binary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -99,13 +99,13 @@ void test_func_body_eval()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [](const std::list<std::any>&
                                    a_args)
                         { return std::any(11); },
                     },
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [](const std::list<std::any>&
                                    a_args)
@@ -122,7 +122,7 @@ void test_func_body_eval()
 
     // doubly-nested unary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -131,7 +131,7 @@ void test_func_body_eval()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [](const std::list<std::any>&
                                    a_args)
@@ -142,7 +142,7 @@ void test_func_body_eval()
                         },
                         .m_children =
                             {
-                                func_body_t{
+                                func_body{
                                     .m_functor =
                                         [](const std::list<
                                             std::any>&
@@ -167,17 +167,17 @@ void test_func_body_node_count()
 {
     // nullary
     {
-        func_body_t l_node;
+        func_body l_node;
         // assert that the node count is 1
         assert(l_node.node_count() == 1);
     }
 
     // unary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_children =
                 {
-                    func_body_t{},
+                    func_body{},
                 },
         };
         // assert that the node count is 1
@@ -186,8 +186,8 @@ void test_func_body_node_count()
 
     // binary
     {
-        func_body_t l_node{
-            .m_children = {func_body_t{}, func_body_t{}},
+        func_body l_node{
+            .m_children = {func_body{}, func_body{}},
         };
         // assert that the node count is 3
         assert(l_node.node_count() == 3);
@@ -195,11 +195,11 @@ void test_func_body_node_count()
 
     // doubly-nested unary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_children =
                 {
-                    func_body_t{
-                        .m_children = {func_body_t{}},
+                    func_body{
+                        .m_children = {func_body{}},
                     },
                 },
         };
@@ -209,9 +209,9 @@ void test_func_body_node_count()
 
     // ternary
     {
-        func_body_t l_node{
-            .m_children = {func_body_t{}, func_body_t{},
-                           func_body_t{}},
+        func_body l_node{
+            .m_children = {func_body{}, func_body{},
+                           func_body{}},
         };
         // assert that the node count is 4
         assert(l_node.node_count() == 4);
@@ -219,16 +219,16 @@ void test_func_body_node_count()
 
     // doubly-nested binary
     {
-        func_body_t l_node{
+        func_body l_node{
             .m_children =
                 {
-                    func_body_t{
-                        .m_children = {func_body_t{},
-                                       func_body_t{}},
+                    func_body{
+                        .m_children = {func_body{},
+                                       func_body{}},
                     },
-                    func_body_t{
-                        .m_children = {func_body_t{},
-                                       func_body_t{}},
+                    func_body{
+                        .m_children = {func_body{},
+                                       func_body{}},
                     },
                 },
         };
@@ -246,13 +246,13 @@ void test_func_operator_parens()
         // define the param types
         std::list<std::type_index> l_param_types;
         // define the body
-        func_body_t l_body{
+        func_body l_body{
             .m_functor = [](const std::list<std::any>&)
             { return std::any(10); },
             .m_children = {},
         };
         // define the function
-        func_t l_func{
+        func l_func{
             .m_param_types = l_param_types,
             .m_params = l_params.begin(),
             .m_body = l_body,
@@ -273,14 +273,14 @@ void test_func_operator_parens()
         l_param_types.push_back(typeid(int));
         l_params.push_back(int());
         // define the body
-        func_body_t l_body{
+        func_body l_body{
             .m_functor =
                 [&l_params](const std::list<std::any>&)
             { return l_params.front(); },
             .m_children = {},
         };
         // define the function
-        func_t l_func{
+        func l_func{
             .m_param_types = l_param_types,
             .m_params = l_params.begin(),
             .m_body = l_body,
@@ -302,7 +302,7 @@ void test_func_operator_parens()
         l_param_types.push_back(typeid(int));
         l_params.push_back(int());
         // define the body
-        func_body_t l_body{
+        func_body l_body{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -311,7 +311,7 @@ void test_func_operator_parens()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [&l_params](
                                 const std::list<std::any>&)
@@ -320,7 +320,7 @@ void test_func_operator_parens()
                 },
         };
         // define the function
-        func_t l_func{
+        func l_func{
             .m_param_types = l_param_types,
             .m_params = l_params.begin(),
             .m_body = l_body,
@@ -342,7 +342,7 @@ void test_func_operator_parens()
         l_param_types.push_back(typeid(int));
         l_params.push_back(int());
         // define the body
-        func_body_t l_body{
+        func_body l_body{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -354,13 +354,13 @@ void test_func_operator_parens()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [&l_params](
                                 const std::list<std::any>&)
                         { return l_params.front(); },
                     },
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [](const std::list<std::any>&)
                         { return std::any(12); },
@@ -368,7 +368,7 @@ void test_func_operator_parens()
                 },
         };
         // define the function
-        func_t l_func{
+        func l_func{
             .m_param_types = l_param_types,
             .m_params = l_params.begin(),
             .m_body = l_body,
@@ -393,7 +393,7 @@ void test_func_operator_parens()
         l_param_types.push_back(typeid(int));
         l_params.push_back(int());
         // define the body
-        func_body_t l_body{
+        func_body l_body{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -407,13 +407,13 @@ void test_func_operator_parens()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [&l_params](
                                 const std::list<std::any>&)
                         { return *l_params.begin(); },
                     },
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [&l_params](
                                 const std::list<std::any>&)
@@ -425,7 +425,7 @@ void test_func_operator_parens()
                 },
         };
         // define the function
-        func_t l_func{
+        func l_func{
             .m_param_types = l_param_types,
             .m_params = l_params.begin(),
             .m_body = l_body,
@@ -448,7 +448,7 @@ void test_func_operator_parens()
         l_param_types.push_back(typeid(int));
         l_params.push_back(int());
         // define the body
-        func_body_t l_body{
+        func_body l_body{
             .m_functor =
                 [](const std::list<std::any>& a_args)
             {
@@ -457,7 +457,7 @@ void test_func_operator_parens()
             },
             .m_children =
                 {
-                    func_body_t{
+                    func_body{
                         .m_functor =
                             [](const std::list<std::any>&
                                    a_args)
@@ -467,7 +467,7 @@ void test_func_operator_parens()
                         },
                         .m_children =
                             {
-                                func_body_t{
+                                func_body{
                                     .m_functor =
                                         [&l_params](
                                             const std::list<
@@ -482,7 +482,7 @@ void test_func_operator_parens()
                 },
         };
         // define the function
-        func_t l_func{
+        func l_func{
             .m_param_types = l_param_types,
             .m_params = l_params.begin(),
             .m_body = l_body,

@@ -1,9 +1,8 @@
 #include "../include/reduce.hpp"
-#include "../include/env.hpp"
+#include "../include/program.hpp"
 #include "../include/scope.hpp"
 #include "../mcts/include/mcts.hpp"
 #include <iostream>
-#include <memory>
 #include <random>
 #include <sstream>
 
@@ -35,8 +34,10 @@ bool operator<(const make_function_t&,
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-func_t build_function(
-    env_t& a_env, scope_t& a_scope,
+func_node_t build_function(
+    program_t& a_program, scope_t& a_scope,
+    std::list<std::type_index> a_param_types,
+    std::stringstream& a_repr_stream,
     const std::type_index& a_return_type,
     const bool& a_allow_params,
     monte_carlo::simulation<choice_t, std::mt19937>&
@@ -86,37 +87,30 @@ func_t build_function(
     if(std::holds_alternative<place_new_param_t>(
            l_node_choice))
     {
-        // add a new param to the env
-        auto l_value_it = a_env.m_values.insert(
-            a_env.m_values.end(), std::any{});
+        ////////////////////////////////////////////////////
+        /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
+        ////////////////////////////////////////////////////
+        const func_t* l_func_ptr = a_program.add_parameter(
+            a_param_types.size(), a_return_type);
 
-        // construct the functor
-        auto l_functor =
-            [l_value_it](const std::list<std::any>& a_args)
-        { return *l_value_it; };
+        // add the parameter to the param types
+        a_param_types.push_back(a_return_type);
 
-        func_t l_new_param_func{
-            .m_param_types = {a_return_type},
-            .m_params = l_value_it,
-            .m_functor = l_functor,
-            .m_children = {},
-        };
+        // add the function to the scope
+        a_scope.add_function(a_return_type, l_func_ptr);
 
-        // add the new param function to the env
-        auto l_func_it = a_env.m_funcs.insert(
-            a_env.m_funcs.end(), l_new_param_func);
-
-        // add the new param function to the scope
-        a_scope.m_entries.at(a_return_type)
-            .m_nullaries.push_back(&*l_func_it);
-
-        // return the new param function
-        return l_new_param_func;
+        ////////////////////////////////////////////////////
+        ///////////// REFERENCE THIS NEW FUNC_T ////////////
+        ////////////////////////////////////////////////////
+        l_node_choice = place_node_t{l_func_ptr};
     }
 
     // extract the func
     const func_t* l_node_func =
         std::get<place_node_t>(l_node_choice).m_node;
+
+    // add the node's representation to the stream
+    a_repr_stream << l_node_func->m_repr << "(";
 
     ////////////////////////////////////////////////////
     //////////////// CONSTRUCT CHILDREN ////////////////
@@ -124,110 +118,34 @@ func_t build_function(
     size_t l_node_arity = l_node_func->m_param_types.size();
 
     // pre-allocate the args vector
-    std::vector<func_t> l_node_args(l_node_arity);
+    std::list<func_node_t> l_node_children;
 
-    // loop through, construct args in place
-    for(int i = 0; i < l_node_arity; ++i)
-        l_node_args[i] = build_function(
-            a_funcs, a_scope, l_node_func->m_param_types[i],
-            a_allow_params, a_simulation,
-            a_recursion_limit - 1);
-
-    ////////////////////////////////////////////////////
-    /////////// CONSTRUCT THE NATIVE FUNCTION //////////
-    ////////////////////////////////////////////////////
-    std::function l_total_definition =
-        [l_node_func, l_node_args](
-            std::vector<std::any>::const_iterator a_begin,
-            std::vector<std::any>::const_iterator a_end)
+    // loop through with iterator, construct args in place
+    for(auto l_param_type_it =
+            l_node_func->m_param_types.begin();
+        l_param_type_it != l_node_func->m_param_types.end();
+        ++l_param_type_it)
     {
-        // construct temp iterator
-        std::vector<std::any>::const_iterator l_it =
-            a_begin;
+        l_node_children.push_back(build_function(
+            a_program, a_scope, a_param_types,
+            a_repr_stream, *l_param_type_it, a_allow_params,
+            a_simulation, a_recursion_limit - 1));
 
-        // construct the results vector for the node args
-        std::vector<std::any> l_node_arg_results;
-
-        // iterate a_begin until end of node_arg's params,
-        // then go to next node_arg
-        for(const func_t& l_node_arg : l_node_args)
-        {
-            // construct begin iterator for this node_arg
-            std::vector<std::any>::const_iterator
-                l_node_arg_begin = l_it;
-
-            // step forward by the number of parameter types
-            l_it += l_node_arg.m_param_types.size();
-            std::vector<std::any>::const_iterator
-                l_node_arg_end = l_it;
-
-            // evaluate the node_arg
-            std::any l_node_arg_result =
-                l_node_arg.m_definition(l_node_arg_begin,
-                                        l_node_arg_end);
-
-            // push the result to the results vector
-            l_node_arg_results.push_back(l_node_arg_result);
-        }
-
-        // eval the node_func with the node arg results
-        return l_node_func->m_definition(
-            l_node_arg_results.begin(),
-            l_node_arg_results.end());
-    };
-
-    ////////////////////////////////////////////////////
-    /////////////// TOTAL PARAM VECTOR /////////////////
-    ////////////////////////////////////////////////////
-    std::vector<std::type_index> l_total_param_types;
-
-    // loop through args, and for each parameter types
-    // vector, push the parameter type to this vector
-    for(const func_t& l_node_arg : l_node_args)
-        l_total_param_types.insert(
-            l_total_param_types.end(),
-            l_node_arg.m_param_types.begin(),
-            l_node_arg.m_param_types.end());
-
-    ////////////////////////////////////////////////////
-    ///////////////// TOTAL NODE COUNT /////////////////
-    ////////////////////////////////////////////////////
-    size_t l_total_node_count = 1;
-
-    // loop through args, add the node count to the total
-    for(const func_t& l_node_arg : l_node_args)
-        l_total_node_count += l_node_arg.m_node_count;
-
-    ////////////////////////////////////////////////////
-    /////////////// TOTAL REPRESENTATION ////////////////
-    ////////////////////////////////////////////////////
-    std::string l_total_representation =
-        l_node_func->m_repr + "(";
-
-    // get an iterator to the first node arg
-    std::vector<func_t>::const_iterator l_node_arg_it =
-        l_node_args.begin();
-
-    if(l_node_arg_it != l_node_args.end())
-    {
-        l_total_representation += l_node_arg_it->m_repr;
-        ++l_node_arg_it;
+        // if this is not the last param, add a comma
+        if(std::next(l_param_type_it) !=
+           l_node_func->m_param_types.end())
+            a_repr_stream << ",";
     }
 
-    // loop through remaining node args, add them to repr
-    for(; l_node_arg_it != l_node_args.end();
-        ++l_node_arg_it)
-        l_total_representation +=
-            ", " + l_node_arg_it->m_repr;
-
-    l_total_representation += ")";
+    a_repr_stream << ")";
 
     ////////////////////////////////////////////////////
-    /////////////// CONSTRUCT THE FUNC_T ///////////////
+    //////////// CONSTRUCT THE FUNC_NODE_T /////////////
     ////////////////////////////////////////////////////
-    return func_t{l_total_param_types, l_total_definition,
-                  l_total_node_count,
-                  l_total_representation};
+    return func_node_t{
+        .m_functor = *l_node_func,
+        .m_children = l_node_children,
+    };
 }
 
 // bool_node
@@ -363,91 +281,93 @@ func_t build_function(
 //                 l_right_child));
 // }
 
-size_t node_count(const op_node_t& a_expr)
-{
-    size_t l_result = 1;
+// size_t node_count(const op_node_t& a_expr)
+// {
+//     size_t l_result = 1;
 
-    for(const auto& l_child : a_expr.m_args)
-        l_result += node_count(l_child);
+//     for(const auto& l_child : a_expr.m_args)
+//         l_result += node_count(l_child);
 
-    return l_result;
-}
+//     return l_result;
+// }
 
-void learn_model(
-    bool_node& a_model, std::vector<function>& a_helpers,
-    const size_t& a_in_scope_var_count,
-    const std::map<std::vector<bool>, bool>& a_data,
-    const size_t& a_iterations,
-    const size_t& a_recursion_limit,
-    const double& a_exploration_constant)
-{
-    std::mt19937 l_rnd_gen(27);
-    monte_carlo::tree_node<choice_t> l_root;
+// void learn_model(
+//     bool_node& a_model, std::vector<function>& a_helpers,
+//     const size_t& a_in_scope_var_count,
+//     const std::map<std::vector<bool>, bool>& a_data,
+//     const size_t& a_iterations,
+//     const size_t& a_recursion_limit,
+//     const double& a_exploration_constant)
+// {
+//     std::mt19937 l_rnd_gen(27);
+//     monte_carlo::tree_node<choice_t> l_root;
 
-    // initialize the best reward to the lowest possible
-    // value
-    double l_best_reward =
-        -std::numeric_limits<double>::infinity();
+//     // initialize the best reward to the lowest possible
+//     // value
+//     double l_best_reward =
+//         -std::numeric_limits<double>::infinity();
 
-    // save the original helpers
-    std::vector<function> l_original_helpers = a_helpers;
+//     // save the original helpers
+//     std::vector<function> l_original_helpers = a_helpers;
 
-    for(int i = 0; i < a_iterations; ++i)
-    {
-        // restore the original helpers
-        std::vector<function> l_iteration_helpers =
-            l_original_helpers;
+//     for(int i = 0; i < a_iterations; ++i)
+//     {
+//         // restore the original helpers
+//         std::vector<function> l_iteration_helpers =
+//             l_original_helpers;
 
-        // construct the simulation
-        monte_carlo::simulation<choice_t, std::mt19937>
-            l_sim(l_root, a_exploration_constant,
-                  l_rnd_gen);
+//         // construct the simulation
+//         monte_carlo::simulation<choice_t, std::mt19937>
+//             l_sim(l_root, a_exploration_constant,
+//                   l_rnd_gen);
 
-        // construct the model
-        bool_node l_model = build_model(
-            a_data, a_in_scope_var_count,
-            l_iteration_helpers, l_sim, a_recursion_limit);
+//         // construct the model
+//         bool_node l_model = build_model(
+//             a_data, a_in_scope_var_count,
+//             l_iteration_helpers, l_sim,
+//             a_recursion_limit);
 
-        // compute the number of nodes in the helpers
-        size_t l_helper_node_count = std::accumulate(
-            l_iteration_helpers.begin(),
-            l_iteration_helpers.end(), size_t{0},
-            [](size_t a_acc, const function& a_helper)
-            {
-                return a_acc +
-                       node_count(a_helper.m_definition);
-            });
+//         // compute the number of nodes in the helpers
+//         size_t l_helper_node_count = std::accumulate(
+//             l_iteration_helpers.begin(),
+//             l_iteration_helpers.end(), size_t{0},
+//             [](size_t a_acc, const function& a_helper)
+//             {
+//                 return a_acc +
+//                        node_count(a_helper.m_definition);
+//             });
 
-        // compute the number of nodes in the model
-        size_t l_model_node_count = node_count(l_model);
+//         // compute the number of nodes in the model
+//         size_t l_model_node_count = node_count(l_model);
 
-        // compute the reward (negative number of nodes)
-        double l_reward = -static_cast<double>(
-            l_helper_node_count + l_model_node_count);
+//         // compute the reward (negative number of nodes)
+//         double l_reward = -static_cast<double>(
+//             l_helper_node_count + l_model_node_count);
 
-        // save best model
-        if(l_reward > l_best_reward)
-        {
-            l_best_reward = l_reward;
-            a_model = l_model;
-            a_helpers = l_iteration_helpers;
-        }
+//         // save best model
+//         if(l_reward > l_best_reward)
+//         {
+//             l_best_reward = l_reward;
+//             a_model = l_model;
+//             a_helpers = l_iteration_helpers;
+//         }
 
-        std::cout << l_helper_node_count << " "
-                  << l_model_node_count << " " << l_reward
-                  << std::endl;
+//         std::cout << l_helper_node_count << " "
+//                   << l_model_node_count << " " <<
+//                   l_reward
+//                   << std::endl;
 
-        std::cout << "helpers: " << std::endl;
-        for(const auto& l_helper : l_iteration_helpers)
-            std::cout << "    " << l_helper.m_definition
-                      << std::endl;
-        std::cout << std::endl;
-        std::cout << "model: " << l_model << std::endl;
+//         std::cout << "helpers: " << std::endl;
+//         for(const auto& l_helper : l_iteration_helpers)
+//             std::cout << "    " << l_helper.m_definition
+//                       << std::endl;
+//         std::cout << std::endl;
+//         std::cout << "model: " << l_model << std::endl;
 
-        // terminate the simulation
-        l_sim.terminate(l_reward);
-    }
-}
+//         // terminate the simulation
+//         l_sim.terminate(l_reward);
+//     }
+// }
 
 ////////////////////////////////////////////////////
 ////////////////////// TESTING /////////////////////
@@ -458,471 +378,476 @@ void learn_model(
 #include <random>
 #include <sstream>
 
-void test_zero_construct_and_equality_check()
-{
-    assert(zero() == zero());
-    bool_node l_node = zero();
-    // check data field
-    assert(std::get_if<zero_t>(&l_node.m_data));
-}
-
-void test_one_construct_and_equality_check()
-{
-    assert(one() == one());
-    bool_node l_node = one();
-    // check data field
-    assert(std::get_if<one_t>(&l_node.m_data));
-}
-
-void test_var_construct_and_equality_check()
-{
-    assert(var(0) == var(0));
-    assert(var(0) != var(1));
-    bool_node l_node = var(1);
-    // check data field
-    var_t* l_data;
-    assert(l_data = std::get_if<var_t>(&l_node.m_data));
-    assert(l_data->m_index == 1);
-}
-
-void test_invert_construct_and_equality_check()
-{
-    assert(invert(var(0)) == invert(var(0)));
-    assert(invert(var(0)) != invert(var(1)));
-    bool_node l_node = invert(var(1));
-    // check data field
-    assert(std::get_if<invert_t>(&l_node.m_data));
-}
-
-void test_disjoin_construct_and_equality_check()
-{
-    assert(disjoin(var(0), var(1)) ==
-           disjoin(var(0), var(1)));
-    assert(disjoin(var(0), var(1)) !=
-           disjoin(var(1), var(1)));
-    assert(disjoin(var(0), var(1)) !=
-           disjoin(var(0), var(2)));
-    bool_node l_node = disjoin(var(0), var(1));
-    // check data field
-    assert(std::get_if<disjoin_t>(&l_node.m_data));
-}
-
-void test_conjoin_construct_and_equality_check()
-{
-    assert(conjoin(var(0), var(1)) ==
-           conjoin(var(0), var(1)));
-    assert(conjoin(var(0), var(1)) !=
-           conjoin(var(1), var(1)));
-    assert(conjoin(var(0), var(1)) !=
-           conjoin(var(0), var(2)));
-    bool_node l_node = conjoin(var(0), var(1));
-    // check data field
-    assert(std::get_if<conjoin_t>(&l_node.m_data));
-}
-
-void test_helper_construct_and_equality_check()
-{
-    assert(helper(0, {var(0), var(1)}) ==
-           helper(0, {var(0), var(1)}));
-    assert(helper(0, {var(0), var(1)}) !=
-           helper(1, {var(0), var(1)}));
-    assert(helper(0, {var(0), var(1)}) !=
-           helper(0, {var(1), var(1)}));
-    assert(helper(0, {var(0), var(1)}) !=
-           helper(0, {var(0), var(0)}));
-    assert(helper(0, {var(0), var(1)}) !=
-           helper(0, {var(0), var(0), var(1)}));
-    bool_node l_node = helper(2, {var(0), var(1)});
-    // check data field
-    helper_t* l_data;
-    assert(l_data = std::get_if<helper_t>(&l_node.m_data));
-    assert(l_data->m_index == 2);
-}
-
-void test_bool_node_ostream_inserter()
-{
-    {
-        bool_node l_node = zero();
-        std::stringstream l_ss;
-        l_ss << l_node;
-        assert(l_ss.str() == "low");
-    }
-
-    {
-        bool_node l_node = one();
-        std::stringstream l_ss;
-        l_ss << l_node;
-        assert(l_ss.str() == "high");
-    }
-
-    {
-        bool_node l_node = var(3);
-        std::stringstream l_ss;
-        l_ss << l_node;
-        assert(l_ss.str() == "3");
-    }
-
-    {
-        bool_node l_node = invert(var(4));
-        std::stringstream l_ss;
-        l_ss << l_node;
-        assert(l_ss.str() == "~{4}");
-    }
-
-    {
-        bool_node l_node = disjoin(var(5), var(6));
-        std::stringstream l_ss;
-        l_ss << l_node;
-        assert(l_ss.str() == "[5]|[6]");
-    }
-
-    {
-        bool_node l_node = conjoin(var(5), var(6));
-        std::stringstream l_ss;
-        l_ss << l_node;
-        assert(l_ss.str() == "(5)&(6)");
-    }
-}
-
-// void test_build_function()
+// void test_zero_construct_and_equality_check()
 // {
+//     assert(zero() == zero());
+//     bool_node l_node = zero();
+//     // check data field
+//     assert(std::get_if<zero_t>(&l_node.m_data));
+// }
 
-//     struct test_data
+// void test_one_construct_and_equality_check()
+// {
+//     assert(one() == one());
+//     bool_node l_node = one();
+//     // check data field
+//     assert(std::get_if<one_t>(&l_node.m_data));
+// }
+
+// void test_var_construct_and_equality_check()
+// {
+//     assert(var(0) == var(0));
+//     assert(var(0) != var(1));
+//     bool_node l_node = var(1);
+//     // check data field
+//     var_t* l_data;
+//     assert(l_data = std::get_if<var_t>(&l_node.m_data));
+//     assert(l_data->m_index == 1);
+// }
+
+// void test_invert_construct_and_equality_check()
+// {
+//     assert(invert(var(0)) == invert(var(0)));
+//     assert(invert(var(0)) != invert(var(1)));
+//     bool_node l_node = invert(var(1));
+//     // check data field
+//     assert(std::get_if<invert_t>(&l_node.m_data));
+// }
+
+// void test_disjoin_construct_and_equality_check()
+// {
+//     assert(disjoin(var(0), var(1)) ==
+//            disjoin(var(0), var(1)));
+//     assert(disjoin(var(0), var(1)) !=
+//            disjoin(var(1), var(1)));
+//     assert(disjoin(var(0), var(1)) !=
+//            disjoin(var(0), var(2)));
+//     bool_node l_node = disjoin(var(0), var(1));
+//     // check data field
+//     assert(std::get_if<disjoin_t>(&l_node.m_data));
+// }
+
+// void test_conjoin_construct_and_equality_check()
+// {
+//     assert(conjoin(var(0), var(1)) ==
+//            conjoin(var(0), var(1)));
+//     assert(conjoin(var(0), var(1)) !=
+//            conjoin(var(1), var(1)));
+//     assert(conjoin(var(0), var(1)) !=
+//            conjoin(var(0), var(2)));
+//     bool_node l_node = conjoin(var(0), var(1));
+//     // check data field
+//     assert(std::get_if<conjoin_t>(&l_node.m_data));
+// }
+
+// void test_helper_construct_and_equality_check()
+// {
+//     assert(helper(0, {var(0), var(1)}) ==
+//            helper(0, {var(0), var(1)}));
+//     assert(helper(0, {var(0), var(1)}) !=
+//            helper(1, {var(0), var(1)}));
+//     assert(helper(0, {var(0), var(1)}) !=
+//            helper(0, {var(1), var(1)}));
+//     assert(helper(0, {var(0), var(1)}) !=
+//            helper(0, {var(0), var(0)}));
+//     assert(helper(0, {var(0), var(1)}) !=
+//            helper(0, {var(0), var(0), var(1)}));
+//     bool_node l_node = helper(2, {var(0), var(1)});
+//     // check data field
+//     helper_t* l_data;
+//     assert(l_data =
+//     std::get_if<helper_t>(&l_node.m_data));
+//     assert(l_data->m_index == 2);
+// }
+
+// void test_bool_node_ostream_inserter()
+// {
 //     {
-//         uint32_t m_rnd_gen_seed;
-//         std::vector<size_t> m_helper_arities;
-//         size_t m_desired_func_arity;
-//         bool_node m_desired_func;
-//     };
+//         bool_node l_node = zero();
+//         std::stringstream l_ss;
+//         l_ss << l_node;
+//         assert(l_ss.str() == "low");
+//     }
 
-//     std::list<test_data> l_examples{
-//         test_data{
-//             17,
-//             {},
-//             0,
-//             one(),
-//         },
-//         test_data{
-//             18,
-//             {},
-//             0,
-//             disjoin(zero(),
-//                     invert(invert(conjoin(one(),
-//                     zero())))),
-//         },
-//         test_data{
-//             20,
-//             {},
-//             4,
-//             var(3),
-//         },
-//         test_data{
-//             23,
-//             {
-//                 1,
-//             },
-//             0,
-//             disjoin(conjoin(helper(0,
-//             {one()}),conjoin(conjoin(one(),
-//             disjoin(zero(), zero()))))),
-//         },
-//         test_data{
-//             24,
-//             {
-//                 1,
-//                 2,
-//                 3,
-//                 4,
-//             },
-//             4,
-//             helper(
-//                 3,
-//                 {var(0), helper(0, {zero()}),
-//                  helper(
-//                      3,
-//                      {
-//                          var(1),
-//                          var(0),
-//                          helper(
-//                              3,
-//                              {
-//                                  var(2),
-//                                  invert(
-//                                      helper(0,
-//                                      {var(2)})),
-//                                  helper(3,
-//                                         {
-//                                             invert(one()),
-//                                             conjoin(zero(),
-//                                                     one()),
-//                                             var(2),
-//                                             disjoin(one(),
-//                                                     zero()),
-//                                         }),
-//                                  var(2),
-//                              }),
-//                          conjoin(
-//                              helper(0, {var(3)}),
-//                              helper(2,
-//                                     {
-//                                         helper(2,
-//                                                {
-//                                                    var(1),
-//                                                    var(3),
-//                                                    one(),
-//                                                }),
-//                                         var(1),
-//                                         conjoin(var(1),
-//                                                 var(1)),
-//                                     })),
-//                      }),
-//                  invert(invert(
-//                      helper(3,
-//                             {
-//                                 helper(2, {var(1),
-//                                 var(3),
-//                                            var(0)}),
-//                                 var(2),
-//                                 invert(var(2)),
-//                                 invert(var(2)),
-//                             })))}),
-//         },
-//     };
-
-//     for(const test_data& l_example : l_examples)
 //     {
-//         std::mt19937 l_rnd_gen(l_example.m_rnd_gen_seed);
-//         monte_carlo::tree_node<choice_t> l_root;
-//         monte_carlo::simulation<choice_t, std::mt19937>
-//             l_sim(l_root, 5, l_rnd_gen);
-//         bool_node l_func = build_function(
-//             l_example.m_desired_func_arity,
-//             l_example.m_helper_arities, l_sim, 5);
-//         std::cout << l_func << std::endl;
-//         assert(l_func == l_example.m_desired_func);
+//         bool_node l_node = one();
+//         std::stringstream l_ss;
+//         l_ss << l_node;
+//         assert(l_ss.str() == "high");
+//     }
+
+//     {
+//         bool_node l_node = var(3);
+//         std::stringstream l_ss;
+//         l_ss << l_node;
+//         assert(l_ss.str() == "3");
+//     }
+
+//     {
+//         bool_node l_node = invert(var(4));
+//         std::stringstream l_ss;
+//         l_ss << l_node;
+//         assert(l_ss.str() == "~{4}");
+//     }
+
+//     {
+//         bool_node l_node = disjoin(var(5), var(6));
+//         std::stringstream l_ss;
+//         l_ss << l_node;
+//         assert(l_ss.str() == "[5]|[6]");
+//     }
+
+//     {
+//         bool_node l_node = conjoin(var(5), var(6));
+//         std::stringstream l_ss;
+//         l_ss << l_node;
+//         assert(l_ss.str() == "(5)&(6)");
 //     }
 // }
 
-void test_build_model()
-{
-    std::mt19937 l_rnd_gen(5);
-    monte_carlo::tree_node<choice_t> l_root;
-    monte_carlo::simulation<choice_t, std::mt19937> l_sim(
-        l_root, 5, l_rnd_gen);
+// // void test_build_function()
+// // {
 
-    // while(true)
-    // {
+// //     struct test_data
+// //     {
+// //         uint32_t m_rnd_gen_seed;
+// //         std::vector<size_t> m_helper_arities;
+// //         size_t m_desired_func_arity;
+// //         bool_node m_desired_func;
+// //     };
 
-    //     std::vector<size_t>    l_helper_arities;
-    //     std::vector<bool_node> l_helpers;
+// //     std::list<test_data> l_examples{
+// //         test_data{
+// //             17,
+// //             {},
+// //             0,
+// //             one(),
+// //         },
+// //         test_data{
+// //             18,
+// //             {},
+// //             0,
+// //             disjoin(zero(),
+// //                     invert(invert(conjoin(one(),
+// //                     zero())))),
+// //         },
+// //         test_data{
+// //             20,
+// //             {},
+// //             4,
+// //             var(3),
+// //         },
+// //         test_data{
+// //             23,
+// //             {
+// //                 1,
+// //             },
+// //             0,
+// //             disjoin(conjoin(helper(0,
+// //             {one()}),conjoin(conjoin(one(),
+// //             disjoin(zero(), zero()))))),
+// //         },
+// //         test_data{
+// //             24,
+// //             {
+// //                 1,
+// //                 2,
+// //                 3,
+// //                 4,
+// //             },
+// //             4,
+// //             helper(
+// //                 3,
+// //                 {var(0), helper(0, {zero()}),
+// //                  helper(
+// //                      3,
+// //                      {
+// //                          var(1),
+// //                          var(0),
+// //                          helper(
+// //                              3,
+// //                              {
+// //                                  var(2),
+// //                                  invert(
+// //                                      helper(0,
+// //                                      {var(2)})),
+// //                                  helper(3,
+// //                                         {
+// // invert(one()),
+// // conjoin(zero(),
+// // one()),
+// //                                             var(2),
+// // disjoin(one(),
+// // zero()),
+// //                                         }),
+// //                                  var(2),
+// //                              }),
+// //                          conjoin(
+// //                              helper(0, {var(3)}),
+// //                              helper(2,
+// //                                     {
+// //                                         helper(2,
+// //                                                {
+// // var(1),
+// // var(3),
+// // one(),
+// //                                                }),
+// //                                         var(1),
+// // conjoin(var(1),
+// // var(1)),
+// //                                     })),
+// //                      }),
+// //                  invert(invert(
+// //                      helper(3,
+// //                             {
+// //                                 helper(2, {var(1),
+// //                                 var(3),
+// //                                            var(0)}),
+// //                                 var(2),
+// //                                 invert(var(2)),
+// //                                 invert(var(2)),
+// //                             })))}),
+// //         },
+// //     };
 
-    //     bool_node l_model = build_model(10,
-    //     l_helper_arities, l_helpers, l_sim, 5);
+// //     for(const test_data& l_example : l_examples)
+// //     {
+// //         std::mt19937
+// l_rnd_gen(l_example.m_rnd_gen_seed);
+// //         monte_carlo::tree_node<choice_t> l_root;
+// //         monte_carlo::simulation<choice_t,
+// std::mt19937>
+// //             l_sim(l_root, 5, l_rnd_gen);
+// //         bool_node l_func = build_function(
+// //             l_example.m_desired_func_arity,
+// //             l_example.m_helper_arities, l_sim, 5);
+// //         std::cout << l_func << std::endl;
+// //         assert(l_func == l_example.m_desired_func);
+// //     }
+// // }
 
-    //     for (const auto& l_fn : l_helpers)
-    //         std::cout << l_fn << std::endl;
+// void test_build_model()
+// {
+//     std::mt19937 l_rnd_gen(5);
+//     monte_carlo::tree_node<choice_t> l_root;
+//     monte_carlo::simulation<choice_t, std::mt19937>
+//     l_sim(
+//         l_root, 5, l_rnd_gen);
 
-    //     std::cout << l_model << std::endl << std::endl;
+//     // while(true)
+//     // {
 
-    // }
-}
+//     //     std::vector<size_t>    l_helper_arities;
+//     //     std::vector<bool_node> l_helpers;
 
-void test_evaluate()
-{
-    struct test_data
-    {
-        std::vector<function> m_helpers;
-        bool_node m_model;
-        std::vector<bool> m_x;
-        bool m_y;
-    };
+//     //     bool_node l_model = build_model(10,
+//     //     l_helper_arities, l_helpers, l_sim, 5);
 
-    std::list<test_data> l_examples{
-        {
-            {},
-            zero(),
-            {0, 0, 0},
-            0,
-        },
-        {
-            {},
-            one(),
-            {0, 0, 0},
-            1,
-        },
-        {
-            {},
-            var(0),
-            {0, 0, 0},
-            0,
-        },
-        {
-            {},
-            var(0),
-            {1, 0, 0},
-            1,
-        },
-        {
-            {},
-            var(1),
-            {1, 0, 0},
-            0,
-        },
-        {
-            {},
-            var(1),
-            {1, 1, 0},
-            1,
-        },
-        {
-            {},
-            invert(zero()),
-            {1, 0, 0},
-            1,
-        },
-        {
-            {},
-            invert(one()),
-            {1, 0, 0},
-            0,
-        },
-        {
-            {},
-            disjoin(zero(), zero()),
-            {1, 0, 0},
-            0,
-        },
-        {
-            {},
-            disjoin(zero(), one()),
-            {1, 0, 0},
-            1,
-        },
-        {
-            {},
-            disjoin(one(), zero()),
-            {1, 0, 0},
-            1,
-        },
-        {
-            {},
-            disjoin(one(), one()),
-            {1, 0, 0},
-            1,
-        },
-        {
-            {},
-            conjoin(zero(), zero()),
-            {1, 0, 0},
-            0,
-        },
-        {
-            {},
-            conjoin(zero(), one()),
-            {1, 0, 0},
-            0,
-        },
-        {
-            {},
-            conjoin(one(), zero()),
-            {1, 0, 0},
-            0,
-        },
-        {
-            {},
-            conjoin(one(), one()),
-            {1, 0, 0},
-            1,
-        },
-        {
-            // demonstrate helper captures
-            {
-                function{0, var(2), {}},
-            },
-            helper(0, {}),
-            {1, 0, 0},
-            0,
-        },
-        {
-            // demonstrate helper captures
-            {
-                function{0, var(2), {}},
-            },
-            helper(0, {}),
-            {1, 0, 1},
-            1,
-        },
-        {
-            // demonstrate helper parameters
-            {
-                function{1, var(3), {}},
-            },
-            helper(1, {var(1)}),
-            {0, 1, 0},
-            1,
-        },
-        {
-            // demonstrate helper uses captured val over
-            // param
-            {
-                function{1, var(0), {}},
-                function{3, var(5), {}},
-            },
-            helper(0, {var(2)}),
-            {0, 1, 1},
-            0,
-        },
-    };
+//     //     for (const auto& l_fn : l_helpers)
+//     //         std::cout << l_fn << std::endl;
 
-    for(const auto& l_example : l_examples)
-    {
-        assert(evaluate(l_example.m_model,
-                        l_example.m_helpers,
-                        l_example.m_x) == l_example.m_y);
-    }
-}
+//     //     std::cout << l_model << std::endl <<
+//     std::endl;
 
-void test_learn_model()
-{
-    constexpr size_t IN_SCOPE_VAR_COUNT = 4;
-    constexpr size_t ITERATIONS = 1000000;
+//     // }
+// }
 
-    std::vector<function> l_helpers;
+// void test_evaluate()
+// {
+//     struct test_data
+//     {
+//         std::vector<function> m_helpers;
+//         bool_node m_model;
+//         std::vector<bool> m_x;
+//         bool m_y;
+//     };
 
-    std::map<std::vector<bool>, bool> l_data{
-        {{0, 0, 0, 1}, 0},
-        {{0, 1, 0, 1}, 1},
-        {{1, 0, 0, 1}, 1},
-        {{1, 1, 0, 1}, 1},
-        {{1, 1, 0, 0}, 0}};
+//     std::list<test_data> l_examples{
+//         {
+//             {},
+//             zero(),
+//             {0, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             one(),
+//             {0, 0, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             var(0),
+//             {0, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             var(0),
+//             {1, 0, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             var(1),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             var(1),
+//             {1, 1, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             invert(zero()),
+//             {1, 0, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             invert(one()),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             disjoin(zero(), zero()),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             disjoin(zero(), one()),
+//             {1, 0, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             disjoin(one(), zero()),
+//             {1, 0, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             disjoin(one(), one()),
+//             {1, 0, 0},
+//             1,
+//         },
+//         {
+//             {},
+//             conjoin(zero(), zero()),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             conjoin(zero(), one()),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             conjoin(one(), zero()),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             {},
+//             conjoin(one(), one()),
+//             {1, 0, 0},
+//             1,
+//         },
+//         {
+//             // demonstrate helper captures
+//             {
+//                 function{0, var(2), {}},
+//             },
+//             helper(0, {}),
+//             {1, 0, 0},
+//             0,
+//         },
+//         {
+//             // demonstrate helper captures
+//             {
+//                 function{0, var(2), {}},
+//             },
+//             helper(0, {}),
+//             {1, 0, 1},
+//             1,
+//         },
+//         {
+//             // demonstrate helper parameters
+//             {
+//                 function{1, var(3), {}},
+//             },
+//             helper(1, {var(1)}),
+//             {0, 1, 0},
+//             1,
+//         },
+//         {
+//             // demonstrate helper uses captured val over
+//             // param
+//             {
+//                 function{1, var(0), {}},
+//                 function{3, var(5), {}},
+//             },
+//             helper(0, {var(2)}),
+//             {0, 1, 1},
+//             0,
+//         },
+//     };
 
-    bool_node l_model;
+//     for(const auto& l_example : l_examples)
+//     {
+//         assert(evaluate(l_example.m_model,
+//                         l_example.m_helpers,
+//                         l_example.m_x) == l_example.m_y);
+//     }
+// }
 
-    learn_model(l_model, l_helpers, IN_SCOPE_VAR_COUNT,
-                l_data, ITERATIONS, 3, 10);
+// void test_learn_model()
+// {
+//     constexpr size_t IN_SCOPE_VAR_COUNT = 4;
+//     constexpr size_t ITERATIONS = 1000000;
 
-    // for(const auto& l_helper : l_helpers)
-    //     std::cout << l_helper << std::endl;
+//     std::vector<function> l_helpers;
 
-    std::cout << l_model << std::endl;
-}
+//     std::map<std::vector<bool>, bool> l_data{
+//         {{0, 0, 0, 1}, 0},
+//         {{0, 1, 0, 1}, 1},
+//         {{1, 0, 0, 1}, 1},
+//         {{1, 1, 0, 1}, 1},
+//         {{1, 1, 0, 0}, 0}};
 
-void bool_reduce_test_main()
-{
-    constexpr bool ENABLE_DEBUG_LOGS = true;
+//     bool_node l_model;
 
-    TEST(test_zero_construct_and_equality_check);
-    TEST(test_one_construct_and_equality_check);
-    TEST(test_var_construct_and_equality_check);
-    TEST(test_invert_construct_and_equality_check);
-    TEST(test_disjoin_construct_and_equality_check);
-    TEST(test_conjoin_construct_and_equality_check);
-    TEST(test_helper_construct_and_equality_check);
-    TEST(test_bool_node_ostream_inserter);
-    // TEST(test_build_function);
-    TEST(test_build_model);
-    TEST(test_evaluate);
-    TEST(test_learn_model);
-}
+//     learn_model(l_model, l_helpers, IN_SCOPE_VAR_COUNT,
+//                 l_data, ITERATIONS, 3, 10);
+
+//     // for(const auto& l_helper : l_helpers)
+//     //     std::cout << l_helper << std::endl;
+
+//     std::cout << l_model << std::endl;
+// }
+
+// void bool_reduce_test_main()
+// {
+//     constexpr bool ENABLE_DEBUG_LOGS = true;
+
+//     TEST(test_zero_construct_and_equality_check);
+//     TEST(test_one_construct_and_equality_check);
+//     TEST(test_var_construct_and_equality_check);
+//     TEST(test_invert_construct_and_equality_check);
+//     TEST(test_disjoin_construct_and_equality_check);
+//     TEST(test_conjoin_construct_and_equality_check);
+//     TEST(test_helper_construct_and_equality_check);
+//     TEST(test_bool_node_ostream_inserter);
+//     // TEST(test_build_function);
+//     TEST(test_build_model);
+//     TEST(test_evaluate);
+//     TEST(test_learn_model);
+// }
 
 #endif

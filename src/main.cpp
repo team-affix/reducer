@@ -17,13 +17,17 @@
 #include <functional>
 #include <iostream>
 
-extern void bool_reduce_test_main();
+// extern void bool_reduce_test_main();
+extern void scope_test_main();
+extern void func_test_main();
 
 void unit_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
-    TEST(bool_reduce_test_main);
+    // TEST(bool_reduce_test_main);
+    TEST(scope_test_main);
+    TEST(func_test_main);
 }
 
 int main()

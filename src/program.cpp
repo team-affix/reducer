@@ -123,3 +123,69 @@ program_t::add_parameter(const int a_param_index,
     // return the function
     return l_func_ptr;
 }
+
+#ifdef UNIT_TEST
+
+#include "test_utils.hpp"
+
+void test_make_general_function()
+{
+    // nullary function
+    {
+        std::function<int()> l_function = []()
+        { return 10; };
+        auto l_general_function =
+            make_general_function(l_function);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<int>(l_general_function({})) ==
+               10);
+    }
+
+    // unary function
+    {
+        std::function l_function = [](double a_x)
+        { return a_x + 13.5; };
+        auto l_general_function =
+            make_general_function(l_function);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(
+                   l_general_function({10.0})) == 23.5);
+    }
+
+    // binary function
+    {
+        std::function l_function =
+            [](double a_x, double a_y)
+        { return a_x * a_y; };
+        auto l_general_function =
+            make_general_function(l_function);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(l_general_function(
+                   {10.0, 20.5})) == 205.0);
+    }
+
+    // ternary function
+    {
+        std::function l_function =
+            [](double a_x, double a_y, double a_z)
+        { return a_x * a_y * a_z; };
+        auto l_general_function =
+            make_general_function(l_function);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(l_general_function(
+                   {10.0, 20.5, 30.0})) == 6150.0);
+    }
+}
+
+void program_test_main()
+{
+    constexpr bool ENABLE_DEBUG_LOGS = true;
+
+    TEST(test_make_general_function);
+}
+
+#endif

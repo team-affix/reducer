@@ -20,6 +20,7 @@
 // extern void bool_reduce_test_main();
 extern void scope_test_main();
 extern void func_test_main();
+extern void program_test_main();
 
 void unit_test_main()
 {
@@ -28,6 +29,7 @@ void unit_test_main()
     // TEST(bool_reduce_test_main);
     TEST(scope_test_main);
     TEST(func_test_main);
+    TEST(program_test_main);
 }
 
 int main()

@@ -83,8 +83,8 @@ build_function(program& a_program, scope& a_scope,
         ////////////////////////////////////////////////////
         /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
         ////////////////////////////////////////////////////
-        const auto l_func_ptr = a_program.add_parameter(
-            l_param_it, a_param_types.size(), a_return_type);
+        const auto l_func_ptr =
+            a_program.add_parameter(l_param_it, a_param_types.size());
 
         // add the parameter to the param types
         a_param_types.push_back(a_return_type);

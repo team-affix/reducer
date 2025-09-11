@@ -35,7 +35,7 @@ make_general_function(std::function<Ret(FirstParam, RestParams...)> a_function)
 
 std::list<func>::const_iterator
 program::add_parameter(std::list<std::any>::iterator& a_param_it,
-                       const int a_param_index, const std::type_index& a_type)
+                       const int a_param_index)
 {
     // create the value
     a_param_it = m_param_heap.insert(m_param_heap.end(), std::any{});
@@ -95,8 +95,7 @@ program::add_primitive(const std::string& a_repr,
         std::list<std::any>::iterator l_param_it;
 
         // add the parameter to the heap
-        l_body.m_children.push_back(
-            func_body{*add_parameter(l_param_it, i++, l_param_type)});
+        l_body.m_children.push_back(func_body{*add_parameter(l_param_it, i++)});
 
         // save the iterator to the first inserted value
         if(l_params == m_param_heap.end())
@@ -179,6 +178,110 @@ void test_make_general_function()
         // make sure the function evaluates correctly
         assert(std::any_cast<double>(l_general_function(
                    l_input.begin(), l_input.end())) == 6150.0);
+    }
+}
+
+void test_program_add_parameter()
+{
+    // single param
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        // verify the param heap is empty
+        assert(l_program.m_param_heap.empty());
+
+        // add the parameter
+        std::list<std::any>::iterator l_param_it;
+        const auto l_func = l_program.add_parameter(l_param_it, 0);
+
+        // verify the func list contains func
+        assert(l_program.m_funcs.begin() == l_func);
+
+        // verify the param heap contains val
+        assert(l_program.m_param_heap.begin() == l_param_it);
+
+        // ensure that the func is correct
+        assert(l_func->m_param_types.empty());
+        assert(l_func->m_params == l_program.m_param_heap.end());
+        assert(l_func->m_body.node_count() == 1);
+        assert(l_func->m_repr == "p0");
+
+        // create the input
+        std::list<std::any> l_input;
+
+        // set the param
+        *l_param_it = std::any(10.2);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(
+                   (*l_func)(l_input.begin(), l_input.end())) == 10.2);
+    }
+
+    // two params
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        // verify the param heap is empty
+        assert(l_program.m_param_heap.empty());
+
+        // add the parameter
+        std::list<std::any>::iterator l_param_0_it;
+        const auto l_func_0 = l_program.add_parameter(l_param_0_it, 0);
+
+        // verify the func list contains func
+        assert(l_program.m_funcs.begin() == l_func_0);
+
+        // verify the param heap contains val
+        assert(l_program.m_param_heap.begin() == l_param_0_it);
+
+        // ensure that the func is correct
+        assert(l_func_0->m_param_types.empty());
+        assert(l_func_0->m_params == l_program.m_param_heap.end());
+        assert(l_func_0->m_body.node_count() == 1);
+        assert(l_func_0->m_repr == "p0");
+
+        // create the input
+        std::list<std::any> l_input;
+
+        // set the param
+        *l_param_0_it = std::any(10.2);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(
+                   (*l_func_0)(l_input.begin(), l_input.end())) == 10.2);
+
+        // add the second parameter
+        std::list<std::any>::iterator l_param_1_it;
+        const auto l_func_1 = l_program.add_parameter(l_param_1_it, 1);
+
+        // verify the func list contains func
+        assert(std::next(l_program.m_funcs.begin()) == l_func_1);
+
+        // verify the param heap contains val
+        assert(std::next(l_program.m_param_heap.begin()) == l_param_1_it);
+
+        // ensure that the func is correct
+        assert(l_func_1->m_param_types.empty());
+        assert(l_func_1->m_params == l_program.m_param_heap.end());
+        assert(l_func_1->m_body.node_count() == 1);
+        assert(l_func_1->m_repr == "p1");
+
+        // set the param
+        *l_param_1_it = std::any(20.5);
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(
+                   (*l_func_1)(l_input.begin(), l_input.end())) == 20.5);
+
+        // make sure the first function STILL evaluates correctly
+        assert(std::any_cast<double>(
+                   (*l_func_0)(l_input.begin(), l_input.end())) == 10.2);
     }
 }
 
@@ -444,6 +547,7 @@ void program_test_main()
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
     TEST(test_make_general_function);
+    TEST(test_program_add_parameter);
     TEST(test_program_add_primitive);
 }
 

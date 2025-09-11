@@ -13,7 +13,7 @@ struct program
     // adding functions
     std::list<func>::const_iterator
     add_parameter(std::list<std::any>::iterator& a_param_it,
-                  const int a_param_index, const std::type_index& a_type);
+                  const int a_param_index);
     template <typename Ret, typename... Params>
     std::list<func>::const_iterator
     add_primitive(const std::string& a_repr,

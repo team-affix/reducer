@@ -330,6 +330,74 @@ void test_program_add_primitive()
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
     }
+
+    // add a unary string primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func = l_program.add_primitive(
+            "f0",
+            std::function([](std::string a_x) { return a_x + " world"; }));
+
+        // verify the func list is not empty
+        assert(std::next(l_program.m_funcs.begin()) == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.size() == 1);
+        assert(l_func->m_param_types.front() == typeid(std::string));
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 2);
+
+        // create the input
+        std::list<std::any> l_input;
+        l_input.push_back(std::any(std::string("hello")));
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<std::string>(
+                   (*l_func)(l_input.begin(), l_input.end())) == "hello world");
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
+
+    // add a binary int primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func = l_program.add_primitive(
+            "f0", std::function([](int a_x, int a_y) { return a_x + a_y; }));
+
+        // verify the func list is not empty
+        assert(std::next(l_program.m_funcs.begin(), 2) == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.size() == 2);
+        assert(std::equal(l_func->m_param_types.begin(),
+                          l_func->m_param_types.end(),
+                          std::list({std::type_index(typeid(int)),
+                                     std::type_index(typeid(int))})
+                              .begin()));
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 3);
+
+        // create the input
+        std::list<std::any> l_input;
+        l_input.push_back(std::any(10));
+        l_input.push_back(std::any(20));
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
+               30);
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
 }
 
 void program_test_main()

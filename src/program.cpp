@@ -1,6 +1,7 @@
 #include "../include/program.hpp"
 
 #include <cmath>
+#include <sstream>
 
 template <typename Ret>
 std::function<std::any(std::list<std::any>::const_iterator,
@@ -224,8 +225,9 @@ void test_program_add_parameter()
                     [](std::list<std::any>::const_iterator a_begin,
                        std::list<std::any>::const_iterator a_end)
                     {
-                        return std::to_string(std::any_cast<double>(*a_begin)) +
-                               std::string(" ") +
+                        std::ostringstream l_oss;
+                        l_oss << std::any_cast<double>(*a_begin);
+                        return l_oss.str() + std::string(" ") +
                                std::any_cast<std::string>(*std::next(a_begin));
                     }),
                 .m_children = {},
@@ -273,11 +275,8 @@ void test_program_add_parameter()
         l_func_it->m_params.back() = std::any(std::string("hello"));
 
         // make sure the function evaluates correctly
-        std::cout << std::any_cast<std::string>(
-                         (*l_func_it)(l_input.begin(), l_input.end()))
-                  << std::endl;
         assert(std::any_cast<std::string>((*l_func_it)(
-                   l_input.begin(), l_input.end())) == "10.200000 hello");
+                   l_input.begin(), l_input.end())) == "10.2 hello");
     }
 }
 

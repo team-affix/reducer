@@ -4,7 +4,7 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-ColumnLimit: 60
+ColumnLimit: 80
 BreakBeforeBraces: Allman
 IndentCaseLabels: true
 SpaceBeforeParens: Never

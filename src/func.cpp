@@ -9,27 +9,25 @@ std::any func_body::eval() const
     // evaluate all children
     std::transform(m_children.begin(), m_children.end(),
                    std::back_inserter(l_functor_args),
-                   [](const func_body& a_child)
-                   { return a_child.eval(); });
+                   [](const func_body& a_child) { return a_child.eval(); });
 
     // evaluate the functor
-    return m_functor(l_functor_args);
+    return m_functor(l_functor_args.begin(), l_functor_args.end());
 }
 
 size_t func_body::node_count() const
 {
     // count nodes in children, add one for this node
-    return std::accumulate(
-        m_children.begin(), m_children.end(), 1,
-        [](size_t a_sum, const func_body& a_child)
-        { return a_sum + a_child.node_count(); });
+    return std::accumulate(m_children.begin(), m_children.end(), 1,
+                           [](size_t a_sum, const func_body& a_child)
+                           { return a_sum + a_child.node_count(); });
 }
 
-std::any
-func::operator()(const std::list<std::any>& a_args) const
+std::any func::operator()(std::list<std::any>::const_iterator a_begin,
+                          std::list<std::any>::const_iterator a_end) const
 {
     // set the parameters
-    std::copy(a_args.begin(), a_args.end(), m_params);
+    std::copy(a_begin, a_end, m_params);
     // evaluate the function
     return m_body.eval();
 }
@@ -47,11 +45,10 @@ void test_func_body_eval()
 {
     // nullary
     {
-        func_body l_node{
-            .m_functor =
-                [](const std::list<std::any>& a_args)
-            { return std::any(10); },
-            .m_children = {}};
+        func_body l_node{.m_functor = [](std::list<std::any>::const_iterator,
+                                         std::list<std::any>::const_iterator)
+                         { return std::any(10); },
+                         .m_children = {}};
         // evaluate the node
         auto l_result = l_node.eval();
         // assert that the type is int
@@ -62,18 +59,14 @@ void test_func_body_eval()
     // unary
     {
         func_body l_node{
-            .m_functor =
-                [](const std::list<std::any>& a_args)
-            {
-                return 10 +
-                       std::any_cast<int>(a_args.front());
-            },
+            .m_functor = [](std::list<std::any>::const_iterator a_begin,
+                            std::list<std::any>::const_iterator a_end)
+            { return 10 + std::any_cast<int>(*a_begin); },
             .m_children =
                 {
                     func_body{
-                        .m_functor =
-                            [](const std::list<std::any>&
-                                   a_args)
+                        .m_functor = [](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return std::any(11); },
                     },
                 },
@@ -89,26 +82,22 @@ void test_func_body_eval()
     {
         func_body l_node{
             .m_functor =
-                [](const std::list<std::any>& a_args)
+                [](std::list<std::any>::const_iterator a_begin,
+                   std::list<std::any>::const_iterator a_end)
             {
-                return std::any(
-                    10 +
-                    std::any_cast<int>(a_args.front()) +
-                    std::any_cast<int>(
-                        *std::next(a_args.begin())));
+                return 10 + std::any_cast<int>(*a_begin) +
+                       std::any_cast<int>(*std::next(a_begin));
             },
             .m_children =
                 {
                     func_body{
-                        .m_functor =
-                            [](const std::list<std::any>&
-                                   a_args)
+                        .m_functor = [](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return std::any(11); },
                     },
                     func_body{
-                        .m_functor =
-                            [](const std::list<std::any>&
-                                   a_args)
+                        .m_functor = [](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return std::any(12); },
                     },
                 },
@@ -123,33 +112,23 @@ void test_func_body_eval()
     // doubly-nested unary
     {
         func_body l_node{
-            .m_functor =
-                [](const std::list<std::any>& a_args)
-            {
-                return std::any(10 + std::any_cast<int>(
-                                         a_args.front()));
-            },
+            .m_functor = [](std::list<std::any>::const_iterator a_begin,
+                            std::list<std::any>::const_iterator a_end)
+            { return std::any(10 + std::any_cast<int>(*a_begin)); },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [](const std::list<std::any>&
-                                   a_args)
-                        {
-                            return std::any(
-                                11 + std::any_cast<int>(
-                                         a_args.front()));
-                        },
+                            [](std::list<std::any>::const_iterator a_begin,
+                               std::list<std::any>::const_iterator a_end)
+                        { return std::any(11 + std::any_cast<int>(*a_begin)); },
                         .m_children =
                             {
                                 func_body{
                                     .m_functor =
-                                        [](const std::list<
-                                            std::any>&
-                                               a_args)
-                                    {
-                                        return std::any(12);
-                                    },
+                                        [](std::list<std::any>::const_iterator,
+                                           std::list<std::any>::const_iterator)
+                                    { return std::any(12); },
                                 },
                             },
                     },
@@ -210,8 +189,7 @@ void test_func_body_node_count()
     // ternary
     {
         func_body l_node{
-            .m_children = {func_body{}, func_body{},
-                           func_body{}},
+            .m_children = {func_body{}, func_body{}, func_body{}},
         };
         // assert that the node count is 4
         assert(l_node.node_count() == 4);
@@ -223,12 +201,10 @@ void test_func_body_node_count()
             .m_children =
                 {
                     func_body{
-                        .m_children = {func_body{},
-                                       func_body{}},
+                        .m_children = {func_body{}, func_body{}},
                     },
                     func_body{
-                        .m_children = {func_body{},
-                                       func_body{}},
+                        .m_children = {func_body{}, func_body{}},
                     },
                 },
         };
@@ -247,7 +223,8 @@ void test_func_operator_parens()
         std::list<std::type_index> l_param_types;
         // define the body
         func_body l_body{
-            .m_functor = [](const std::list<std::any>&)
+            .m_functor = [](std::list<std::any>::const_iterator,
+                            std::list<std::any>::const_iterator)
             { return std::any(10); },
             .m_children = {},
         };
@@ -260,7 +237,8 @@ void test_func_operator_parens()
         // define the input
         std::list<std::any> l_input;
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input)) == 10);
+        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
+               10);
     }
 
     // just a parameter
@@ -274,8 +252,8 @@ void test_func_operator_parens()
         l_params.push_back(int());
         // define the body
         func_body l_body{
-            .m_functor =
-                [&l_params](const std::list<std::any>&)
+            .m_functor = [&l_params](std::list<std::any>::const_iterator,
+                                     std::list<std::any>::const_iterator)
             { return l_params.front(); },
             .m_children = {},
         };
@@ -289,7 +267,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(11));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input)) == 11);
+        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
+               11);
     }
 
     // unary on a parameter
@@ -303,18 +282,15 @@ void test_func_operator_parens()
         l_params.push_back(int());
         // define the body
         func_body l_body{
-            .m_functor =
-                [](const std::list<std::any>& a_args)
-            {
-                return std::any(10 + std::any_cast<int>(
-                                         a_args.front()));
-            },
+            .m_functor = [](std::list<std::any>::const_iterator a_begin,
+                            std::list<std::any>::const_iterator a_end)
+            { return std::any(10 + std::any_cast<int>(*a_begin)); },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [&l_params](
-                                const std::list<std::any>&)
+                            [&l_params](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return l_params.front(); },
                     },
                 },
@@ -329,7 +305,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(11));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input)) == 21);
+        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
+               21);
     }
 
     // binary of a parameter and a constant
@@ -344,25 +321,24 @@ void test_func_operator_parens()
         // define the body
         func_body l_body{
             .m_functor =
-                [](const std::list<std::any>& a_args)
+                [](std::list<std::any>::const_iterator a_begin,
+                   std::list<std::any>::const_iterator a_end)
             {
-                int l_arg_0 =
-                    std::any_cast<int>(*a_args.begin());
-                int l_arg_1 = std::any_cast<int>(
-                    *std::next(a_args.begin()));
+                int l_arg_0 = std::any_cast<int>(*a_begin);
+                int l_arg_1 = std::any_cast<int>(*std::next(a_begin));
                 return 10 + l_arg_0 + l_arg_1;
             },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [&l_params](
-                                const std::list<std::any>&)
+                            [&l_params](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return l_params.front(); },
                     },
                     func_body{
-                        .m_functor =
-                            [](const std::list<std::any>&)
+                        .m_functor = [](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return std::any(12); },
                     },
                 },
@@ -377,7 +353,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(13));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input)) == 35);
+        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
+               35);
     }
 
     // binary of two parameters
@@ -395,32 +372,28 @@ void test_func_operator_parens()
         // define the body
         func_body l_body{
             .m_functor =
-                [](const std::list<std::any>& a_args)
+                [](std::list<std::any>::const_iterator a_begin,
+                   std::list<std::any>::const_iterator a_end)
             {
                 std::vector<int> l_args;
-                std::transform(
-                    a_args.begin(), a_args.end(),
-                    std::back_inserter(l_args),
-                    [](const std::any& a_arg)
-                    { return std::any_cast<int>(a_arg); });
+                std::transform(a_begin, a_end, std::back_inserter(l_args),
+                               [](const std::any& a_arg)
+                               { return std::any_cast<int>(a_arg); });
                 return l_args[0] + l_args[1];
             },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [&l_params](
-                                const std::list<std::any>&)
+                            [&l_params](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
                         { return *l_params.begin(); },
                     },
                     func_body{
                         .m_functor =
-                            [&l_params](
-                                const std::list<std::any>&)
-                        {
-                            return *std::next(
-                                l_params.begin());
-                        },
+                            [&l_params](std::list<std::any>::const_iterator,
+                                        std::list<std::any>::const_iterator)
+                        { return *std::next(l_params.begin()); },
                     },
                 },
         };
@@ -435,7 +408,8 @@ void test_func_operator_parens()
         l_input.push_back(std::any(13));
         l_input.push_back(std::any(14));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input)) == 27);
+        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
+               27);
     }
 
     // doubly-nested unary of a parameter
@@ -449,33 +423,24 @@ void test_func_operator_parens()
         l_params.push_back(int());
         // define the body
         func_body l_body{
-            .m_functor =
-                [](const std::list<std::any>& a_args)
-            {
-                return 10 +
-                       std::any_cast<int>(a_args.front());
-            },
+            .m_functor = [](std::list<std::any>::const_iterator a_begin,
+                            std::list<std::any>::const_iterator a_end)
+            { return 10 + std::any_cast<int>(*a_begin); },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [](const std::list<std::any>&
-                                   a_args)
-                        {
-                            return 15 + std::any_cast<int>(
-                                            a_args.front());
-                        },
+                            [](std::list<std::any>::const_iterator a_begin,
+                               std::list<std::any>::const_iterator a_end)
+                        { return 15 + std::any_cast<int>(*a_begin); },
                         .m_children =
                             {
                                 func_body{
                                     .m_functor =
                                         [&l_params](
-                                            const std::list<
-                                                std::any>&)
-                                    {
-                                        return *l_params
-                                                    .begin();
-                                    },
+                                            std::list<std::any>::const_iterator,
+                                            std::list<std::any>::const_iterator)
+                                    { return *l_params.begin(); },
                                 },
                             },
                     },
@@ -491,7 +456,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(7));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input)) == 32);
+        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
+               32);
     }
 }
 

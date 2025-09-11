@@ -10,9 +10,8 @@
 // represents a function definition
 struct func_body
 {
-    std::function<std::any(
-        std::list<std::any>::const_iterator,
-        std::list<std::any>::const_iterator)>
+    std::function<std::any(std::list<std::any>::const_iterator,
+                           std::list<std::any>::const_iterator)>
         m_functor;
     std::list<func_body> m_children;
     std::any eval() const;
@@ -27,9 +26,8 @@ struct func
     std::list<std::any>::iterator m_params;
     func_body m_body;
     std::string m_repr;
-    std::any
-    operator()(std::list<std::any>::const_iterator,
-               std::list<std::any>::const_iterator) const;
+    std::any operator()(std::list<std::any>::const_iterator a_begin,
+                        std::list<std::any>::const_iterator a_end) const;
 };
 
 #endif

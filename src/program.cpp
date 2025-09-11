@@ -89,7 +89,7 @@ program::add_primitive(const std::string& a_repr,
         l_func_it->m_body.m_children.push_back(func_body{
             [l_param_func_it](std::list<std::any>::const_iterator a_begin,
                               std::list<std::any>::const_iterator a_end)
-            { return l_param_func_it->operator()(a_begin, a_end); }});
+            { return l_param_func_it->eval(a_begin, a_end); }});
     }
 
     // just return the iterator
@@ -206,8 +206,8 @@ void test_program_add_parameter()
         l_func_it->m_params.front() = std::any(10.2);
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<double>(
-                   (*l_param_func_it)(l_input.begin(), l_input.end())) == 10.2);
+        assert(std::any_cast<double>(l_param_func_it->eval(
+                   l_input.begin(), l_input.end())) == 10.2);
     }
 
     // two params
@@ -261,11 +261,11 @@ void test_program_add_parameter()
         l_func_it->m_body.m_children.push_back(func_body{
             [l_param_0_func_it](std::list<std::any>::const_iterator a_begin,
                                 std::list<std::any>::const_iterator a_end)
-            { return l_param_0_func_it->operator()(a_begin, a_end); }});
+            { return l_param_0_func_it->eval(a_begin, a_end); }});
         l_func_it->m_body.m_children.push_back(func_body{
             [l_param_1_func_it](std::list<std::any>::const_iterator a_begin,
                                 std::list<std::any>::const_iterator a_end)
-            { return l_param_1_func_it->operator()(a_begin, a_end); }});
+            { return l_param_1_func_it->eval(a_begin, a_end); }});
 
         // create the input
         std::list<std::any> l_input;
@@ -275,7 +275,7 @@ void test_program_add_parameter()
         l_func_it->m_params.back() = std::any(std::string("hello"));
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<std::string>((*l_func_it)(
+        assert(std::any_cast<std::string>(l_func_it->eval(
                    l_input.begin(), l_input.end())) == "10.2 hello");
     }
 }
@@ -305,8 +305,8 @@ void test_program_add_primitive()
         std::list<std::any> l_input;
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
-               10);
+        assert(std::any_cast<int>(
+                   l_func->eval(l_input.begin(), l_input.end())) == 10);
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -336,7 +336,7 @@ void test_program_add_primitive()
 
         // make sure the function evaluates correctly
         assert(std::any_cast<double>(
-                   (*l_func)(l_input.begin(), l_input.end())) == 10.4);
+                   l_func->eval(l_input.begin(), l_input.end())) == 10.4);
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -366,7 +366,7 @@ void test_program_add_primitive()
 
         // make sure the function evaluates correctly
         assert(std::any_cast<std::string>(
-                   (*l_func)(l_input.begin(), l_input.end())) == "hello");
+                   l_func->eval(l_input.begin(), l_input.end())) == "hello");
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -397,8 +397,8 @@ void test_program_add_primitive()
         l_input.push_back(std::any(10.2));
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
-               20);
+        assert(std::any_cast<int>(
+                   l_func->eval(l_input.begin(), l_input.end())) == 20);
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -430,7 +430,7 @@ void test_program_add_primitive()
 
         // make sure the function evaluates correctly
         assert(std::any_cast<double>(
-                   (*l_func)(l_input.begin(), l_input.end())) == 20.5);
+                   l_func->eval(l_input.begin(), l_input.end())) == 20.5);
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -462,8 +462,8 @@ void test_program_add_primitive()
         l_input.push_back(std::any(std::string("hello")));
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<std::string>(
-                   (*l_func)(l_input.begin(), l_input.end())) == "hello world");
+        assert(std::any_cast<std::string>(l_func->eval(
+                   l_input.begin(), l_input.end())) == "hello world");
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -501,7 +501,7 @@ void test_program_add_primitive()
 
         // make sure the function evaluates correctly
         assert(std::any_cast<double>(
-                   (*l_func)(l_input.begin(), l_input.end())) == 30.0);
+                   l_func->eval(l_input.begin(), l_input.end())) == 30.0);
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -538,7 +538,7 @@ void test_program_add_primitive()
         l_input.push_back(std::any(2.5));
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<double>((*l_func)(
+        assert(std::any_cast<double>(l_func->eval(
                    l_input.begin(), l_input.end())) == pow(10.2, 2.5));
 
         // make sure the function has the correct repr

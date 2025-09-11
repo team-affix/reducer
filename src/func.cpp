@@ -23,8 +23,8 @@ size_t func_body::node_count() const
                            { return a_sum + a_child.node_count(); });
 }
 
-std::any func::operator()(std::list<std::any>::const_iterator a_begin,
-                          std::list<std::any>::const_iterator a_end)
+std::any func::eval(std::list<std::any>::const_iterator a_begin,
+                    std::list<std::any>::const_iterator a_end)
 {
     // set the parameters
     std::copy(a_begin, a_end, m_params.begin());
@@ -231,7 +231,7 @@ void test_func_body_node_count()
     }
 }
 
-void test_func_operator_parens()
+void test_func_eval()
 {
     // nullary, no params
     {
@@ -249,8 +249,8 @@ void test_func_operator_parens()
         // define the input
         std::list<std::any> l_input;
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               10);
+        assert(std::any_cast<int>(
+                   l_func.eval(l_input.begin(), l_input.end())) == 10);
     }
 
     // just a parameter
@@ -272,8 +272,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(14));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               14);
+        assert(std::any_cast<int>(
+                   l_func.eval(l_input.begin(), l_input.end())) == 14);
     }
 
     // unary on a parameter
@@ -307,8 +307,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(15));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               25);
+        assert(std::any_cast<int>(
+                   l_func.eval(l_input.begin(), l_input.end())) == 25);
     }
 
     // binary of a parameter and a constant
@@ -348,8 +348,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(16));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               38);
+        assert(std::any_cast<int>(
+                   l_func.eval(l_input.begin(), l_input.end())) == 38);
     }
 
     // binary of two parameters
@@ -392,8 +392,8 @@ void test_func_operator_parens()
         l_input.push_back(std::any(17));
         l_input.push_back(std::any(18.5));
         // make sure we get the right result
-        assert(std::any_cast<double>(l_func(l_input.begin(), l_input.end())) ==
-               35.5);
+        assert(std::any_cast<double>(
+                   l_func.eval(l_input.begin(), l_input.end())) == 35.5);
     }
 
     // doubly-nested unary of a parameter
@@ -433,8 +433,8 @@ void test_func_operator_parens()
         std::list<std::any> l_input;
         l_input.push_back(std::any(7));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               32);
+        assert(std::any_cast<int>(
+                   l_func.eval(l_input.begin(), l_input.end())) == 32);
     }
 }
 
@@ -445,7 +445,7 @@ void func_test_main()
     TEST(test_func_construction);
     TEST(test_func_body_eval);
     TEST(test_func_body_node_count);
-    TEST(test_func_operator_parens);
+    TEST(test_func_eval);
 }
 
 #endif

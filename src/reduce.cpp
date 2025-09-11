@@ -124,7 +124,7 @@ build_function(program& a_program, scope& a_scope,
     // create an invoking lambda
     auto l_functor = [l_node_func](std::list<std::any>::const_iterator a_begin,
                                    std::list<std::any>::const_iterator a_end)
-    { return l_node_func->operator()(a_begin, a_end); };
+    { return l_node_func->eval(a_begin, a_end); };
 
     ////////////////////////////////////////////////////
     //////////// CONSTRUCT THE FUNC_NODE_T /////////////

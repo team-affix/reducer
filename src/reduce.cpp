@@ -136,159 +136,151 @@ build_function(program& a_program, scope& a_scope,
     };
 }
 
-// model build_model(const std::map<std::vector<bool>, bool> a_data,
-//                   const size_t& a_in_scope_var_count,
-//                   std::vector<function>& a_helpers,
-//                   monte_carlo::simulation<choice, std::mt19937>&
-//                   a_simulation, const size_t& a_recursion_limit)
-// {
-//     ////////////////////////////////////////////////////
-//     //////////////// CHECK FOR TRIVIALITY //////////////
-//     ////////////////////////////////////////////////////
-//     if(a_data.empty())
-//         throw std::runtime_error(
-//             "Error: no data points to build model
-//             from.");
+model build_model(program& a_program, scope& a_scope,
+                  const std::list<std::type_index>& a_param_types,
+                  const std::list<std::pair<std::list<std::any>, bool>>& a_data,
+                  monte_carlo::simulation<choice, std::mt19937>& a_simulation,
+                  const size_t& a_recursion_limit)
+{
+    ////////////////////////////////////////////////////
+    //////////////// CHECK FOR TRIVIALITY //////////////
+    ////////////////////////////////////////////////////
+    if(a_data.empty())
+        throw std::runtime_error("Error: no data points to build model from.");
 
-//     ////////////////////////////////////////////////////
-//     //////////////// CHECK FOR HOMOGENEITY /////////////
-//     ////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////
+    //////////////// CHECK FOR HOMOGENEITY /////////////
+    ////////////////////////////////////////////////////
 
-//     // get the first label
-//     bool l_homogenous_value = a_data.begin()->second;
+    // get the first label
+    bool l_homogenous_value = a_data.begin()->second;
 
-//     // loop through the data points, check for
-//     homogeneity bool l_data_is_homogenous = std::all_of(
-//         a_data.begin(), a_data.end(),
-//         [l_homogenous_value](const auto& a_data_point)
-//         {
-//             return a_data_point.second == l_homogenous_value;
-//         });
+    // loop through the data points, check for homogeneity
+    bool l_data_is_homogenous =
+        std::all_of(a_data.begin(), a_data.end(),
+                    [l_homogenous_value](const auto& a_data_point)
+                    { return a_data_point.second == l_homogenous_value; });
 
-//     // if the data is homogenous, return the appropriate
-//     // constant
-//     if(l_data_is_homogenous)
-//         return l_homogenous_value ? one() : zero();
+    // if the data is homogenous, return the appropriate
+    // constant
+    if(l_data_is_homogenous)
+        return model{.m_homogenous_value = l_homogenous_value};
 
-//     ////////////////////////////////////////////////////
-//     //////////////// CREATE BINNING FUNCTION ///////////
-//     ////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////
+    /////////////// CREATE BINNING FUNCTION ////////////
+    ////////////////////////////////////////////////////
 
-//     // construct the negative bin
-//     std::map<std::vector<bool>, bool> l_negative_bin;
+    // declare return type
+    const std::type_index BINNING_RETURN_TYPE = std::type_index(typeid(bool));
 
-//     // construct the positive bin
-//     std::map<std::vector<bool>, bool> l_positive_bin;
+    // construct the negative bin
+    std::list<std::pair<std::list<std::any>, bool>> l_negative_bin;
 
-//     // declare the binning function
-//     bool_node l_binning_function;
+    // construct the positive bin
+    std::list<std::pair<std::list<std::any>, bool>> l_positive_bin;
 
-//     // configure the binning function to be nullary, but
-//     // to capture the in-scope variables
-//     bool l_bf_allow_non_nullary = false;
-//     size_t l_bf_arity = 0;
+    // add a binning function to the program
+    std::list<func>::iterator l_binning_function_it = a_program.m_funcs.end();
 
-//     // loop until neither output bin is empty
-//     // REASON: if one of the bins is empty, the binning
-//     // function is useless
-//     while(l_negative_bin.empty() ||
-//     l_positive_bin.empty())
-//     {
-//             // clear BOTH bins in case one contains items
-//             l_negative_bin.clear();
-//             l_positive_bin.clear();
+    // loop until neither output bin is empty
+    // REASON: if one of the bins is empty, the binning
+    // function is useless
+    while(l_negative_bin.empty() || l_positive_bin.empty())
+    {
+        // clear BOTH bins in case one contains items
+        l_negative_bin.clear();
+        l_positive_bin.clear();
 
-//             // create a binning function that will bin
-//         (evaluate
-//         // on) each data point
-//         build_function(l_bf_arity, l_binning_function,
-//                        a_helpers, a_in_scope_var_count,
-//                        l_bf_allow_non_nullary,
-//                        a_simulation, a_recursion_limit);
+        // if the binning function is not end(), remove it
+        if(l_binning_function_it != a_program.m_funcs.end())
+        {
+            a_program.m_funcs.erase(l_binning_function_it);
+            l_binning_function_it = a_program.m_funcs.end();
+        }
 
-//         ////////////////////////////////////////////////////
-//         ////////////// EVALUATE BINNING FUNCTION
-//         ///////////
-//         ////////////////////////////////////////////////////
+        // add a new binning func to the program func list
+        l_binning_function_it = a_program.m_funcs.emplace(
+            a_program.m_funcs.end(), BINNING_RETURN_TYPE, func_body{},
+            std::string());
 
-//         // evaluate the binning function on all of the
-//         data
-//         // points
-//         for(const auto& [l_x, l_y] : a_data)
-//         {
-//                 // evaluate the binning function
-//                 bool l_binning_result =
-//                     evaluate(l_binning_function, a_helpers, l_x);
-//                 // store in the appropriate bin
-//                 if(l_binning_result)
-//                     l_positive_bin[l_x] = l_y;
-//                 else
-//                     l_negative_bin[l_x] = l_y;
-//         }
-//     }
+        // construct the repr stream
+        std::stringstream l_repr_stream;
 
-//     ////////////////////////////////////////////////////
-//     //////////////// COMMIT HELPER FUNCTION ////////////
-//     ////////////////////////////////////////////////////
+        // construct a temporary scope for this function
+        scope l_temp_scope = a_scope;
 
-//     // create the helper function
-//     const function l_binning_function_helper{
-//         l_bf_arity, l_binning_function, a_helpers};
+        // add all global params for the function to access
+        for(const auto& l_param_type : a_param_types)
+        {
+            // add the parameter to this binning function
+            auto l_param_func_it =
+                a_program.add_parameter(l_binning_function_it, l_param_type);
 
-//     // add the helper function to the helpers vector
-//     a_helpers.push_back(l_binning_function_helper);
+            // add the parameter accessor to the temp scope
+            l_temp_scope.add_function(l_param_func_it);
+        }
 
-//     // construct an invocation of the helper function
-//     bool_node l_binning_function_invocation =
-//         helper(a_helpers.size() - 1, {});
+        // construct the binning function body
+        // [create a binning function that will bin (evaluate
+        // on) each data point]
+        l_binning_function_it->m_body = build_function(
+            a_program, l_temp_scope, l_binning_function_it, l_repr_stream,
+            BINNING_RETURN_TYPE, false, a_simulation, a_recursion_limit);
 
-//     ////////////////////////////////////////////////////
-//     //////////////////////// RECUR /////////////////////
-//     ////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////
+        ////////////// EVALUATE BINNING FUNCTION ///////////
+        ////////////////////////////////////////////////////
 
-//     // construct the left child
-//     bool_node l_left_child = build_model(
-//         l_negative_bin, a_in_scope_var_count, a_helpers,
-//         a_simulation, a_recursion_limit);
+        // evaluate the binning function on all of the
+        // data points
+        for(const auto& [l_x, l_y] : a_data)
+        {
+            // evaluate the binning function (should return bool)
+            bool l_binning_result = std::any_cast<bool>(
+                l_binning_function_it->eval(l_x.begin(), l_x.end()));
+            // store in the appropriate bin
+            if(l_binning_result)
+                l_positive_bin.emplace_back(l_x, l_y);
+            else
+                l_negative_bin.emplace_back(l_x, l_y);
+        }
+    }
 
-//     // construct the right child
-//     bool_node l_right_child = build_model(
-//         l_positive_bin, a_in_scope_var_count, a_helpers,
-//         a_simulation, a_recursion_limit);
+    ////////////////////////////////////////////////////
+    //////////////////////// RECUR /////////////////////
+    ////////////////////////////////////////////////////
 
-//     // construct the final node
-//     return disjoin(
-//         conjoin(invert(l_binning_function_invocation),
-//                 l_left_child),
-//         conjoin(l_binning_function_invocation,
-//                 l_right_child));
-// }
+    // construct the negative child
+    model l_negative_child =
+        build_model(a_program, a_scope, a_param_types, l_negative_bin,
+                    a_simulation, a_recursion_limit);
 
-// size_t node_count(const op_node_t& a_expr)
-// {
-//     size_t l_result = 1;
+    // construct the positive child
+    model l_positive_child =
+        build_model(a_program, a_scope, a_param_types, l_positive_bin,
+                    a_simulation, a_recursion_limit);
 
-//     for(const auto& l_child : a_expr.m_args)
-//         l_result += node_count(l_child);
+    // construct the final node
+    return model{
+        .m_negative_child =
+            std::make_unique<model>(std::move(l_negative_child)),
+        .m_positive_child =
+            std::make_unique<model>(std::move(l_positive_child)),
+    };
+}
 
-//     return l_result;
-// }
-
-// void learn_model(
-//     bool_node& a_model, std::vector<function>& a_helpers,
-//     const size_t& a_in_scope_var_count,
-//     const std::map<std::vector<bool>, bool>& a_data,
-//     const size_t& a_iterations,
-//     const size_t& a_recursion_limit,
-//     const double& a_exploration_constant)
+// model learn_model(program& a_program, scope& a_scope,
+//                   const std::list<std::type_index>& a_param_types,
+//                   const std::list<std::pair<std::list<std::any>, bool>>&
+//                   a_data, const size_t& a_iterations, const size_t&
+//                   a_recursion_limit, const double& a_exploration_constant)
 // {
 //     std::mt19937 l_rnd_gen(27);
-//     monte_carlo::tree_node<choice_t> l_root;
+//     monte_carlo::tree_node<choice> l_root;
 
 //     // initialize the best reward to the lowest possible
 //     // value
-//     double l_best_reward =
-//         -std::numeric_limits<double>::infinity();
+//     double l_best_reward = -std::numeric_limits<double>::infinity();
 
 //     // save the original helpers
 //     std::vector<function> l_original_helpers = a_helpers;
@@ -296,36 +288,30 @@ build_function(program& a_program, scope& a_scope,
 //     for(int i = 0; i < a_iterations; ++i)
 //     {
 //         // restore the original helpers
-//         std::vector<function> l_iteration_helpers =
-//             l_original_helpers;
+//         std::vector<function> l_iteration_helpers = l_original_helpers;
 
 //         // construct the simulation
-//         monte_carlo::simulation<choice_t, std::mt19937>
-//             l_sim(l_root, a_exploration_constant,
-//                   l_rnd_gen);
+//         monte_carlo::simulation<choice_t, std::mt19937> l_sim(
+//             l_root, a_exploration_constant, l_rnd_gen);
 
 //         // construct the model
-//         bool_node l_model = build_model(
-//             a_data, a_in_scope_var_count,
-//             l_iteration_helpers, l_sim,
-//             a_recursion_limit);
+//         bool_node l_model =
+//             build_model(a_data, a_in_scope_var_count, l_iteration_helpers,
+//                         l_sim, a_recursion_limit);
 
 //         // compute the number of nodes in the helpers
 //         size_t l_helper_node_count = std::accumulate(
-//             l_iteration_helpers.begin(),
-//             l_iteration_helpers.end(), size_t{0},
+//             l_iteration_helpers.begin(), l_iteration_helpers.end(),
+//             size_t{0},
 //             [](size_t a_acc, const function& a_helper)
-//             {
-//                 return a_acc +
-//                        node_count(a_helper.m_definition);
-//             });
+//             { return a_acc + node_count(a_helper.m_definition); });
 
 //         // compute the number of nodes in the model
 //         size_t l_model_node_count = node_count(l_model);
 
 //         // compute the reward (negative number of nodes)
-//         double l_reward = -static_cast<double>(
-//             l_helper_node_count + l_model_node_count);
+//         double l_reward =
+//             -static_cast<double>(l_helper_node_count + l_model_node_count);
 
 //         // save best model
 //         if(l_reward > l_best_reward)
@@ -335,15 +321,12 @@ build_function(program& a_program, scope& a_scope,
 //             a_helpers = l_iteration_helpers;
 //         }
 
-//         std::cout << l_helper_node_count << " "
-//                   << l_model_node_count << " " <<
-//                   l_reward
-//                   << std::endl;
+//         std::cout << l_helper_node_count << " " << l_model_node_count << " "
+//                   << l_reward << std::endl;
 
 //         std::cout << "helpers: " << std::endl;
 //         for(const auto& l_helper : l_iteration_helpers)
-//             std::cout << "    " << l_helper.m_definition
-//                       << std::endl;
+//             std::cout << "    " << l_helper.m_definition << std::endl;
 //         std::cout << std::endl;
 //         std::cout << "model: " << l_model << std::endl;
 

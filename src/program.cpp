@@ -33,85 +33,66 @@ make_general_function(std::function<Ret(FirstParam, RestParams...)> a_function)
     };
 }
 
-std::list<func>::const_iterator
-program::add_parameter(std::list<std::any>::iterator& a_param_it,
-                       const int a_param_index)
+std::list<func>::iterator
+program::add_parameter(std::list<func>::iterator a_func_it,
+                       std::type_index a_type)
 {
-    // create the value
-    a_param_it = m_param_heap.insert(m_param_heap.end(), std::any{});
-
     // create the repr
-    std::string l_repr = "p" + std::to_string(a_param_index);
+    std::string l_repr = "p" + std::to_string(a_func_it->m_params.size());
+
+    // add the parameter type
+    a_func_it->m_param_types.push_back(a_type);
+
+    // create the value
+    auto l_param_it =
+        a_func_it->m_params.insert(a_func_it->m_params.end(), std::any{});
 
     // create the definition
     func_body l_body{
-        .m_functor = [a_param_it](std::list<std::any>::const_iterator,
+        .m_functor = [l_param_it](std::list<std::any>::const_iterator,
                                   std::list<std::any>::const_iterator)
-        { return *a_param_it; },
+        { return *l_param_it; },
         .m_children = {},
     };
 
-    // create the func_t
-    func l_func{
-        .m_param_types = {},
-        .m_params = m_param_heap.end(),
-        .m_body = l_body,
-        .m_repr = l_repr,
-    };
-
-    // add the function to the env
-    return m_funcs.insert(m_funcs.end(), l_func);
+    // create the func_t in place using emplace
+    return m_funcs.emplace(m_funcs.end(), a_type, l_body, l_repr);
 }
 
 template <typename Ret, typename... Params>
-std::list<func>::const_iterator
+std::list<func>::iterator
 program::add_primitive(const std::string& a_repr,
                        const std::function<Ret(Params...)>& a_func)
 {
-    // convert the function to a general function
-    auto l_general_function = make_general_function(a_func);
-
     // return type
     std::type_index l_return_type = typeid(Ret);
+
+    // convert the function to a general function
+    auto l_general_functor = make_general_function(a_func);
+
+    // insert the function in-place
+    auto l_func_it =
+        m_funcs.emplace(m_funcs.end(), l_return_type,
+                        func_body{.m_functor = l_general_functor}, a_repr);
 
     // get the parameter types
     std::list<std::type_index> l_param_types = {typeid(Params)...};
 
-    func_body l_body{
-        .m_functor = l_general_function,
-        .m_children = {},
-    };
-
-    // iterator to end of param heap
-    auto l_params = m_param_heap.end();
-
-    // index used for parameter names
-    int i = 0;
-
     // add the parameter nodes to the definition
     for(const auto& l_param_type : l_param_types)
     {
-        // temporary iterator to the parameter
-        std::list<std::any>::iterator l_param_it;
+        // create the parameter
+        auto l_param_func_it = add_parameter(l_func_it, l_param_type);
 
-        // add the parameter to the heap
-        l_body.m_children.push_back(func_body{*add_parameter(l_param_it, i++)});
-
-        // save the iterator to the first inserted value
-        if(l_params == m_param_heap.end())
-            l_params = l_param_it;
+        // add the parameter to the body
+        l_func_it->m_body.m_children.push_back(func_body{
+            [l_param_func_it](std::list<std::any>::const_iterator a_begin,
+                              std::list<std::any>::const_iterator a_end)
+            { return l_param_func_it->operator()(a_begin, a_end); }});
     }
 
-    // create the function
-    func l_func{
-        .m_param_types = l_param_types,
-        .m_params = l_params,
-        .m_body = l_body,
-        .m_repr = a_repr,
-    };
-
-    // add the function to the env
-    return m_funcs.insert(m_funcs.end(), l_func);
+    // just return the iterator
+    return l_func_it;
 }
 
 #ifdef UNIT_TEST
@@ -190,34 +171,42 @@ void test_program_add_parameter()
         // verify the func list is empty
         assert(l_program.m_funcs.empty());
 
-        // verify the param heap is empty
-        assert(l_program.m_param_heap.empty());
+        // add an empty function
+        auto l_func_it = l_program.m_funcs.emplace(
+            l_program.m_funcs.end(), typeid(int), func_body{}, "myfunc");
 
         // add the parameter
-        std::list<std::any>::iterator l_param_it;
-        const auto l_func = l_program.add_parameter(l_param_it, 0);
+        const auto l_param_func_it =
+            l_program.add_parameter(l_func_it, typeid(double));
 
         // verify the func list contains func
-        assert(l_program.m_funcs.begin() == l_func);
-
-        // verify the param heap contains val
-        assert(l_program.m_param_heap.begin() == l_param_it);
+        assert(l_program.m_funcs.begin() == l_func_it);
+        assert(std::next(l_program.m_funcs.begin()) == l_param_func_it);
 
         // ensure that the func is correct
-        assert(l_func->m_param_types.empty());
-        assert(l_func->m_params == l_program.m_param_heap.end());
-        assert(l_func->m_body.node_count() == 1);
-        assert(l_func->m_repr == "p0");
+        assert(l_func_it->m_param_types.size() == 1);
+        assert(l_func_it->m_param_types.front() == typeid(double));
+        assert(l_func_it->m_params.size() == 1);
+        assert(l_func_it->m_body.node_count() ==
+               1); // THE NODE COUNT IS STILL 1 BECAUSE WE DID NOT ADD PARAM
+                   // NODE TO THE BODY
+        assert(l_func_it->m_repr == "myfunc");
+
+        // make sure the param func is correct
+        assert(l_param_func_it->m_param_types.empty());
+        assert(l_param_func_it->m_params.empty());
+        assert(l_param_func_it->m_body.node_count() == 1);
+        assert(l_param_func_it->m_repr == "p0");
 
         // create the input
         std::list<std::any> l_input;
 
         // set the param
-        *l_param_it = std::any(10.2);
+        l_func_it->m_params.front() = std::any(10.2);
 
         // make sure the function evaluates correctly
         assert(std::any_cast<double>(
-                   (*l_func)(l_input.begin(), l_input.end())) == 10.2);
+                   (*l_param_func_it)(l_input.begin(), l_input.end())) == 10.2);
     }
 
     // two params
@@ -227,61 +216,68 @@ void test_program_add_parameter()
         // verify the func list is empty
         assert(l_program.m_funcs.empty());
 
-        // verify the param heap is empty
-        assert(l_program.m_param_heap.empty());
+        // add the function
+        auto l_func_it = l_program.m_funcs.emplace(
+            l_program.m_funcs.end(), typeid(std::string),
+            func_body{
+                .m_functor = std::function(
+                    [](std::list<std::any>::const_iterator a_begin,
+                       std::list<std::any>::const_iterator a_end)
+                    {
+                        return std::to_string(std::any_cast<double>(*a_begin)) +
+                               std::string(" ") +
+                               std::any_cast<std::string>(*std::next(a_begin));
+                    }),
+                .m_children = {},
+            },
+            "myfunc");
 
         // add the parameter
-        std::list<std::any>::iterator l_param_0_it;
-        const auto l_func_0 = l_program.add_parameter(l_param_0_it, 0);
+        auto l_param_0_func_it =
+            l_program.add_parameter(l_func_it, typeid(double));
 
-        // verify the func list contains func
-        assert(l_program.m_funcs.begin() == l_func_0);
+        // add the parameter
+        auto l_param_1_func_it =
+            l_program.add_parameter(l_func_it, typeid(std::string));
 
-        // verify the param heap contains val
-        assert(l_program.m_param_heap.begin() == l_param_0_it);
+        // verify the func list contains func and param func
+        assert(l_program.m_funcs.begin() == l_func_it);
+        assert(std::next(l_program.m_funcs.begin()) == l_param_0_func_it);
+        assert(std::next(l_program.m_funcs.begin(), 2) == l_param_1_func_it);
 
         // ensure that the func is correct
-        assert(l_func_0->m_param_types.empty());
-        assert(l_func_0->m_params == l_program.m_param_heap.end());
-        assert(l_func_0->m_body.node_count() == 1);
-        assert(l_func_0->m_repr == "p0");
+        assert(l_func_it->m_return_type == typeid(std::string));
+        assert(l_func_it->m_param_types.size() == 2);
+        assert(l_func_it->m_param_types.front() == typeid(double));
+        assert(l_func_it->m_param_types.back() == typeid(std::string));
+        assert(l_func_it->m_params.size() == 2);
+        assert(l_func_it->m_body.node_count() ==
+               1); // we have not yet added the parameter nodes to the body
+        assert(l_func_it->m_repr == "myfunc");
+
+        // add the parameter nodes to the body
+        l_func_it->m_body.m_children.push_back(func_body{
+            [l_param_0_func_it](std::list<std::any>::const_iterator a_begin,
+                                std::list<std::any>::const_iterator a_end)
+            { return l_param_0_func_it->operator()(a_begin, a_end); }});
+        l_func_it->m_body.m_children.push_back(func_body{
+            [l_param_1_func_it](std::list<std::any>::const_iterator a_begin,
+                                std::list<std::any>::const_iterator a_end)
+            { return l_param_1_func_it->operator()(a_begin, a_end); }});
 
         // create the input
         std::list<std::any> l_input;
 
         // set the param
-        *l_param_0_it = std::any(10.2);
+        l_func_it->m_params.front() = std::any(10.2);
+        l_func_it->m_params.back() = std::any(std::string("hello"));
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<double>(
-                   (*l_func_0)(l_input.begin(), l_input.end())) == 10.2);
-
-        // add the second parameter
-        std::list<std::any>::iterator l_param_1_it;
-        const auto l_func_1 = l_program.add_parameter(l_param_1_it, 1);
-
-        // verify the func list contains func
-        assert(std::next(l_program.m_funcs.begin()) == l_func_1);
-
-        // verify the param heap contains val
-        assert(std::next(l_program.m_param_heap.begin()) == l_param_1_it);
-
-        // ensure that the func is correct
-        assert(l_func_1->m_param_types.empty());
-        assert(l_func_1->m_params == l_program.m_param_heap.end());
-        assert(l_func_1->m_body.node_count() == 1);
-        assert(l_func_1->m_repr == "p1");
-
-        // set the param
-        *l_param_1_it = std::any(20.5);
-
-        // make sure the function evaluates correctly
-        assert(std::any_cast<double>(
-                   (*l_func_1)(l_input.begin(), l_input.end())) == 20.5);
-
-        // make sure the first function STILL evaluates correctly
-        assert(std::any_cast<double>(
-                   (*l_func_0)(l_input.begin(), l_input.end())) == 10.2);
+        std::cout << std::any_cast<std::string>(
+                         (*l_func_it)(l_input.begin(), l_input.end()))
+                  << std::endl;
+        assert(std::any_cast<std::string>((*l_func_it)(
+                   l_input.begin(), l_input.end())) == "10.200000 hello");
     }
 }
 
@@ -301,8 +297,9 @@ void test_program_add_primitive()
         assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(int));
         assert(l_func->m_param_types.empty());
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.empty());
         assert(l_func->m_body.node_count() == 1);
 
         // create the input
@@ -330,8 +327,9 @@ void test_program_add_primitive()
         assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(double));
         assert(l_func->m_param_types.empty());
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.empty());
         assert(l_func->m_body.node_count() == 1);
 
         // create the input
@@ -359,8 +357,9 @@ void test_program_add_primitive()
         assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(std::string));
         assert(l_func->m_param_types.empty());
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.empty());
         assert(l_func->m_body.node_count() == 1);
 
         // create the input
@@ -382,20 +381,21 @@ void test_program_add_primitive()
         assert(l_program.m_funcs.empty());
 
         const auto l_func = l_program.add_primitive(
-            "f0", std::function([](int a_x) { return a_x + 10; }));
+            "f0", std::function([](double a_x) { return int(a_x + 10); }));
 
         // verify the func list is not empty
-        assert(std::next(l_program.m_funcs.begin()) == l_func);
+        assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(int));
         assert(l_func->m_param_types.size() == 1);
-        assert(l_func->m_param_types.front() == typeid(int));
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_param_types.front() == typeid(double));
+        assert(l_func->m_params.size() == 1);
         assert(l_func->m_body.node_count() == 2);
 
         // create the input
         std::list<std::any> l_input;
-        l_input.push_back(std::any(10));
+        l_input.push_back(std::any(10.2));
 
         // make sure the function evaluates correctly
         assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
@@ -416,12 +416,13 @@ void test_program_add_primitive()
             "f0", std::function([](double a_x) { return a_x + 10.3; }));
 
         // verify the func list is not empty
-        assert(std::next(l_program.m_funcs.begin()) == l_func);
+        assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(double));
         assert(l_func->m_param_types.size() == 1);
         assert(l_func->m_param_types.front() == typeid(double));
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.size() == 1);
         assert(l_func->m_body.node_count() == 2);
 
         // create the input
@@ -448,12 +449,13 @@ void test_program_add_primitive()
             std::function([](std::string a_x) { return a_x + " world"; }));
 
         // verify the func list is not empty
-        assert(std::next(l_program.m_funcs.begin()) == l_func);
+        assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(std::string));
         assert(l_func->m_param_types.size() == 1);
         assert(l_func->m_param_types.front() == typeid(std::string));
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.size() == 1);
         assert(l_func->m_body.node_count() == 2);
 
         // create the input
@@ -476,19 +478,21 @@ void test_program_add_primitive()
         assert(l_program.m_funcs.empty());
 
         const auto l_func = l_program.add_primitive(
-            "f0", std::function([](int a_x, int a_y) { return a_x + a_y; }));
+            "f0",
+            std::function([](int a_x, int a_y) { return double(a_x + a_y); }));
 
         // verify the func list is not empty
-        assert(std::next(l_program.m_funcs.begin(), 2) == l_func);
+        assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(double));
         assert(l_func->m_param_types.size() == 2);
         assert(std::equal(l_func->m_param_types.begin(),
                           l_func->m_param_types.end(),
                           std::list({std::type_index(typeid(int)),
                                      std::type_index(typeid(int))})
                               .begin()));
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.size() == 2);
         assert(l_func->m_body.node_count() == 3);
 
         // create the input
@@ -497,8 +501,8 @@ void test_program_add_primitive()
         l_input.push_back(std::any(20));
 
         // make sure the function evaluates correctly
-        assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
-               30);
+        assert(std::any_cast<double>(
+                   (*l_func)(l_input.begin(), l_input.end())) == 30.0);
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
@@ -516,16 +520,17 @@ void test_program_add_primitive()
                                  { return pow(a_x, a_y); }));
 
         // verify the func list is not empty
-        assert(std::next(l_program.m_funcs.begin(), 2) == l_func);
+        assert(l_program.m_funcs.begin() == l_func);
 
         // verify the function has the correct param types
+        assert(l_func->m_return_type == typeid(double));
         assert(l_func->m_param_types.size() == 2);
         assert(std::equal(l_func->m_param_types.begin(),
                           l_func->m_param_types.end(),
                           std::list({std::type_index(typeid(double)),
                                      std::type_index(typeid(double))})
                               .begin()));
-        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_params.size() == 2);
         assert(l_func->m_body.node_count() == 3);
 
         // create the input

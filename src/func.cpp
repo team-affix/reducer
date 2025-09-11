@@ -24,12 +24,18 @@ size_t func_body::node_count() const
 }
 
 std::any func::operator()(std::list<std::any>::const_iterator a_begin,
-                          std::list<std::any>::const_iterator a_end) const
+                          std::list<std::any>::const_iterator a_end)
 {
     // set the parameters
-    std::copy(a_begin, a_end, m_params);
+    std::copy(a_begin, a_end, m_params.begin());
     // evaluate the function
     return m_body.eval();
+}
+
+func::func(const std::type_index& a_return_type, const func_body& a_body,
+           const std::string& a_repr)
+    : m_return_type(a_return_type), m_body(a_body), m_repr(a_repr)
+{
 }
 
 #ifdef UNIT_TEST
@@ -38,7 +44,19 @@ std::any func::operator()(std::list<std::any>::const_iterator a_begin,
 
 void test_func_construction()
 {
-    func l_func;
+    const std::type_index l_return_type = typeid(int);
+    const func_body l_body{.m_functor = [](std::list<std::any>::const_iterator,
+                                           std::list<std::any>::const_iterator)
+                           { return std::any(10); },
+                           .m_children = {}};
+    const std::string l_repr = "func123";
+    func l_func{l_return_type, l_body, l_repr};
+    assert(l_func.m_return_type == l_return_type);
+    assert(l_func.m_param_types.empty());
+    assert(l_func.m_params.empty());
+    assert(l_func.m_body.node_count() == 1);
+    assert(std::any_cast<int>(l_func.m_body.eval()) == 10);
+    assert(l_func.m_repr == l_repr);
 }
 
 void test_func_body_eval()
@@ -217,10 +235,8 @@ void test_func_operator_parens()
 {
     // nullary, no params
     {
-        // define the global param vector
-        std::list<std::any> l_params;
-        // define the param types
-        std::list<std::type_index> l_param_types;
+        // define the return type
+        const std::type_index l_return_type = typeid(int);
         // define the body
         func_body l_body{
             .m_functor = [](std::list<std::any>::const_iterator,
@@ -229,11 +245,7 @@ void test_func_operator_parens()
             .m_children = {},
         };
         // define the function
-        func l_func{
-            .m_param_types = l_param_types,
-            .m_params = l_params.begin(),
-            .m_body = l_body,
-        };
+        func l_func{l_return_type, l_body, "f0"};
         // define the input
         std::list<std::any> l_input;
         // make sure we get the right result
@@ -243,83 +255,72 @@ void test_func_operator_parens()
 
     // just a parameter
     {
-        // define the global param vector
-        std::list<std::any> l_params;
-        // define the param types
-        std::list<std::type_index> l_param_types;
-        // add a parameter
-        l_param_types.push_back(typeid(int));
-        l_params.push_back(int());
-        // define the body
-        func_body l_body{
-            .m_functor = [&l_params](std::list<std::any>::const_iterator,
-                                     std::list<std::any>::const_iterator)
-            { return l_params.front(); },
-            .m_children = {},
-        };
         // define the function
-        func l_func{
-            .m_param_types = l_param_types,
-            .m_params = l_params.begin(),
-            .m_body = l_body,
+        func l_func{typeid(int), func_body{}, "f0"};
+        // define the param types
+        l_func.m_param_types.push_back(typeid(int));
+        // define the params
+        l_func.m_params.push_back(std::any());
+        // define the body
+        l_func.m_body = {
+            .m_functor = [&l_func](std::list<std::any>::const_iterator,
+                                   std::list<std::any>::const_iterator)
+            { return l_func.m_params.front(); },
+            .m_children = {},
         };
         // define the input
         std::list<std::any> l_input;
-        l_input.push_back(std::any(11));
+        l_input.push_back(std::any(14));
         // make sure we get the right result
         assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               11);
+               14);
     }
 
     // unary on a parameter
     {
-        // define the global param vector
-        std::list<std::any> l_params;
+        // define the function
+        func l_func{typeid(int), func_body{}, "f0"};
         // define the param types
-        std::list<std::type_index> l_param_types;
-        // add a parameter
-        l_param_types.push_back(typeid(int));
-        l_params.push_back(int());
+        l_func.m_param_types.push_back(typeid(int));
+        // define the params
+        l_func.m_params.push_back(std::any());
         // define the body
-        func_body l_body{
-            .m_functor = [](std::list<std::any>::const_iterator a_begin,
-                            std::list<std::any>::const_iterator a_end)
-            { return std::any(10 + std::any_cast<int>(*a_begin)); },
+        l_func.m_body = {
+            .m_functor =
+                [&l_func](std::list<std::any>::const_iterator,
+                          std::list<std::any>::const_iterator)
+            {
+                return std::any(10 +
+                                std::any_cast<int>(l_func.m_params.front()));
+            },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [&l_params](std::list<std::any>::const_iterator,
-                                        std::list<std::any>::const_iterator)
-                        { return l_params.front(); },
+                            [&l_func](std::list<std::any>::const_iterator,
+                                      std::list<std::any>::const_iterator)
+                        { return l_func.m_params.front(); },
                     },
                 },
         };
-        // define the function
-        func l_func{
-            .m_param_types = l_param_types,
-            .m_params = l_params.begin(),
-            .m_body = l_body,
-        };
         // define the input
         std::list<std::any> l_input;
-        l_input.push_back(std::any(11));
+        l_input.push_back(std::any(15));
         // make sure we get the right result
         assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               21);
+               25);
     }
 
     // binary of a parameter and a constant
     {
-        // define the global param vector
-        std::list<std::any> l_params;
+        // define the function
+        func l_func{typeid(int), func_body{}, "f0"};
         // define the param types
-        std::list<std::type_index> l_param_types;
-        // add a parameter
-        l_param_types.push_back(typeid(int));
-        l_params.push_back(int());
+        l_func.m_param_types.push_back(typeid(int));
+        // define the params
+        l_func.m_params.push_back(std::any());
         // define the body
-        func_body l_body{
+        l_func.m_body = {
             .m_functor =
                 [](std::list<std::any>::const_iterator a_begin,
                    std::list<std::any>::const_iterator a_end)
@@ -332,9 +333,9 @@ void test_func_operator_parens()
                 {
                     func_body{
                         .m_functor =
-                            [&l_params](std::list<std::any>::const_iterator,
-                                        std::list<std::any>::const_iterator)
-                        { return l_params.front(); },
+                            [&l_func](std::list<std::any>::const_iterator,
+                                      std::list<std::any>::const_iterator)
+                        { return l_func.m_params.front(); },
                     },
                     func_body{
                         .m_functor = [](std::list<std::any>::const_iterator,
@@ -343,86 +344,68 @@ void test_func_operator_parens()
                     },
                 },
         };
-        // define the function
-        func l_func{
-            .m_param_types = l_param_types,
-            .m_params = l_params.begin(),
-            .m_body = l_body,
-        };
         // define the input
         std::list<std::any> l_input;
-        l_input.push_back(std::any(13));
+        l_input.push_back(std::any(16));
         // make sure we get the right result
         assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               35);
+               38);
     }
 
     // binary of two parameters
     {
-        // define the global param vector
-        std::list<std::any> l_params;
+        // define the function
+        func l_func{typeid(double), func_body{}, "f0"};
         // define the param types
-        std::list<std::type_index> l_param_types;
-        // add a parameter
-        l_param_types.push_back(typeid(int));
-        l_params.push_back(int());
-        // add a parameter
-        l_param_types.push_back(typeid(int));
-        l_params.push_back(int());
+        l_func.m_param_types.push_back(typeid(int));
+        l_func.m_param_types.push_back(typeid(double));
+        // define the params
+        l_func.m_params.push_back(std::any());
+        l_func.m_params.push_back(std::any());
         // define the body
-        func_body l_body{
+        l_func.m_body = {
             .m_functor =
                 [](std::list<std::any>::const_iterator a_begin,
                    std::list<std::any>::const_iterator a_end)
             {
-                std::vector<int> l_args;
-                std::transform(a_begin, a_end, std::back_inserter(l_args),
-                               [](const std::any& a_arg)
-                               { return std::any_cast<int>(a_arg); });
-                return l_args[0] + l_args[1];
+                return std::any_cast<int>(*a_begin) +
+                       std::any_cast<double>(*std::next(a_begin));
             },
             .m_children =
                 {
                     func_body{
                         .m_functor =
-                            [&l_params](std::list<std::any>::const_iterator,
-                                        std::list<std::any>::const_iterator)
-                        { return *l_params.begin(); },
+                            [&l_func](std::list<std::any>::const_iterator,
+                                      std::list<std::any>::const_iterator)
+                        { return l_func.m_params.front(); },
                     },
                     func_body{
                         .m_functor =
-                            [&l_params](std::list<std::any>::const_iterator,
-                                        std::list<std::any>::const_iterator)
-                        { return *std::next(l_params.begin()); },
+                            [&l_func](std::list<std::any>::const_iterator,
+                                      std::list<std::any>::const_iterator)
+                        { return *std::next(l_func.m_params.begin()); },
                     },
                 },
         };
-        // define the function
-        func l_func{
-            .m_param_types = l_param_types,
-            .m_params = l_params.begin(),
-            .m_body = l_body,
-        };
         // define the input
         std::list<std::any> l_input;
-        l_input.push_back(std::any(13));
-        l_input.push_back(std::any(14));
+        l_input.push_back(std::any(17));
+        l_input.push_back(std::any(18.5));
         // make sure we get the right result
-        assert(std::any_cast<int>(l_func(l_input.begin(), l_input.end())) ==
-               27);
+        assert(std::any_cast<double>(l_func(l_input.begin(), l_input.end())) ==
+               35.5);
     }
 
     // doubly-nested unary of a parameter
     {
-        // define the global param vector
-        std::list<std::any> l_params;
+        // define the function
+        func l_func{typeid(int), func_body{}, "f0"};
         // define the param types
-        std::list<std::type_index> l_param_types;
-        // add a parameter
-        l_param_types.push_back(typeid(int));
-        l_params.push_back(int());
+        l_func.m_param_types.push_back(typeid(int));
+        // define the params
+        l_func.m_params.push_back(std::any());
         // define the body
-        func_body l_body{
+        l_func.m_body = {
             .m_functor = [](std::list<std::any>::const_iterator a_begin,
                             std::list<std::any>::const_iterator a_end)
             { return 10 + std::any_cast<int>(*a_begin); },
@@ -437,20 +420,14 @@ void test_func_operator_parens()
                             {
                                 func_body{
                                     .m_functor =
-                                        [&l_params](
+                                        [&l_func](
                                             std::list<std::any>::const_iterator,
                                             std::list<std::any>::const_iterator)
-                                    { return *l_params.begin(); },
+                                    { return l_func.m_params.front(); },
                                 },
                             },
                     },
                 },
-        };
-        // define the function
-        func l_func{
-            .m_param_types = l_param_types,
-            .m_params = l_params.begin(),
-            .m_body = l_body,
         };
         // define the input
         std::list<std::any> l_input;

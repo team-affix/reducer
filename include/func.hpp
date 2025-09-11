@@ -22,12 +22,19 @@ struct func_body
 struct func
 {
     // the parameters
+    std::type_index m_return_type;
     std::list<std::type_index> m_param_types;
-    std::list<std::any>::iterator m_params;
+    std::list<std::any> m_params;
     func_body m_body;
     std::string m_repr;
     std::any operator()(std::list<std::any>::const_iterator a_begin,
-                        std::list<std::any>::const_iterator a_end) const;
+                        std::list<std::any>::const_iterator a_end);
+    // normal constructor
+    func(const std::type_index& a_return_type, const func_body& a_body,
+         const std::string& a_repr);
+    // delete the copy constructor
+    func(const func&) = delete;
+    func& operator=(const func&) = delete;
 };
 
 #endif

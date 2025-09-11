@@ -1,7 +1,7 @@
 #include "../include/scope.hpp"
 
 // adds a function based on its arity
-void scope::entry::add_function(std::list<func>::const_iterator a_function)
+void scope::entry::add_function(std::list<func>::iterator a_function)
 {
     // add to the appropriate list
     if(a_function->m_param_types.empty())
@@ -10,11 +10,10 @@ void scope::entry::add_function(std::list<func>::const_iterator a_function)
         m_non_nullaries.push_back(a_function);
 }
 
-// adds a function based on its return type
-void scope::add_function(std::type_index a_return_type,
-                         std::list<func>::const_iterator a_function)
+// adds a function based on its return type and its arity
+void scope::add_function(std::list<func>::iterator a_function)
 {
-    m_entries[a_return_type].add_function(a_function);
+    m_entries[a_function->m_return_type].add_function(a_function);
 }
 
 #ifdef UNIT_TEST
@@ -33,8 +32,8 @@ void test_scope_entry_add_function()
     // add nullary fxn
     {
         scope::entry l_entry;
-        func l_func;
-        std::list<func> l_funcs{l_func};
+        std::list<func> l_funcs;
+        l_funcs.emplace_back(typeid(int), func_body{}, "f0");
         l_entry.add_function(l_funcs.begin());
         assert(l_entry.m_nullaries.size() == 1);
         assert(l_entry.m_non_nullaries.empty());
@@ -43,10 +42,10 @@ void test_scope_entry_add_function()
     // add non-nullary fxn
     {
         scope::entry l_entry;
-        func l_func{
-            .m_param_types = {std::type_index(typeid(int))},
-        };
-        std::list<func> l_funcs{l_func};
+        std::list<func> l_funcs;
+        l_funcs.emplace_back(typeid(int), func_body{}, "f0");
+        l_funcs.front().m_param_types.push_back(typeid(int));
+        l_funcs.front().m_params.push_back(std::any());
         l_entry.add_function(l_funcs.begin());
         assert(l_entry.m_nullaries.empty());
         assert(l_entry.m_non_nullaries.size() == 1);
@@ -65,9 +64,9 @@ void test_scope_add_function()
     {
         scope l_scope;
         std::type_index l_return_type = std::type_index(typeid(int));
-        func l_func;
-        std::list<func> l_funcs{l_func};
-        l_scope.add_function(l_return_type, l_funcs.begin());
+        std::list<func> l_funcs;
+        l_funcs.emplace_back(l_return_type, func_body{}, "f0");
+        l_scope.add_function(l_funcs.begin());
         assert(l_scope.m_entries.size() == 1);
         assert(l_scope.m_entries.contains(l_return_type));
         // get the scope entry
@@ -80,11 +79,11 @@ void test_scope_add_function()
     {
         scope l_scope;
         std::type_index l_return_type = std::type_index(typeid(int));
-        func l_func{
-            .m_param_types = {std::type_index(typeid(std::string))},
-        };
-        std::list<func> l_funcs{l_func};
-        l_scope.add_function(l_return_type, l_funcs.begin());
+        std::list<func> l_funcs;
+        l_funcs.emplace_back(l_return_type, func_body{}, "f0");
+        l_funcs.front().m_param_types.push_back(typeid(std::string));
+        l_funcs.front().m_params.push_back(std::any());
+        l_scope.add_function(l_funcs.begin());
         assert(l_scope.m_entries.size() == 1);
         assert(l_scope.m_entries.contains(l_return_type));
         // get the scope entry
@@ -97,11 +96,11 @@ void test_scope_add_function()
     {
         scope l_scope;
         std::type_index l_return_type = std::type_index(typeid(std::string));
-        func l_func{
-            .m_param_types = {std::type_index(typeid(std::string))},
-        };
-        std::list<func> l_funcs{l_func};
-        l_scope.add_function(l_return_type, l_funcs.begin());
+        std::list<func> l_funcs;
+        l_funcs.emplace_back(l_return_type, func_body{}, "f0");
+        l_funcs.front().m_param_types.push_back(typeid(std::string));
+        l_funcs.front().m_params.push_back(std::any());
+        l_scope.add_function(l_funcs.begin());
         assert(l_scope.m_entries.size() == 1);
         assert(l_scope.m_entries.contains(l_return_type));
         // get the scope entry

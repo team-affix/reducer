@@ -33,8 +33,7 @@ bool operator<(const make_function&, const make_function&)
 
 func_body
 build_function(program& a_program, scope& a_scope,
-               std::list<std::type_index>& a_param_types,
-               std::list<std::any>::iterator& a_params,
+               std::list<func>::iterator a_func_it,
                std::stringstream& a_repr_stream,
                const std::type_index& a_return_type, const bool& a_allow_params,
                monte_carlo::simulation<choice, std::mt19937>& a_simulation,
@@ -78,28 +77,19 @@ build_function(program& a_program, scope& a_scope,
     // if the choice is a place_new_param
     if(std::holds_alternative<place_new_param>(l_node_choice))
     {
-        std::list<std::any>::iterator l_param_it;
-
         ////////////////////////////////////////////////////
         /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
         ////////////////////////////////////////////////////
-        const auto l_func_ptr =
-            a_program.add_parameter(l_param_it, a_param_types.size());
-
-        // add the parameter to the param types
-        a_param_types.push_back(a_return_type);
+        const auto l_param_func_it =
+            a_program.add_parameter(a_func_it, a_return_type);
 
         // add the function to the scope
-        a_scope.add_function(a_return_type, l_func_ptr);
-
-        // if this is the first parameter, save the iterator
-        if(a_params == a_program.m_param_heap.end())
-            a_params = l_param_it;
+        a_scope.add_function(l_param_func_it);
 
         ////////////////////////////////////////////////////
         ///////////// REFERENCE THIS NEW FUNC_T ////////////
         ////////////////////////////////////////////////////
-        l_node_choice = place_node{l_func_ptr};
+        l_node_choice = place_node{l_param_func_it};
     }
 
     // extract the func
@@ -120,10 +110,9 @@ build_function(program& a_program, scope& a_scope,
     for(auto l_param_type_it = l_node_func->m_param_types.begin();
         l_param_type_it != l_node_func->m_param_types.end(); ++l_param_type_it)
     {
-        l_node_children.push_back(
-            build_function(a_program, a_scope, a_param_types, a_params,
-                           a_repr_stream, *l_param_type_it, a_allow_params,
-                           a_simulation, a_recursion_limit - 1));
+        l_node_children.push_back(build_function(
+            a_program, a_scope, a_func_it, a_repr_stream, *l_param_type_it,
+            a_allow_params, a_simulation, a_recursion_limit - 1));
 
         // if this is not the last param, add a comma
         if(std::next(l_param_type_it) != l_node_func->m_param_types.end())
@@ -132,11 +121,16 @@ build_function(program& a_program, scope& a_scope,
 
     a_repr_stream << ")";
 
+    // create an invoking lambda
+    auto l_functor = [l_node_func](std::list<std::any>::const_iterator a_begin,
+                                   std::list<std::any>::const_iterator a_end)
+    { return l_node_func->operator()(a_begin, a_end); };
+
     ////////////////////////////////////////////////////
     //////////// CONSTRUCT THE FUNC_NODE_T /////////////
     ////////////////////////////////////////////////////
     return func_body{
-        .m_functor = *l_node_func,
+        .m_functor = l_functor,
         .m_children = l_node_children,
     };
 }

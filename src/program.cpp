@@ -32,9 +32,8 @@ make_general_function(std::function<Ret(FirstParam, RestParams...)> a_function)
 }
 
 template <typename Ret, typename... Params>
-const func*
-program_t::add_primitive(const std::string& a_repr,
-                         const std::function<Ret(Params...)>& a_func)
+const func* program::add_primitive(const std::string& a_repr,
+                                   const std::function<Ret(Params...)>& a_func)
 {
     // convert the function to a general function
     auto l_general_function = make_general_function(a_func);
@@ -79,8 +78,8 @@ program_t::add_primitive(const std::string& a_repr,
     return l_func_ptr;
 }
 
-const func* program_t::add_parameter(const int a_param_index,
-                                     const std::type_index& a_type)
+const func* program::add_parameter(const int a_param_index,
+                                   const std::type_index& a_type)
 {
     // create the value
     auto l_value_it = m_param_heap.insert(m_param_heap.end(), std::any{});

@@ -10,13 +10,11 @@
 //////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-bool operator<(const place_node_t& a_lhs,
-               const place_node_t& a_rhs)
+bool operator<(const place_node_t& a_lhs, const place_node_t& a_rhs)
 {
     return a_lhs.m_node < a_rhs.m_node;
 }
-bool operator<(const place_new_param_t& a_lhs,
-               const place_new_param_t& a_rhs)
+bool operator<(const place_new_param_t& a_lhs, const place_new_param_t& a_rhs)
 {
     return false;
 }
@@ -24,8 +22,7 @@ bool operator<(const terminate_t&, const terminate_t&)
 {
     return false;
 }
-bool operator<(const make_function_t&,
-               const make_function_t&)
+bool operator<(const make_function_t&, const make_function_t&)
 {
     return false;
 }
@@ -34,21 +31,18 @@ bool operator<(const make_function_t&,
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-func_body build_function(
-    program_t& a_program, scope_t& a_scope,
-    std::list<std::type_index> a_param_types,
-    std::stringstream& a_repr_stream,
-    const std::type_index& a_return_type,
-    const bool& a_allow_params,
-    monte_carlo::simulation<choice_t, std::mt19937>&
-        a_simulation,
-    const size_t& a_recursion_limit)
+func_body
+build_function(program& a_program, scope& a_scope,
+               std::list<std::type_index> a_param_types,
+               std::stringstream& a_repr_stream,
+               const std::type_index& a_return_type, const bool& a_allow_params,
+               monte_carlo::simulation<choice_t, std::mt19937>& a_simulation,
+               const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
     /////////////// GET THE SCOPE ENTRY ////////////////
     ////////////////////////////////////////////////////
-    const auto& l_scope_entry =
-        a_scope.m_entries.at(a_return_type);
+    const auto& l_scope_entry = a_scope.m_entries.at(a_return_type);
 
     ////////////////////////////////////////////////////
     ////////////// POPULATE CHOICE VECTOR //////////////
@@ -58,8 +52,7 @@ func_body build_function(
     // allow choosing any nullary of this type
     std::transform(l_scope_entry.m_nullaries.begin(),
                    l_scope_entry.m_nullaries.end(),
-                   std::back_inserter(l_node_choices),
-                   [](const func* a_nullary)
+                   std::back_inserter(l_node_choices), [](const func* a_nullary)
                    { return place_node_t{a_nullary}; });
 
     if(a_allow_params)
@@ -69,29 +62,26 @@ func_body build_function(
     {
         // if the recursion limit has not been reached,
         // push non-nullary function types into list
-        std::transform(
-            l_scope_entry.m_non_nullaries.begin(),
-            l_scope_entry.m_non_nullaries.end(),
-            std::back_inserter(l_node_choices),
-            [](const func* a_non_nullary)
-            { return place_node_t{a_non_nullary}; });
+        std::transform(l_scope_entry.m_non_nullaries.begin(),
+                       l_scope_entry.m_non_nullaries.end(),
+                       std::back_inserter(l_node_choices),
+                       [](const func* a_non_nullary)
+                       { return place_node_t{a_non_nullary}; });
     }
 
     ////////////////////////////////////////////////////
     ////////////// CHOOSE A NODE TO PLACE //////////////
     ////////////////////////////////////////////////////
-    choice_t l_node_choice =
-        a_simulation.choose(l_node_choices);
+    choice_t l_node_choice = a_simulation.choose(l_node_choices);
 
     // if the choice is a place_new_param_t
-    if(std::holds_alternative<place_new_param_t>(
-           l_node_choice))
+    if(std::holds_alternative<place_new_param_t>(l_node_choice))
     {
         ////////////////////////////////////////////////////
         /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
         ////////////////////////////////////////////////////
-        const func* l_func_ptr = a_program.add_parameter(
-            a_param_types.size(), a_return_type);
+        const func* l_func_ptr =
+            a_program.add_parameter(a_param_types.size(), a_return_type);
 
         // add the parameter to the param types
         a_param_types.push_back(a_return_type);
@@ -106,8 +96,7 @@ func_body build_function(
     }
 
     // extract the func
-    const func* l_node_func =
-        std::get<place_node_t>(l_node_choice).m_node;
+    const func* l_node_func = std::get<place_node_t>(l_node_choice).m_node;
 
     // add the node's representation to the stream
     a_repr_stream << l_node_func->m_repr << "(";
@@ -121,19 +110,15 @@ func_body build_function(
     std::list<func_body> l_node_children;
 
     // loop through with iterator, construct args in place
-    for(auto l_param_type_it =
-            l_node_func->m_param_types.begin();
-        l_param_type_it != l_node_func->m_param_types.end();
-        ++l_param_type_it)
+    for(auto l_param_type_it = l_node_func->m_param_types.begin();
+        l_param_type_it != l_node_func->m_param_types.end(); ++l_param_type_it)
     {
         l_node_children.push_back(build_function(
-            a_program, a_scope, a_param_types,
-            a_repr_stream, *l_param_type_it, a_allow_params,
-            a_simulation, a_recursion_limit - 1));
+            a_program, a_scope, a_param_types, a_repr_stream, *l_param_type_it,
+            a_allow_params, a_simulation, a_recursion_limit - 1));
 
         // if this is not the last param, add a comma
-        if(std::next(l_param_type_it) !=
-           l_node_func->m_param_types.end())
+        if(std::next(l_param_type_it) != l_node_func->m_param_types.end())
             a_repr_stream << ",";
     }
 

@@ -1,5 +1,7 @@
 #include "../include/program.hpp"
 
+#include <cmath>
+
 template <typename Ret>
 std::function<std::any(std::list<std::any>::const_iterator,
                        std::list<std::any>::const_iterator)>
@@ -397,6 +399,43 @@ void test_program_add_primitive()
 
         // make sure the function has the correct repr
         assert(l_func->m_repr == "f0");
+    }
+
+    // add a binary double primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func = l_program.add_primitive(
+            "pow", std::function([](double a_x, double a_y)
+                                 { return pow(a_x, a_y); }));
+
+        // verify the func list is not empty
+        assert(std::next(l_program.m_funcs.begin(), 2) == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.size() == 2);
+        assert(std::equal(l_func->m_param_types.begin(),
+                          l_func->m_param_types.end(),
+                          std::list({std::type_index(typeid(double)),
+                                     std::type_index(typeid(double))})
+                              .begin()));
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 3);
+
+        // create the input
+        std::list<std::any> l_input;
+        l_input.push_back(std::any(10.2));
+        l_input.push_back(std::any(2.5));
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>((*l_func)(
+                   l_input.begin(), l_input.end())) == pow(10.2, 2.5));
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "pow");
     }
 }
 

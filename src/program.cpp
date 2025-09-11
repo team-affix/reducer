@@ -31,9 +31,40 @@ make_general_function(std::function<Ret(FirstParam, RestParams...)> a_function)
     };
 }
 
+std::list<func>::const_iterator
+program::add_parameter(std::list<std::any>::iterator& a_param_it,
+                       const int a_param_index, const std::type_index& a_type)
+{
+    // create the value
+    a_param_it = m_param_heap.insert(m_param_heap.end(), std::any{});
+
+    // create the repr
+    std::string l_repr = "p" + std::to_string(a_param_index);
+
+    // create the definition
+    func_body l_body{
+        .m_functor = [a_param_it](std::list<std::any>::const_iterator,
+                                  std::list<std::any>::const_iterator)
+        { return *a_param_it; },
+        .m_children = {},
+    };
+
+    // create the func_t
+    func l_func{
+        .m_param_types = {},
+        .m_params = m_param_heap.end(),
+        .m_body = l_body,
+        .m_repr = l_repr,
+    };
+
+    // add the function to the env
+    return m_funcs.insert(m_funcs.end(), l_func);
+}
+
 template <typename Ret, typename... Params>
-const func* program::add_primitive(const std::string& a_repr,
-                                   const std::function<Ret(Params...)>& a_func)
+std::list<func>::const_iterator
+program::add_primitive(const std::string& a_repr,
+                       const std::function<Ret(Params...)>& a_func)
 {
     // convert the function to a general function
     auto l_general_function = make_general_function(a_func);
@@ -49,16 +80,26 @@ const func* program::add_primitive(const std::string& a_repr,
         .m_children = {},
     };
 
-    // iterator to start of params
-    std::list<std::any>::iterator l_params = m_param_heap.end();
+    // iterator to end of param heap
+    auto l_params = m_param_heap.end();
 
     // index used for parameter names
     int i = 0;
 
     // add the parameter nodes to the definition
     for(const auto& l_param_type : l_param_types)
+    {
+        // temporary iterator to the parameter
+        std::list<std::any>::iterator l_param_it;
+
+        // add the parameter to the heap
         l_body.m_children.push_back(
-            func_body{*add_parameter(i++, l_param_type)});
+            func_body{*add_parameter(l_param_it, i++, l_param_type)});
+
+        // save the iterator to the first inserted value
+        if(l_params == m_param_heap.end())
+            l_params = l_param_it;
+    }
 
     // create the function
     func l_func{
@@ -69,48 +110,7 @@ const func* program::add_primitive(const std::string& a_repr,
     };
 
     // add the function to the env
-    auto l_func_it = m_funcs.insert(m_funcs.end(), l_func);
-
-    // get the pointer to the function
-    const func* l_func_ptr = &*l_func_it;
-
-    // return the function
-    return l_func_ptr;
-}
-
-const func* program::add_parameter(const int a_param_index,
-                                   const std::type_index& a_type)
-{
-    // create the value
-    auto l_value_it = m_param_heap.insert(m_param_heap.end(), std::any{});
-
-    // create the repr
-    std::string l_repr = "p" + std::to_string(a_param_index);
-
-    // create the definition
-    func_body l_body{
-        .m_functor = [l_value_it](std::list<std::any>::const_iterator,
-                                  std::list<std::any>::const_iterator)
-        { return *l_value_it; },
-        .m_children = {},
-    };
-
-    // create the func_t
-    func l_func{
-        .m_param_types = {},
-        .m_params = m_param_heap.end(),
-        .m_body = l_body,
-        .m_repr = l_repr,
-    };
-
-    // add the function to the env
-    auto l_func_it = m_funcs.insert(m_funcs.end(), l_func);
-
-    // get the pointer to the function
-    const func* l_func_ptr = &*l_func_it;
-
-    // return the function
-    return l_func_ptr;
+    return m_funcs.insert(m_funcs.end(), l_func);
 }
 
 #ifdef UNIT_TEST
@@ -180,11 +180,164 @@ void test_make_general_function()
     }
 }
 
+void test_program_add_primitive()
+{
+    // add a nullary int primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func =
+            l_program.add_primitive("f0", std::function([]() { return 10; }));
+
+        // verify the func list is not empty
+        assert(l_program.m_funcs.begin() == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.empty());
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 1);
+
+        // create the input
+        std::list<std::any> l_input;
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
+               10);
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
+
+    // add a nullary double primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func =
+            l_program.add_primitive("f0", std::function([]() { return 10.4; }));
+
+        // verify the func list is not empty
+        assert(l_program.m_funcs.begin() == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.empty());
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 1);
+
+        // create the input
+        std::list<std::any> l_input;
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(
+                   (*l_func)(l_input.begin(), l_input.end())) == 10.4);
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
+
+    // add a nullary string primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func = l_program.add_primitive(
+            "f0", std::function([]() { return std::string("hello"); }));
+
+        // verify the func list is not empty
+        assert(l_program.m_funcs.begin() == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.empty());
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 1);
+
+        // create the input
+        std::list<std::any> l_input;
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<std::string>(
+                   (*l_func)(l_input.begin(), l_input.end())) == "hello");
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
+
+    // add a unary int primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func = l_program.add_primitive(
+            "f0", std::function([](int a_x) { return a_x + 10; }));
+
+        // verify the func list is not empty
+        assert(std::next(l_program.m_funcs.begin()) == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.size() == 1);
+        assert(l_func->m_param_types.front() == typeid(int));
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 2);
+
+        // create the input
+        std::list<std::any> l_input;
+        l_input.push_back(std::any(10));
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<int>((*l_func)(l_input.begin(), l_input.end())) ==
+               20);
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
+
+    // add a unary double primitive
+    {
+        program l_program;
+
+        // verify the func list is empty
+        assert(l_program.m_funcs.empty());
+
+        const auto l_func = l_program.add_primitive(
+            "f0", std::function([](double a_x) { return a_x + 10.3; }));
+
+        // verify the func list is not empty
+        assert(std::next(l_program.m_funcs.begin()) == l_func);
+
+        // verify the function has the correct param types
+        assert(l_func->m_param_types.size() == 1);
+        assert(l_func->m_param_types.front() == typeid(double));
+        assert(l_func->m_params == l_program.m_param_heap.begin());
+        assert(l_func->m_body.node_count() == 2);
+
+        // create the input
+        std::list<std::any> l_input;
+        l_input.push_back(std::any(10.2));
+
+        // make sure the function evaluates correctly
+        assert(std::any_cast<double>(
+                   (*l_func)(l_input.begin(), l_input.end())) == 20.5);
+
+        // make sure the function has the correct repr
+        assert(l_func->m_repr == "f0");
+    }
+}
+
 void program_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
     TEST(test_make_general_function);
+    TEST(test_program_add_primitive);
 }
 
 #endif

@@ -11,11 +11,13 @@ struct program
     std::list<std::any> m_param_heap;
 
     // adding functions
+    std::list<func>::const_iterator
+    add_parameter(std::list<std::any>::iterator& a_param_it,
+                  const int a_param_index, const std::type_index& a_type);
     template <typename Ret, typename... Params>
-    const func* add_primitive(const std::string& a_repr,
-                              const std::function<Ret(Params...)>& a_func);
-    const func* add_parameter(const int a_param_index,
-                              const std::type_index& a_type);
+    std::list<func>::const_iterator
+    add_primitive(const std::string& a_repr,
+                  const std::function<Ret(Params...)>& a_func);
 };
 
 #endif

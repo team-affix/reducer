@@ -10,19 +10,19 @@
 //////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-bool operator<(const place_node_t& a_lhs, const place_node_t& a_rhs)
+bool operator<(const place_node& a_lhs, const place_node& a_rhs)
 {
     return a_lhs.m_node < a_rhs.m_node;
 }
-bool operator<(const place_new_param_t& a_lhs, const place_new_param_t& a_rhs)
+bool operator<(const place_new_param& a_lhs, const place_new_param& a_rhs)
 {
     return false;
 }
-bool operator<(const terminate_t&, const terminate_t&)
+bool operator<(const terminate&, const terminate&)
 {
     return false;
 }
-bool operator<(const make_function_t&, const make_function_t&)
+bool operator<(const make_function&, const make_function&)
 {
     return false;
 }
@@ -36,7 +36,7 @@ build_function(program& a_program, scope& a_scope,
                std::list<std::type_index> a_param_types,
                std::stringstream& a_repr_stream,
                const std::type_index& a_return_type, const bool& a_allow_params,
-               monte_carlo::simulation<choice_t, std::mt19937>& a_simulation,
+               monte_carlo::simulation<choice, std::mt19937>& a_simulation,
                const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
@@ -47,16 +47,16 @@ build_function(program& a_program, scope& a_scope,
     ////////////////////////////////////////////////////
     ////////////// POPULATE CHOICE VECTOR //////////////
     ////////////////////////////////////////////////////
-    std::vector<choice_t> l_node_choices;
+    std::vector<choice> l_node_choices;
 
     // allow choosing any nullary of this type
     std::transform(l_scope_entry.m_nullaries.begin(),
                    l_scope_entry.m_nullaries.end(),
-                   std::back_inserter(l_node_choices), [](const func* a_nullary)
-                   { return place_node_t{a_nullary}; });
+                   std::back_inserter(l_node_choices),
+                   [](const func* a_nullary) { return place_node{a_nullary}; });
 
     if(a_allow_params)
-        l_node_choices.push_back(place_new_param_t{});
+        l_node_choices.push_back(place_new_param{});
 
     if(a_recursion_limit > 0)
     {
@@ -66,16 +66,16 @@ build_function(program& a_program, scope& a_scope,
                        l_scope_entry.m_non_nullaries.end(),
                        std::back_inserter(l_node_choices),
                        [](const func* a_non_nullary)
-                       { return place_node_t{a_non_nullary}; });
+                       { return place_node{a_non_nullary}; });
     }
 
     ////////////////////////////////////////////////////
     ////////////// CHOOSE A NODE TO PLACE //////////////
     ////////////////////////////////////////////////////
-    choice_t l_node_choice = a_simulation.choose(l_node_choices);
+    choice l_node_choice = a_simulation.choose(l_node_choices);
 
-    // if the choice is a place_new_param_t
-    if(std::holds_alternative<place_new_param_t>(l_node_choice))
+    // if the choice is a place_new_param
+    if(std::holds_alternative<place_new_param>(l_node_choice))
     {
         ////////////////////////////////////////////////////
         /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
@@ -92,11 +92,11 @@ build_function(program& a_program, scope& a_scope,
         ////////////////////////////////////////////////////
         ///////////// REFERENCE THIS NEW FUNC_T ////////////
         ////////////////////////////////////////////////////
-        l_node_choice = place_node_t{l_func_ptr};
+        l_node_choice = place_node{l_func_ptr};
     }
 
     // extract the func
-    const func* l_node_func = std::get<place_node_t>(l_node_choice).m_node;
+    const func* l_node_func = std::get<place_node>(l_node_choice).m_node;
 
     // add the node's representation to the stream
     a_repr_stream << l_node_func->m_repr << "(";

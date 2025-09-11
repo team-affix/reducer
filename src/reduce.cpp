@@ -1,4 +1,5 @@
 #include "../include/reduce.hpp"
+#include "../include/model.hpp"
 #include "../include/program.hpp"
 #include "../include/scope.hpp"
 #include "../mcts/include/mcts.hpp"
@@ -135,15 +136,11 @@ build_function(program& a_program, scope& a_scope,
     };
 }
 
-// bool_node
-// build_model(const std::map<std::vector<bool>, bool>
-// a_data,
-//             const size_t& a_in_scope_var_count,
-//             std::vector<function>& a_helpers,
-//             monte_carlo::simulation<choice_t,
-//             std::mt19937>&
-//                 a_simulation,
-//             const size_t& a_recursion_limit)
+// model build_model(const std::map<std::vector<bool>, bool> a_data,
+//                   const size_t& a_in_scope_var_count,
+//                   std::vector<function>& a_helpers,
+//                   monte_carlo::simulation<choice, std::mt19937>&
+//                   a_simulation, const size_t& a_recursion_limit)
 // {
 //     ////////////////////////////////////////////////////
 //     //////////////// CHECK FOR TRIVIALITY //////////////
@@ -165,8 +162,7 @@ build_function(program& a_program, scope& a_scope,
 //         a_data.begin(), a_data.end(),
 //         [l_homogenous_value](const auto& a_data_point)
 //         {
-//             return a_data_point.second ==
-//                    l_homogenous_value;
+//             return a_data_point.second == l_homogenous_value;
 //         });
 
 //     // if the data is homogenous, return the appropriate
@@ -198,11 +194,11 @@ build_function(program& a_program, scope& a_scope,
 //     while(l_negative_bin.empty() ||
 //     l_positive_bin.empty())
 //     {
-//         // clear BOTH bins in case one contains items
-//         l_negative_bin.clear();
-//         l_positive_bin.clear();
+//             // clear BOTH bins in case one contains items
+//             l_negative_bin.clear();
+//             l_positive_bin.clear();
 
-//         // create a binning function that will bin
+//             // create a binning function that will bin
 //         (evaluate
 //         // on) each data point
 //         build_function(l_bf_arity, l_binning_function,
@@ -220,14 +216,14 @@ build_function(program& a_program, scope& a_scope,
 //         // points
 //         for(const auto& [l_x, l_y] : a_data)
 //         {
-//             // evaluate the binning function
-//             bool l_binning_result = evaluate(
-//                 l_binning_function, a_helpers, l_x);
-//             // store in the appropriate bin
-//             if(l_binning_result)
-//                 l_positive_bin[l_x] = l_y;
-//             else
-//                 l_negative_bin[l_x] = l_y;
+//                 // evaluate the binning function
+//                 bool l_binning_result =
+//                     evaluate(l_binning_function, a_helpers, l_x);
+//                 // store in the appropriate bin
+//                 if(l_binning_result)
+//                     l_positive_bin[l_x] = l_y;
+//                 else
+//                     l_negative_bin[l_x] = l_y;
 //         }
 //     }
 

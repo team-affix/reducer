@@ -785,10 +785,9 @@ void test_learn_model()
     // nested exor data
     // 8 rows
     std::list<std::pair<global_input, bool>> l_data{
-        {{false, false, false}, false},
-        {{false, false, true}, true},
-        {{false, true, false}, true},
-        {{false, true, true}, false},
+        {{false, false, false}, false}, {{false, false, true}, true},
+        {{false, true, false}, true},   {{false, true, true}, false},
+        {{true, false, false}, true},   {{true, false, true}, false},
     };
 
     // initialize the program and scope
@@ -818,7 +817,7 @@ void test_learn_model()
 
     // learn a model
     model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
-                                ITERATIONS, 10, 30);
+                                ITERATIONS, 10, 100);
 
     std::cout << l_model.m_func->m_repr << std::endl;
 }

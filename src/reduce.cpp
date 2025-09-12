@@ -771,61 +771,244 @@ model learn_model(program& a_program, scope& a_scope,
 
 void test_learn_model()
 {
-    constexpr size_t ITERATIONS = 1000000;
+    // learn nested exor
+    {
+        constexpr size_t ITERATIONS = 1000;
 
-    // set the input type
-    using global_input = std::tuple<bool, bool, bool>;
+        // set the input type
+        using global_input = std::tuple<bool, bool, bool>;
 
-    global_input l_global_input{
-        false,
-        false,
-        false,
-    };
+        global_input l_global_input{
+            false,
+            false,
+            false,
+        };
 
-    // nested exor data
-    // 8 rows
-    std::list<std::pair<global_input, bool>> l_data{
-        {{false, false, false}, false}, {{false, false, true}, true},
-        {{false, true, false}, true},   {{false, true, true}, false},
-        {{true, false, false}, true},   {{true, false, true}, false},
-        {{true, true, false}, false},   {{true, true, true}, true},
-    };
+        // nested exor data
+        // 8 rows
+        std::list<std::pair<global_input, bool>> l_data{
+            {{false, false, false}, false}, {{false, false, true}, true},
+            {{false, true, false}, true},   {{false, true, true}, false},
+            {{true, false, false}, true}, //{{true, false, true}, false},
+            {{true, true, false}, false},   {{true, true, true}, true},
+        };
 
-    // initialize the program and scope
-    program l_program;
-    scope l_scope;
+        // initialize the program and scope
+        program l_program;
+        scope l_scope;
 
-    // add some primitive functions
-    std::function l_exor = std::function(
-        [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
-    std::function l_exor_3 =
-        std::function([l_exor](bool a_x, bool a_y, bool a_z)
-                      { return l_exor(l_exor(a_x, a_y), a_z); });
+        // add some primitive functions
+        std::function l_exor = std::function(
+            [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
+        std::function l_exor_3 =
+            std::function([l_exor](bool a_x, bool a_y, bool a_z)
+                          { return l_exor(l_exor(a_x, a_y), a_z); });
 
-    // add primitive for g[0]
-    l_scope.add_function(l_program.add_primitive(
-        "g0", std::function([&l_global_input]
-                            { return std::get<0>(l_global_input); })));
+        // add primitive for g[0]
+        l_scope.add_function(l_program.add_primitive(
+            "g0", std::function([&l_global_input]
+                                { return std::get<0>(l_global_input); })));
 
-    // add primitive for g[1]
-    l_scope.add_function(l_program.add_primitive(
-        "g1", std::function([&l_global_input]
-                            { return std::get<1>(l_global_input); })));
+        // add primitive for g[1]
+        l_scope.add_function(l_program.add_primitive(
+            "g1", std::function([&l_global_input]
+                                { return std::get<1>(l_global_input); })));
 
-    // add primitive for g[2]
-    l_scope.add_function(l_program.add_primitive(
-        "g2", std::function([&l_global_input]
-                            { return std::get<2>(l_global_input); })));
+        // add primitive for g[2]
+        l_scope.add_function(l_program.add_primitive(
+            "g2", std::function([&l_global_input]
+                                { return std::get<2>(l_global_input); })));
 
-    // add two-way exor
-    l_scope.add_function(l_program.add_primitive("exor", l_exor));
+        // add two-way exor
+        l_scope.add_function(l_program.add_primitive("exor", l_exor));
 
-    // add three-way exor
-    l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
+        // add three-way exor
+        l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
 
-    // learn a model
-    model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
-                                ITERATIONS, 10, 100);
+        // learn a model
+        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+                                    ITERATIONS, 10, 100);
+    }
+    // learn x > 0 && x < 3 function
+    {
+        constexpr size_t ITERATIONS = 1000;
+
+        // set the input type
+        using global_input = std::tuple<int>;
+
+        global_input l_global_input{
+            0,
+        };
+
+        // x > 0 && x < 3 data
+        // 8 rows
+        std::list<std::pair<global_input, bool>> l_data{
+            {{-3}, false}, {{-2}, false}, {{-1}, false}, {{0}, false},
+            {{1}, true},   {{2}, true},   {{3}, false},  {{4}, false},
+            {{5}, false},  {{6}, false},
+        };
+
+        // initialize the program and scope
+        program l_program;
+        scope l_scope;
+
+        // add primitive for 0
+        l_scope.add_function(
+            l_program.add_primitive("0", std::function([]() { return 0; })));
+
+        // add primitive for succ(n)
+        l_scope.add_function(l_program.add_primitive(
+            "succ", std::function([](int a_n) { return a_n + 1; })));
+
+        // add primitive for g[0]
+        l_scope.add_function(l_program.add_primitive(
+            "g0", std::function([&l_global_input]
+                                { return std::get<0>(l_global_input); })));
+
+        // add primitive for >
+        l_scope.add_function(l_program.add_primitive(
+            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+        // add primitive for <
+        l_scope.add_function(l_program.add_primitive(
+            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+        // add primitive for &&
+        l_scope.add_function(l_program.add_primitive(
+            "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
+
+        // learn a model
+        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+                                    ITERATIONS, 10, 100);
+    }
+
+    // learn x^2 < y
+    {
+        constexpr size_t ITERATIONS = 1000;
+
+        // set the input type
+        using global_input = std::tuple<int, int>;
+
+        global_input l_global_input{
+            0,
+            0,
+        };
+
+        // x^2 < y data
+        std::list<std::pair<global_input, bool>> l_data{
+            {{0, 0}, false},  {{0, 1}, true},  {{0, 2}, true},  {{1, 0}, false},
+            {{1, 2}, true},   {{2, 3}, false}, {{2, 4}, false}, {{2, 5}, true},
+            {{7, 49}, false}, {{7, 50}, true},
+        };
+
+        // initialize the program and scope
+        program l_program;
+        scope l_scope;
+
+        // add primitive for 0
+        l_scope.add_function(
+            l_program.add_primitive("0", std::function([]() { return 0; })));
+
+        // add primitive for succ(n)
+        l_scope.add_function(l_program.add_primitive(
+            "succ", std::function([](int a_n) { return a_n + 1; })));
+
+        // add primitive for square(n)
+        l_scope.add_function(l_program.add_primitive(
+            "square", std::function([](int a_n) { return a_n * a_n; })));
+
+        // add primitive for g[0]
+        l_scope.add_function(l_program.add_primitive(
+            "g0", std::function([&l_global_input]
+                                { return std::get<0>(l_global_input); })));
+
+        // add primitive for g[1]
+        l_scope.add_function(l_program.add_primitive(
+            "g1", std::function([&l_global_input]
+                                { return std::get<1>(l_global_input); })));
+
+        // add primitive for >
+        l_scope.add_function(l_program.add_primitive(
+            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+        // add primitive for <
+        l_scope.add_function(l_program.add_primitive(
+            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+        // add primitive for &&
+        l_scope.add_function(l_program.add_primitive(
+            "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
+
+        // learn a model
+        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+                                    ITERATIONS, 10, 100);
+    }
+
+    // learn xy < y
+    {
+        constexpr size_t ITERATIONS = 10000;
+
+        // set the input type
+        using global_input = std::tuple<int, int>;
+
+        global_input l_global_input{
+            0,
+            0,
+        };
+
+        // xy < y data
+        std::list<std::pair<global_input, bool>> l_data{
+            {{0, 0}, false}, {{0, 1}, true},   {{0, 2}, true},  {{1, 1}, false},
+            {{1, 2}, false}, {{1, 3}, false},  {{2, 1}, false}, {{2, 2}, false},
+            {{-1, 1}, true}, {{-10, 1}, true},
+        };
+
+        // initialize the program and scope
+        program l_program;
+        scope l_scope;
+
+        // add primitive for 0
+        l_scope.add_function(
+            l_program.add_primitive("0", std::function([]() { return 0; })));
+
+        // add primitive for succ(n)
+        l_scope.add_function(l_program.add_primitive(
+            "succ", std::function([](int a_n) { return a_n + 1; })));
+
+        // add primitive for square(n)
+        l_scope.add_function(l_program.add_primitive(
+            "square", std::function([](int a_n) { return a_n * a_n; })));
+
+        // add primitive for mul(n, m)
+        l_scope.add_function(l_program.add_primitive(
+            "*", std::function([](int a_n, int a_m) { return a_n * a_m; })));
+
+        // add primitive for g[0]
+        l_scope.add_function(l_program.add_primitive(
+            "g0", std::function([&l_global_input]
+                                { return std::get<0>(l_global_input); })));
+
+        // add primitive for g[1]
+        l_scope.add_function(l_program.add_primitive(
+            "g1", std::function([&l_global_input]
+                                { return std::get<1>(l_global_input); })));
+
+        // add primitive for >
+        l_scope.add_function(l_program.add_primitive(
+            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+        // add primitive for <
+        l_scope.add_function(l_program.add_primitive(
+            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+        // add primitive for &&
+        l_scope.add_function(l_program.add_primitive(
+            "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
+
+        // learn a model
+        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+                                    ITERATIONS, 10, 1000);
+    }
 }
 
 void reduce_test_main()

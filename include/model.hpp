@@ -13,8 +13,8 @@ struct model
     func* m_func;
 
     // the next functions to evaluate
-    std::unique_ptr<model> m_negative_child;
-    std::unique_ptr<model> m_positive_child;
+    std::shared_ptr<model> m_negative_child;
+    std::shared_ptr<model> m_positive_child;
 
     // the function to evaluate the model
     bool eval(std::list<std::any>::const_iterator a_begin,

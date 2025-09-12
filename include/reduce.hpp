@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////////
 struct place_node
 {
-    std::list<func>::iterator m_func_it;
+    func* m_func;
 };
 struct place_new_param
 {

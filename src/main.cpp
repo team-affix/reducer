@@ -21,7 +21,7 @@ extern void scope_test_main();
 extern void func_test_main();
 extern void program_test_main();
 extern void model_test_main();
-// extern void reduce_test_main();
+extern void reduce_test_main();
 
 void unit_test_main()
 {
@@ -31,7 +31,7 @@ void unit_test_main()
     TEST(func_test_main);
     TEST(program_test_main);
     TEST(model_test_main);
-    // TEST(reduce_test_main);
+    TEST(reduce_test_main);
 }
 
 int main()

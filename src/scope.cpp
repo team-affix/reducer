@@ -45,7 +45,7 @@ void test_scope_entry_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(typeid(int), func_body{}, "f0");
         l_funcs.front().m_param_types.push_back(typeid(int));
-        l_funcs.front().m_params->push_back(std::any());
+        l_funcs.front().m_params.push_back(std::any());
         l_entry.add_function(&l_funcs.front());
         assert(l_entry.m_nullaries.empty());
         assert(l_entry.m_non_nullaries.size() == 1);
@@ -82,7 +82,7 @@ void test_scope_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(l_return_type, func_body{}, "f0");
         l_funcs.front().m_param_types.push_back(typeid(std::string));
-        l_funcs.front().m_params->push_back(std::any());
+        l_funcs.front().m_params.push_back(std::any());
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_entries.size() == 1);
         assert(l_scope.m_entries.contains(l_return_type));
@@ -99,7 +99,7 @@ void test_scope_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(l_return_type, func_body{}, "f0");
         l_funcs.front().m_param_types.push_back(typeid(std::string));
-        l_funcs.front().m_params->push_back(std::any());
+        l_funcs.front().m_params.push_back(std::any());
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_entries.size() == 1);
         assert(l_scope.m_entries.contains(l_return_type));

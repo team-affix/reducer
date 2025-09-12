@@ -25,7 +25,7 @@ struct func
     // the parameters
     std::type_index m_return_type;
     std::list<std::type_index> m_param_types;
-    std::shared_ptr<std::list<std::any>> m_params;
+    std::list<std::any> m_params;
     func_body m_body;
     std::string m_repr;
     std::any eval(std::list<std::any>::const_iterator a_begin,

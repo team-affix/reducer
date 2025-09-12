@@ -6,14 +6,14 @@
 func* program::add_parameter(func* a_func, std::type_index a_type)
 {
     // create the repr
-    std::string l_repr = "p" + std::to_string(a_func->m_params->size());
+    std::string l_repr = "p" + std::to_string(a_func->m_params.size());
 
     // add the parameter type
     a_func->m_param_types.push_back(a_type);
 
     // create the value
     auto l_param_it =
-        a_func->m_params->insert(a_func->m_params->end(), std::any{});
+        a_func->m_params.insert(a_func->m_params.end(), std::any{});
 
     // create the definition
     func_body l_body{
@@ -122,7 +122,7 @@ void test_program_add_parameter()
         // ensure that the func is correct
         assert(l_func.m_param_types.size() == 1);
         assert(l_func.m_param_types.front() == typeid(double));
-        assert(l_func.m_params->size() == 1);
+        assert(l_func.m_params.size() == 1);
         assert(l_func.m_body.node_count() ==
                1); // THE NODE COUNT IS STILL 1 BECAUSE WE DID NOT ADD PARAM
                    // NODE TO THE BODY
@@ -130,7 +130,7 @@ void test_program_add_parameter()
 
         // make sure the param func is correct
         assert(l_param_func->m_param_types.empty());
-        assert(l_param_func->m_params->empty());
+        assert(l_param_func->m_params.empty());
         assert(l_param_func->m_body.node_count() == 1);
         assert(l_param_func->m_repr == "p0");
 
@@ -138,7 +138,7 @@ void test_program_add_parameter()
         std::list<std::any> l_input;
 
         // set the param
-        l_func.m_params->front() = std::any(10.2);
+        l_func.m_params.front() = std::any(10.2);
 
         // make sure the function evaluates correctly
         assert(std::any_cast<double>(
@@ -180,7 +180,7 @@ void test_program_add_parameter()
         assert(l_func.m_param_types.size() == 2);
         assert(l_func.m_param_types.front() == typeid(double));
         assert(l_func.m_param_types.back() == typeid(std::string));
-        assert(l_func.m_params->size() == 2);
+        assert(l_func.m_params.size() == 2);
         assert(l_func.m_body.node_count() ==
                1); // we have not yet added the parameter nodes to the body
         assert(l_func.m_repr == "myfunc");
@@ -199,8 +199,8 @@ void test_program_add_parameter()
         std::list<std::any> l_input;
 
         // set the param
-        l_func.m_params->front() = std::any(10.2);
-        l_func.m_params->back() = std::any(std::string("hello"));
+        l_func.m_params.front() = std::any(10.2);
+        l_func.m_params.back() = std::any(std::string("hello"));
 
         // make sure the function evaluates correctly
         assert(std::any_cast<std::string>(l_func.eval(
@@ -226,7 +226,7 @@ void test_program_add_primitive()
         // verify the function has the correct param types
         assert(l_func->m_return_type == typeid(int));
         assert(l_func->m_param_types.empty());
-        assert(l_func->m_params->empty());
+        assert(l_func->m_params.empty());
         assert(l_func->m_body.node_count() == 1);
 
         // create the input
@@ -256,7 +256,7 @@ void test_program_add_primitive()
         // verify the function has the correct param types
         assert(l_func->m_return_type == typeid(double));
         assert(l_func->m_param_types.empty());
-        assert(l_func->m_params->empty());
+        assert(l_func->m_params.empty());
         assert(l_func->m_body.node_count() == 1);
 
         // create the input
@@ -286,7 +286,7 @@ void test_program_add_primitive()
         // verify the function has the correct param types
         assert(l_func->m_return_type == typeid(std::string));
         assert(l_func->m_param_types.empty());
-        assert(l_func->m_params->empty());
+        assert(l_func->m_params.empty());
         assert(l_func->m_body.node_count() == 1);
 
         // create the input
@@ -317,7 +317,7 @@ void test_program_add_primitive()
         assert(l_func->m_return_type == typeid(int));
         assert(l_func->m_param_types.size() == 1);
         assert(l_func->m_param_types.front() == typeid(double));
-        assert(l_func->m_params->size() == 1);
+        assert(l_func->m_params.size() == 1);
         assert(l_func->m_body.node_count() == 2);
 
         // create the input
@@ -349,7 +349,7 @@ void test_program_add_primitive()
         assert(l_func->m_return_type == typeid(double));
         assert(l_func->m_param_types.size() == 1);
         assert(l_func->m_param_types.front() == typeid(double));
-        assert(l_func->m_params->size() == 1);
+        assert(l_func->m_params.size() == 1);
         assert(l_func->m_body.node_count() == 2);
 
         // create the input
@@ -382,7 +382,7 @@ void test_program_add_primitive()
         assert(l_func->m_return_type == typeid(std::string));
         assert(l_func->m_param_types.size() == 1);
         assert(l_func->m_param_types.front() == typeid(std::string));
-        assert(l_func->m_params->size() == 1);
+        assert(l_func->m_params.size() == 1);
         assert(l_func->m_body.node_count() == 2);
 
         // create the input
@@ -419,7 +419,7 @@ void test_program_add_primitive()
                           std::list({std::type_index(typeid(int)),
                                      std::type_index(typeid(int))})
                               .begin()));
-        assert(l_func->m_params->size() == 2);
+        assert(l_func->m_params.size() == 2);
         assert(l_func->m_body.node_count() == 3);
 
         // create the input
@@ -457,7 +457,7 @@ void test_program_add_primitive()
                           std::list({std::type_index(typeid(double)),
                                      std::type_index(typeid(double))})
                               .begin()));
-        assert(l_func->m_params->size() == 2);
+        assert(l_func->m_params.size() == 2);
         assert(l_func->m_body.node_count() == 3);
 
         // create the input

@@ -240,6 +240,9 @@ model build_model(program& a_program, scope& a_scope,
         }
     }
 
+    // add the binning function to the program
+    a_program.m_funcs.push_back(l_binning_function);
+
     ////////////////////////////////////////////////////
     //////////////////////// RECUR /////////////////////
     ////////////////////////////////////////////////////
@@ -784,15 +787,13 @@ void test_learn_model()
     scope l_scope;
 
     // add some primitive functions
-    // l_scope.add_function(
-    //     l_program.add_primitive("false", std::function{[] { return false;
-    //     }}));
-    // l_scope.add_function(
-    //     l_program.add_primitive("true", std::function{[] { return true; }}));
+    l_scope.add_function(l_program.add_primitive(
+        "exor", std::function([](bool a_x, bool a_y)
+                              { return !a_x && a_y || a_x && !a_y; })));
 
     // learn a model
     model l_model = learn_model(l_program, l_scope, l_param_types, l_data,
-                                ITERATIONS, 3, 10);
+                                ITERATIONS, 10, 100);
 
     std::cout << l_model.m_func->m_repr << std::endl;
 }

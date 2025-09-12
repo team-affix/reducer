@@ -315,14 +315,14 @@ model learn_model(program& a_program, scope& a_scope,
             a_program = l_program;
             a_scope = l_scope;
             l_best_model = l_model;
+
+            std::cout << l_program_node_count << " " << l_reward << std::endl;
+
+            std::cout << "program: " << std::endl;
+            for(const auto& l_func : l_program.m_funcs)
+                std::cout << "    " << l_func->m_repr << std::endl;
+            std::cout << std::endl;
         }
-
-        std::cout << l_program_node_count << " " << l_reward << std::endl;
-
-        std::cout << "program: " << std::endl;
-        for(const auto& l_func : l_program.m_funcs)
-            std::cout << "    " << l_func->m_repr << std::endl;
-        std::cout << std::endl;
 
         // terminate the simulation
         l_sim.terminate(l_reward);
@@ -818,9 +818,7 @@ void test_learn_model()
 
     // learn a model
     model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
-                                ITERATIONS, 10, 100);
-
-    std::cout << l_model.m_func->m_repr << std::endl;
+                                ITERATIONS, 10, 30);
 }
 
 void reduce_test_main()

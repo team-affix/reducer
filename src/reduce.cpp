@@ -135,13 +135,12 @@ build_function(program& a_program, scope& a_scope, func* a_func,
     };
 }
 
-template <typename... GlobalParams>
-model build_model(
-    program& a_program, scope& a_scope,
-    std::tuple<GlobalParams...>& a_global_input,
-    const std::list<std::pair<std::tuple<GlobalParams...>, bool>>& a_data,
-    monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-    const size_t& a_recursion_limit)
+template <typename GlobalInput>
+model build_model(program& a_program, scope& a_scope,
+                  GlobalInput& a_global_input,
+                  const std::list<std::pair<GlobalInput, bool>>& a_data,
+                  monte_carlo::simulation<choice, std::mt19937>& a_simulation,
+                  const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
     //////////////// CHECK FOR TRIVIALITY //////////////
@@ -175,10 +174,10 @@ model build_model(
     const std::type_index BINNING_RETURN_TYPE = std::type_index(typeid(bool));
 
     // construct the negative bin
-    std::list<std::pair<std::tuple<GlobalParams...>, bool>> l_negative_bin;
+    std::list<std::pair<GlobalInput, bool>> l_negative_bin;
 
     // construct the positive bin
-    std::list<std::pair<std::tuple<GlobalParams...>, bool>> l_positive_bin;
+    std::list<std::pair<GlobalInput, bool>> l_positive_bin;
 
     // declare the binning function
     std::shared_ptr<func> l_binning_function = nullptr;
@@ -267,13 +266,12 @@ model build_model(
     };
 }
 
-template <typename... GlobalParams>
-model learn_model(
-    program& a_program, scope& a_scope,
-    std::tuple<GlobalParams...>& a_global_input,
-    const std::list<std::pair<std::tuple<GlobalParams...>, bool>>& a_data,
-    const size_t& a_iterations, const size_t& a_recursion_limit,
-    const double& a_exploration_constant)
+template <typename GlobalInput>
+model learn_model(program& a_program, scope& a_scope,
+                  GlobalInput& a_global_input,
+                  const std::list<std::pair<GlobalInput, bool>>& a_data,
+                  const size_t& a_iterations, const size_t& a_recursion_limit,
+                  const double& a_exploration_constant)
 {
     std::mt19937 l_rnd_gen(27);
     monte_carlo::tree_node<choice> l_root;

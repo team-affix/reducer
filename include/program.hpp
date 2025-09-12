@@ -4,6 +4,7 @@
 #include "../include/func.hpp"
 #include <any>
 #include <list>
+#include <memory>
 
 template <typename Ret>
 std::function<std::any(std::list<std::any>::const_iterator,

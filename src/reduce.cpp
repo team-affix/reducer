@@ -135,11 +135,13 @@ build_function(program& a_program, scope& a_scope, func* a_func,
     };
 }
 
-model build_model(program& a_program, scope& a_scope,
-                  const std::list<std::type_index>& a_param_types,
-                  const std::list<std::pair<std::list<std::any>, bool>>& a_data,
-                  monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-                  const size_t& a_recursion_limit)
+template <typename... GlobalParams>
+model build_model(
+    program& a_program, scope& a_scope,
+    std::tuple<GlobalParams...>& a_global_input,
+    const std::list<std::pair<std::tuple<GlobalParams...>, bool>>& a_data,
+    monte_carlo::simulation<choice, std::mt19937>& a_simulation,
+    const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
     //////////////// CHECK FOR TRIVIALITY //////////////
@@ -173,10 +175,10 @@ model build_model(program& a_program, scope& a_scope,
     const std::type_index BINNING_RETURN_TYPE = std::type_index(typeid(bool));
 
     // construct the negative bin
-    std::list<std::pair<std::list<std::any>, bool>> l_negative_bin;
+    std::list<std::pair<std::tuple<GlobalParams...>, bool>> l_negative_bin;
 
     // construct the positive bin
-    std::list<std::pair<std::list<std::any>, bool>> l_positive_bin;
+    std::list<std::pair<std::tuple<GlobalParams...>, bool>> l_positive_bin;
 
     // declare the binning function
     std::shared_ptr<func> l_binning_function = nullptr;
@@ -203,25 +205,11 @@ model build_model(program& a_program, scope& a_scope,
         // construct the repr stream
         std::stringstream l_repr_stream;
 
-        // construct a temporary scope for this function
-        scope l_temp_scope = a_scope;
-
-        // add all global params for the function to access
-        for(const auto& l_param_type : a_param_types)
-        {
-            // add the parameter to this binning function
-            auto l_param_func =
-                a_program.add_parameter(l_binning_function.get(), l_param_type);
-
-            // add the parameter accessor to the temp scope
-            l_temp_scope.add_function(l_param_func);
-        }
-
         // construct the binning function body
         // [create a binning function that will bin (evaluate
         // on) each data point]
         l_binning_function->m_body = build_function(
-            a_program, l_temp_scope, l_binning_function.get(), l_repr_stream,
+            a_program, a_scope, l_binning_function.get(), l_repr_stream,
             BINNING_RETURN_TYPE, false, a_simulation, a_recursion_limit);
 
         // set the repr of the binning function
@@ -235,9 +223,17 @@ model build_model(program& a_program, scope& a_scope,
         // data points
         for(const auto& [l_x, l_y] : a_data)
         {
+            // set the global params
+            a_global_input = l_x;
+
+            // the binning function is nullary, thus evaluate on empty input
+            std::list<std::any> l_empty_input;
+
             // evaluate the binning function (should return bool)
-            bool l_binning_result = std::any_cast<bool>(
-                l_binning_function->eval(l_x.begin(), l_x.end()));
+            bool l_binning_result =
+                std::any_cast<bool>(l_binning_function->eval(
+                    l_empty_input.begin(), l_empty_input.end()));
+
             // store in the appropriate bin
             if(l_binning_result)
                 l_positive_bin.emplace_back(l_x, l_y);
@@ -255,12 +251,12 @@ model build_model(program& a_program, scope& a_scope,
 
     // construct the negative child
     model l_negative_child =
-        build_model(a_program, a_scope, a_param_types, l_negative_bin,
+        build_model(a_program, a_scope, a_global_input, l_negative_bin,
                     a_simulation, a_recursion_limit);
 
     // construct the positive child
     model l_positive_child =
-        build_model(a_program, a_scope, a_param_types, l_positive_bin,
+        build_model(a_program, a_scope, a_global_input, l_positive_bin,
                     a_simulation, a_recursion_limit);
 
     // construct the final node
@@ -271,11 +267,13 @@ model build_model(program& a_program, scope& a_scope,
     };
 }
 
-model learn_model(program& a_program, scope& a_scope,
-                  const std::list<std::type_index>& a_param_types,
-                  const std::list<std::pair<std::list<std::any>, bool>>& a_data,
-                  const size_t& a_iterations, const size_t& a_recursion_limit,
-                  const double& a_exploration_constant)
+template <typename... GlobalParams>
+model learn_model(
+    program& a_program, scope& a_scope,
+    std::tuple<GlobalParams...>& a_global_input,
+    const std::list<std::pair<std::tuple<GlobalParams...>, bool>>& a_data,
+    const size_t& a_iterations, const size_t& a_recursion_limit,
+    const double& a_exploration_constant)
 {
     std::mt19937 l_rnd_gen(27);
     monte_carlo::tree_node<choice> l_root;
@@ -300,7 +298,7 @@ model learn_model(program& a_program, scope& a_scope,
         scope l_scope = l_original_scope;
 
         // construct the model
-        model l_model = build_model(l_program, l_scope, a_param_types, a_data,
+        model l_model = build_model(l_program, l_scope, a_global_input, a_data,
                                     l_sim, a_recursion_limit);
 
         // compute the number of nodes in the whole program
@@ -777,15 +775,18 @@ void test_learn_model()
 {
     constexpr size_t ITERATIONS = 1000000;
 
-    std::list<std::type_index> l_param_types{
-        typeid(bool),
-        typeid(bool),
-        typeid(bool),
+    // set the input type
+    using global_input = std::tuple<bool, bool, bool>;
+
+    global_input l_global_input{
+        false,
+        false,
+        false,
     };
 
     // nested exor data
     // 8 rows
-    std::list<std::pair<std::list<std::any>, bool>> l_data{
+    std::list<std::pair<global_input, bool>> l_data{
         {{false, false, false}, false},
         {{false, false, true}, true},
         {{false, true, false}, true},
@@ -797,12 +798,28 @@ void test_learn_model()
     scope l_scope;
 
     // add some primitive functions
+
+    // add primitive for g[0]
+    l_scope.add_function(l_program.add_primitive(
+        "g0", std::function([&l_global_input]
+                            { return std::get<0>(l_global_input); })));
+
+    // add primitive for g[1]
+    l_scope.add_function(l_program.add_primitive(
+        "g1", std::function([&l_global_input]
+                            { return std::get<1>(l_global_input); })));
+
+    // add primitive for g[2]
+    l_scope.add_function(l_program.add_primitive(
+        "g2", std::function([&l_global_input]
+                            { return std::get<2>(l_global_input); })));
+
     l_scope.add_function(l_program.add_primitive(
         "exor", std::function([](bool a_x, bool a_y)
                               { return !a_x && a_y || a_x && !a_y; })));
 
     // learn a model
-    model l_model = learn_model(l_program, l_scope, l_param_types, l_data,
+    model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
                                 ITERATIONS, 10, 30);
 
     std::cout << l_model.m_func->m_repr << std::endl;

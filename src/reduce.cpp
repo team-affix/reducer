@@ -788,6 +788,7 @@ void test_learn_model()
         {{false, false, false}, false}, {{false, false, true}, true},
         {{false, true, false}, true},   {{false, true, true}, false},
         {{true, false, false}, true},   {{true, false, true}, false},
+        {{true, true, false}, false},   {{true, true, true}, true},
     };
 
     // initialize the program and scope

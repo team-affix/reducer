@@ -27,14 +27,15 @@ std::any func::eval(std::list<std::any>::const_iterator a_begin,
                     std::list<std::any>::const_iterator a_end)
 {
     // set the parameters
-    std::copy(a_begin, a_end, m_params.begin());
+    std::copy(a_begin, a_end, m_params->begin());
     // evaluate the function
     return m_body.eval();
 }
 
 func::func(const std::type_index& a_return_type, const func_body& a_body,
            const std::string& a_repr)
-    : m_return_type(a_return_type), m_body(a_body), m_repr(a_repr)
+    : m_return_type(a_return_type), m_body(a_body), m_repr(a_repr),
+      m_params(std::make_shared<std::list<std::any>>())
 {
 }
 
@@ -53,7 +54,7 @@ void test_func_construction()
     func l_func{l_return_type, l_body, l_repr};
     assert(l_func.m_return_type == l_return_type);
     assert(l_func.m_param_types.empty());
-    assert(l_func.m_params.empty());
+    assert(l_func.m_params->empty());
     assert(l_func.m_body.node_count() == 1);
     assert(std::any_cast<int>(l_func.m_body.eval()) == 10);
     assert(l_func.m_repr == l_repr);
@@ -260,12 +261,12 @@ void test_func_eval()
         // define the param types
         l_func.m_param_types.push_back(typeid(int));
         // define the params
-        l_func.m_params.push_back(std::any());
+        l_func.m_params->push_back(std::any());
         // define the body
         l_func.m_body = {
             .m_functor = [&l_func](std::list<std::any>::const_iterator,
                                    std::list<std::any>::const_iterator)
-            { return l_func.m_params.front(); },
+            { return l_func.m_params->front(); },
             .m_children = {},
         };
         // define the input
@@ -283,7 +284,7 @@ void test_func_eval()
         // define the param types
         l_func.m_param_types.push_back(typeid(int));
         // define the params
-        l_func.m_params.push_back(std::any());
+        l_func.m_params->push_back(std::any());
         // define the body
         l_func.m_body = {
             .m_functor =
@@ -291,7 +292,7 @@ void test_func_eval()
                           std::list<std::any>::const_iterator)
             {
                 return std::any(10 +
-                                std::any_cast<int>(l_func.m_params.front()));
+                                std::any_cast<int>(l_func.m_params->front()));
             },
             .m_children =
                 {
@@ -299,7 +300,7 @@ void test_func_eval()
                         .m_functor =
                             [&l_func](std::list<std::any>::const_iterator,
                                       std::list<std::any>::const_iterator)
-                        { return l_func.m_params.front(); },
+                        { return l_func.m_params->front(); },
                     },
                 },
         };
@@ -318,7 +319,7 @@ void test_func_eval()
         // define the param types
         l_func.m_param_types.push_back(typeid(int));
         // define the params
-        l_func.m_params.push_back(std::any());
+        l_func.m_params->push_back(std::any());
         // define the body
         l_func.m_body = {
             .m_functor =
@@ -335,7 +336,7 @@ void test_func_eval()
                         .m_functor =
                             [&l_func](std::list<std::any>::const_iterator,
                                       std::list<std::any>::const_iterator)
-                        { return l_func.m_params.front(); },
+                        { return l_func.m_params->front(); },
                     },
                     func_body{
                         .m_functor = [](std::list<std::any>::const_iterator,
@@ -360,8 +361,8 @@ void test_func_eval()
         l_func.m_param_types.push_back(typeid(int));
         l_func.m_param_types.push_back(typeid(double));
         // define the params
-        l_func.m_params.push_back(std::any());
-        l_func.m_params.push_back(std::any());
+        l_func.m_params->push_back(std::any());
+        l_func.m_params->push_back(std::any());
         // define the body
         l_func.m_body = {
             .m_functor =
@@ -377,13 +378,13 @@ void test_func_eval()
                         .m_functor =
                             [&l_func](std::list<std::any>::const_iterator,
                                       std::list<std::any>::const_iterator)
-                        { return l_func.m_params.front(); },
+                        { return l_func.m_params->front(); },
                     },
                     func_body{
                         .m_functor =
                             [&l_func](std::list<std::any>::const_iterator,
                                       std::list<std::any>::const_iterator)
-                        { return *std::next(l_func.m_params.begin()); },
+                        { return *std::next(l_func.m_params->begin()); },
                     },
                 },
         };
@@ -403,7 +404,7 @@ void test_func_eval()
         // define the param types
         l_func.m_param_types.push_back(typeid(int));
         // define the params
-        l_func.m_params.push_back(std::any());
+        l_func.m_params->push_back(std::any());
         // define the body
         l_func.m_body = {
             .m_functor = [](std::list<std::any>::const_iterator a_begin,
@@ -423,7 +424,7 @@ void test_func_eval()
                                         [&l_func](
                                             std::list<std::any>::const_iterator,
                                             std::list<std::any>::const_iterator)
-                                    { return l_func.m_params.front(); },
+                                    { return l_func.m_params->front(); },
                                 },
                             },
                     },

@@ -4,6 +4,7 @@
 #include <any>
 #include <functional>
 #include <list>
+#include <memory>
 #include <string>
 #include <typeindex>
 
@@ -24,7 +25,7 @@ struct func
     // the parameters
     std::type_index m_return_type;
     std::list<std::type_index> m_param_types;
-    std::list<std::any> m_params;
+    std::shared_ptr<std::list<std::any>> m_params;
     func_body m_body;
     std::string m_repr;
     std::any eval(std::list<std::any>::const_iterator a_begin,
@@ -32,9 +33,6 @@ struct func
     // normal constructor
     func(const std::type_index& a_return_type, const func_body& a_body,
          const std::string& a_repr);
-    // delete the copy constructor
-    func(const func&) = delete;
-    func& operator=(const func&) = delete;
 };
 
 #endif

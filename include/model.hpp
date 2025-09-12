@@ -10,7 +10,7 @@ struct model
     bool m_homogenous_value;
 
     // the function to produce the bins
-    std::list<func>::iterator m_func;
+    func* m_func;
 
     // the next functions to evaluate
     std::unique_ptr<model> m_negative_child;

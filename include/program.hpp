@@ -38,15 +38,13 @@ make_general_function(std::function<Ret(FirstParam, RestParams...)> a_function)
 
 struct program
 {
-    std::list<func> m_funcs;
+    std::list<std::shared_ptr<func>> m_funcs;
 
     // adding functions
-    std::list<func>::iterator add_parameter(std::list<func>::iterator a_func_it,
-                                            std::type_index a_type);
+    func* add_parameter(func* a_func, std::type_index a_type);
     template <typename Ret, typename... Params>
-    std::list<func>::iterator
-    add_primitive(const std::string& a_repr,
-                  const std::function<Ret(Params...)>& a_func)
+    func* add_primitive(const std::string& a_repr,
+                        const std::function<Ret(Params...)>& a_func)
     {
         // return type
         std::type_index l_return_type = typeid(Ret);
@@ -54,10 +52,9 @@ struct program
         // convert the function to a general function
         auto l_general_functor = make_general_function(a_func);
 
-        // insert the function in-place
-        auto l_func_it =
-            m_funcs.emplace(m_funcs.end(), l_return_type,
-                            func_body{.m_functor = l_general_functor}, a_repr);
+        // create the function
+        func* l_func = new func(
+            l_return_type, func_body{.m_functor = l_general_functor}, a_repr);
 
         // get the parameter types
         std::list<std::type_index> l_param_types = {typeid(Params)...};
@@ -66,17 +63,20 @@ struct program
         for(const auto& l_param_type : l_param_types)
         {
             // create the parameter
-            auto l_param_func_it = add_parameter(l_func_it, l_param_type);
+            auto l_param_func = add_parameter(l_func, l_param_type);
 
             // add the parameter to the body
-            l_func_it->m_body.m_children.push_back(func_body{
-                [l_param_func_it](std::list<std::any>::const_iterator a_begin,
-                                  std::list<std::any>::const_iterator a_end)
-                { return l_param_func_it->eval(a_begin, a_end); }});
+            l_func->m_body.m_children.push_back(func_body{
+                [l_param_func](std::list<std::any>::const_iterator a_begin,
+                               std::list<std::any>::const_iterator a_end)
+                { return l_param_func->eval(a_begin, a_end); }});
         }
 
-        // just return the iterator
-        return l_func_it;
+        // add the function to the program
+        m_funcs.push_back(std::shared_ptr<func>(l_func));
+
+        // just return the function
+        return l_func;
     }
 };
 

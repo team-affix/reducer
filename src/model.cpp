@@ -58,11 +58,11 @@ void test_model_eval()
         program l_program;
 
         // add a primitive binning function
-        auto l_func_0_it = l_program.add_primitive(
+        auto l_func_0 = l_program.add_primitive(
             "bin0", std::function([](int a_x) { return a_x > 0; }));
 
         // construct model
-        model l_model{.m_func = l_func_0_it};
+        model l_model{.m_func = l_func_0};
 
         // construct left child
         l_model.m_negative_child =
@@ -90,20 +90,20 @@ void test_model_eval()
         program l_program;
 
         // add a primitive binning function
-        auto l_func_0_it = l_program.add_primitive(
+        auto l_func_0 = l_program.add_primitive(
             "bin0", std::function([](int a_x) { return a_x > 0; })); // positive
 
         // add another primitive binning function
-        auto l_func_1_it = l_program.add_primitive(
+        auto l_func_1 = l_program.add_primitive(
             "bin1",
             std::function([](int a_x) { return a_x % 2 == 0; })); // even
 
         // construct model
-        model l_model{.m_func = l_func_0_it};
+        model l_model{.m_func = l_func_0};
 
         // construct left child
         l_model.m_negative_child =
-            std::make_unique<model>(model{.m_func = l_func_1_it});
+            std::make_unique<model>(model{.m_func = l_func_1});
 
         // construct left-left child and left-right child
         l_model.m_negative_child->m_negative_child =
@@ -141,25 +141,25 @@ void test_model_eval()
         program l_program;
 
         // add a primitive binning function
-        auto l_func_0_it = l_program.add_primitive(
+        auto l_func_0 = l_program.add_primitive(
             "bin0", std::function([](int a_x) { return a_x > 0; })); // positive
 
         // add another primitive binning function
-        auto l_func_1_it = l_program.add_primitive(
+        auto l_func_1 = l_program.add_primitive(
             "bin1",
             std::function([](int a_x) { return a_x % 2 == 0; })); // even
 
         // add another primitive binning function
-        auto l_func_2_it = l_program.add_primitive(
+        auto l_func_2 = l_program.add_primitive(
             "bin2", std::function([](int a_x)
                                   { return a_x % 3 == 0; })); // divisible by 3
 
         // construct model
-        model l_model{.m_func = l_func_0_it};
+        model l_model{.m_func = l_func_0};
 
         // construct left child
         l_model.m_negative_child =
-            std::make_unique<model>(model{.m_func = l_func_1_it});
+            std::make_unique<model>(model{.m_func = l_func_1});
 
         // construct left-left child and left-right child
         l_model.m_negative_child->m_negative_child =
@@ -169,7 +169,7 @@ void test_model_eval()
 
         // construct right child
         l_model.m_positive_child =
-            std::make_unique<model>(model{.m_func = l_func_2_it});
+            std::make_unique<model>(model{.m_func = l_func_2});
 
         // construct right-left child and right-right child
         l_model.m_positive_child->m_negative_child =

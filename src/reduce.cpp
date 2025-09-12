@@ -796,6 +796,11 @@ void test_learn_model()
     scope l_scope;
 
     // add some primitive functions
+    std::function l_exor = std::function(
+        [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
+    std::function l_exor_3 =
+        std::function([l_exor](bool a_x, bool a_y, bool a_z)
+                      { return l_exor(l_exor(a_x, a_y), a_z); });
 
     // add primitive for g[0]
     l_scope.add_function(l_program.add_primitive(
@@ -812,13 +817,15 @@ void test_learn_model()
         "g2", std::function([&l_global_input]
                             { return std::get<2>(l_global_input); })));
 
-    l_scope.add_function(l_program.add_primitive(
-        "exor", std::function([](bool a_x, bool a_y)
-                              { return !a_x && a_y || a_x && !a_y; })));
+    // add two-way exor
+    l_scope.add_function(l_program.add_primitive("exor", l_exor));
+
+    // add three-way exor
+    l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
 
     // learn a model
     model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
-                                ITERATIONS, 10, 30);
+                                ITERATIONS, 10, 100);
 }
 
 void reduce_test_main()

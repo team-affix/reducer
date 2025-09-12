@@ -6,7 +6,8 @@
 func* program::add_parameter(func* a_func, std::type_index a_type)
 {
     // create the repr
-    std::string l_repr = "p" + std::to_string(a_func->m_params.size());
+    std::string l_repr =
+        a_func->m_repr + "[" + std::to_string(a_func->m_params.size()) + "]";
 
     // add the parameter type
     a_func->m_param_types.push_back(a_type);
@@ -132,7 +133,7 @@ void test_program_add_parameter()
         assert(l_param_func->m_param_types.empty());
         assert(l_param_func->m_params.empty());
         assert(l_param_func->m_body.node_count() == 1);
-        assert(l_param_func->m_repr == "p0");
+        assert(l_param_func->m_repr == "myfunc[0]");
 
         // create the input
         std::list<std::any> l_input;

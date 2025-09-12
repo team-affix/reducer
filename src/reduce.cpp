@@ -181,6 +181,9 @@ model build_model(program& a_program, scope& a_scope,
     // declare the binning function
     std::shared_ptr<func> l_binning_function = nullptr;
 
+    // create a copy of the original program
+    program l_original_program = a_program;
+
     // loop until neither output bin is empty
     // REASON: if one of the bins is empty, the binning
     // function is useless
@@ -193,6 +196,9 @@ model build_model(program& a_program, scope& a_scope,
         // clear the binning function
         l_binning_function = std::make_shared<func>(BINNING_RETURN_TYPE,
                                                     func_body{}, std::string());
+
+        // restore the original program
+        a_program = l_original_program;
 
         // construct the repr stream
         std::stringstream l_repr_stream;
@@ -771,16 +777,20 @@ void test_learn_model()
 {
     constexpr size_t ITERATIONS = 1000000;
 
-    std::list<std::type_index> l_param_types{typeid(bool), typeid(bool)};
+    std::list<std::type_index> l_param_types{
+        typeid(bool),
+        typeid(bool),
+        typeid(bool),
+    };
 
-    // exor data
-    // std::list<std::pair<std::list<std::any>, bool>> l_data{
-    //     {{0, 0}, 0}, {{0, 1}, 1}, {{1, 0}, 1}, {{1, 1}, 0}};
+    // nested exor data
+    // 8 rows
     std::list<std::pair<std::list<std::any>, bool>> l_data{
-        {{false, false}, false},
-        {{false, true}, true},
-        {{true, false}, true},
-        {{true, true}, false}};
+        {{false, false, false}, false},
+        {{false, false, true}, true},
+        {{false, true, false}, true},
+        {{false, true, true}, false},
+    };
 
     // initialize the program and scope
     program l_program;
@@ -793,7 +803,7 @@ void test_learn_model()
 
     // learn a model
     model l_model = learn_model(l_program, l_scope, l_param_types, l_data,
-                                ITERATIONS, 10, 100);
+                                ITERATIONS, 10, 30);
 
     std::cout << l_model.m_func->m_repr << std::endl;
 }

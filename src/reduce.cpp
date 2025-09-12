@@ -282,53 +282,49 @@ model build_model(program& a_program, scope& a_scope,
 //     // value
 //     double l_best_reward = -std::numeric_limits<double>::infinity();
 
-//     // save the original helpers
-//     std::vector<function> l_original_helpers = a_helpers;
+//     // save the original program and scope
+//     program l_original_program = a_program;
+//     scope l_original_scope = a_scope;
 
 //     for(int i = 0; i < a_iterations; ++i)
 //     {
-//         // restore the original helpers
-//         std::vector<function> l_iteration_helpers = l_original_helpers;
-
 //         // construct the simulation
-//         monte_carlo::simulation<choice_t, std::mt19937> l_sim(
+//         monte_carlo::simulation<choice, std::mt19937> l_sim(
 //             l_root, a_exploration_constant, l_rnd_gen);
 
+//         // restore the original program and scope
+//         program l_program = l_original_program;
+//         scope l_scope = l_original_scope;
+
 //         // construct the model
-//         bool_node l_model =
-//             build_model(a_data, a_in_scope_var_count, l_iteration_helpers,
-//                         l_sim, a_recursion_limit);
+//         model l_model = build_model(l_program, l_scope, a_param_types,
+//         a_data,
+//                                     l_sim, a_recursion_limit);
 
-//         // compute the number of nodes in the helpers
-//         size_t l_helper_node_count = std::accumulate(
-//             l_iteration_helpers.begin(), l_iteration_helpers.end(),
-//             size_t{0},
-//             [](size_t a_acc, const function& a_helper)
-//             { return a_acc + node_count(a_helper.m_definition); });
-
-//         // compute the number of nodes in the model
-//         size_t l_model_node_count = node_count(l_model);
+//         // compute the number of nodes in the whole program
+//         size_t l_program_node_count =
+//             std::accumulate(l_program.m_funcs.begin(),
+//             l_program.m_funcs.end(),
+//                             size_t{0}, [](size_t a_acc, const func& a_func)
+//                             { return a_acc + a_func.m_body.node_count(); });
 
 //         // compute the reward (negative number of nodes)
-//         double l_reward =
-//             -static_cast<double>(l_helper_node_count + l_model_node_count);
+//         double l_reward = -static_cast<double>(l_program_node_count);
 
 //         // save best model
 //         if(l_reward > l_best_reward)
 //         {
 //             l_best_reward = l_reward;
-//             a_model = l_model;
-//             a_helpers = l_iteration_helpers;
+//             a_program = l_program;
+//             a_scope = l_scope;
 //         }
 
-//         std::cout << l_helper_node_count << " " << l_model_node_count << " "
-//                   << l_reward << std::endl;
+//         std::cout << l_program_node_count << " " << l_reward << std::endl;
 
-//         std::cout << "helpers: " << std::endl;
-//         for(const auto& l_helper : l_iteration_helpers)
-//             std::cout << "    " << l_helper.m_definition << std::endl;
+//         std::cout << "program: " << std::endl;
+//         for(const auto& l_func : l_program.m_funcs)
+//             std::cout << "    " << l_func.m_repr << std::endl;
 //         std::cout << std::endl;
-//         std::cout << "model: " << l_model << std::endl;
 
 //         // terminate the simulation
 //         l_sim.terminate(l_reward);
@@ -778,19 +774,39 @@ model build_model(program& a_program, scope& a_scope,
 //     constexpr size_t IN_SCOPE_VAR_COUNT = 4;
 //     constexpr size_t ITERATIONS = 1000000;
 
-//     std::vector<function> l_helpers;
+//     std::list<std::pair<std:n_model()
+// {
+//     constexpr size_t IN_SCOPE_VAR_COUNT = 4;
+//     constexpr size_t ITERATIONS = 1000000;
 
-//     std::map<std::vector<bool>, bool> l_data{
-//         {{0, 0, 0, 1}, 0},
-//         {{0, 1, 0, 1}, 1},
-//         {{1, 0, 0, 1}, 1},
-//         {{1, 1, 0, 1}, 1},
-//         {{1, 1, 0, 0}, 0}};
+//     std::list<std::pair<std::list<std::any>, bool>> l_data{{{0, 0, 0, 1}, 0},
+//                                                            {{0, 1, 0, 1}, 1},
+//                                                            {{1, 0, 0, 1}, 1},
+//                                                            {{1, 1, 0, 1}, 1},
+//                                                            {{1, 1, 0, 0},
+//                                                            0}};
 
 //     bool_node l_model;
 
-//     learn_model(l_model, l_helpers, IN_SCOPE_VAR_COUNT,
-//                 l_data, ITERATIONS, 3, 10);
+//     learn_model(l_model, l_helpers, IN_SCOPE_VAR_COUNT, l_data, ITERATIONS,
+//     3,
+//                 10);
+
+//     // for(const auto& l_helper : l_helpers)
+//     //     std::cout << l_helper << std::endl;
+
+//     std::cout << l_model << std::endl;
+// }                               {{0, 1, 0, 1}, 1},
+//                                                            {{1, 0, 0, 1}, 1},
+//                                                            {{1, 1, 0, 1}, 1},
+//                                                            {{1, 1, 0, 0},
+//                                                            0}};
+
+//     bool_node l_model;
+
+//     learn_model(l_model, l_helpers, IN_SCOPE_VAR_COUNT, l_data, ITERATIONS,
+//     3,
+//                 10);
 
 //     // for(const auto& l_helper : l_helpers)
 //     //     std::cout << l_helper << std::endl;
@@ -798,22 +814,22 @@ model build_model(program& a_program, scope& a_scope,
 //     std::cout << l_model << std::endl;
 // }
 
-// void bool_reduce_test_main()
-// {
-//     constexpr bool ENABLE_DEBUG_LOGS = true;
+void reduce_test_main()
+{
+    constexpr bool ENABLE_DEBUG_LOGS = true;
 
-//     TEST(test_zero_construct_and_equality_check);
-//     TEST(test_one_construct_and_equality_check);
-//     TEST(test_var_construct_and_equality_check);
-//     TEST(test_invert_construct_and_equality_check);
-//     TEST(test_disjoin_construct_and_equality_check);
-//     TEST(test_conjoin_construct_and_equality_check);
-//     TEST(test_helper_construct_and_equality_check);
-//     TEST(test_bool_node_ostream_inserter);
-//     // TEST(test_build_function);
-//     TEST(test_build_model);
-//     TEST(test_evaluate);
-//     TEST(test_learn_model);
-// }
+    // TEST(test_zero_construct_and_equality_check);
+    // TEST(test_one_construct_and_equality_check);
+    // TEST(test_var_construct_and_equality_check);
+    // TEST(test_invert_construct_and_equality_check);
+    // TEST(test_disjoin_construct_and_equality_check);
+    // TEST(test_conjoin_construct_and_equality_check);
+    // TEST(test_helper_construct_and_equality_check);
+    // TEST(test_bool_node_ostream_inserter);
+    // TEST(test_build_function);
+    // TEST(test_build_model);
+    // TEST(test_evaluate);
+    // TEST(test_learn_model);
+}
 
 #endif

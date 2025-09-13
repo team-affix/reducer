@@ -32,6 +32,9 @@ struct func
     // normal constructor
     func(const std::type_index& a_return_type, const func_body& a_body,
          const std::string& a_repr);
+    // prevent copying
+    func(const func&) = delete;
+    func& operator=(const func&) = delete;
 };
 
 #endif

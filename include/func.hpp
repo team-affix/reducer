@@ -7,12 +7,21 @@
 #include <string>
 #include <typeindex>
 
+// represents a parameter to a func
+struct param
+{
+    size_t m_index;
+};
+
 // represents a function definition
 struct func_body
 {
-    std::function<std::any(std::list<std::any>::const_iterator,
-                           std::list<std::any>::const_iterator)>
-        m_functor;
+    using functor =
+        std::function<std::any(std::list<std::any>::const_iterator,
+                               std::list<std::any>::const_iterator)>;
+
+    std::variant<functor, param> m_body;
+
     std::list<func_body> m_children;
     std::any eval() const;
     size_t node_count() const;

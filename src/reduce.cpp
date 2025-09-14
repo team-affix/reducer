@@ -795,6 +795,11 @@ model learn_model(
 //     }
 // }
 
+int string_length(const std::string& a_string)
+{
+    return a_string.size();
+}
+
 void test_learn_model()
 {
     // learn nested exor
@@ -1010,6 +1015,52 @@ void test_learn_model()
         // learn a model
         model l_model = learn_model<int, int>(l_program, l_scope, l_data,
                                               ITERATIONS, 10, 1000);
+    }
+
+    // learn string length < 5
+    {
+        constexpr size_t ITERATIONS = 1000;
+
+        // string length < 5 data
+        std::vector<std::pair<std::string, bool>> l_og_data{
+            {{""}, true},        {{"a"}, true},        {{"ab"}, true},
+            {{"abc"}, true},     {{"abcd"}, true},     {{"abcde"}, false},
+            {{"abcdef"}, false}, {{"abcdefg"}, false},
+        };
+
+        // convert the data to a vector of pairs of vectors of any and bool
+        std::vector<std::pair<std::vector<std::any>, bool>> l_data;
+        for(const auto& l_example : l_og_data)
+            l_data.emplace_back(std::vector<std::any>{l_example.first},
+                                l_example.second);
+
+        // initialize the program and scope
+        program l_program;
+        scope l_scope;
+
+        // add primitive for 0
+        l_scope.add_function(
+            l_program.add_primitive("0", std::function([]() { return 0; })));
+
+        // add primitive for succ(n)
+        l_scope.add_function(l_program.add_primitive(
+            "succ", std::function([](int a_n) { return a_n + 1; })));
+
+        // add primitive for >
+        l_scope.add_function(l_program.add_primitive(
+            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+        // add primitive for <
+        l_scope.add_function(l_program.add_primitive(
+            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+        // add primitive for string length
+        l_scope.add_function(l_program.add_primitive(
+            "string_length", std::function(string_length)));
+
+        // learn a model
+        model l_model = learn_model<std::string>(l_program, l_scope, l_data,
+                                                 ITERATIONS, 10, 1000);
     }
 }
 

@@ -21,6 +21,9 @@ struct model
 
     // get the node count
     size_t node_count() const;
+
+    // representation of the model
+    std::string repr() const;
 };
 
 #endif // MODEL_HPP

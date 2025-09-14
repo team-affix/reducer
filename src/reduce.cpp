@@ -337,6 +337,8 @@ model learn_model(
             std::cout << "program: " << std::endl;
             for(const auto& l_func : l_program.m_funcs)
                 std::cout << "    " << l_func->m_repr << std::endl;
+
+            std::cout << "model: " << l_model.repr() << std::endl;
             std::cout << std::endl;
         }
 

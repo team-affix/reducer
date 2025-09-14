@@ -317,8 +317,12 @@ model learn_model(
                             size_t{0}, [](size_t a_acc, const auto& a_func)
                             { return a_acc + a_func->m_body.node_count(); });
 
+        // compute the number of nodes in the model
+        size_t l_model_node_count = l_model.node_count();
+
         // compute the reward (negative number of nodes)
-        double l_reward = -static_cast<double>(l_program_node_count);
+        double l_reward =
+            -static_cast<double>(l_program_node_count + l_model_node_count);
 
         // save best model
         if(l_reward > l_best_reward)
@@ -785,7 +789,7 @@ void test_learn_model()
 {
     // learn nested exor
     {
-        constexpr size_t ITERATIONS = 1000;
+        constexpr size_t ITERATIONS = 10000;
 
         // nested exor data
         // 8 rows

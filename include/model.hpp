@@ -18,6 +18,9 @@ struct model
 
     // the function to evaluate the model
     bool eval(const std::any* a_params, size_t a_param_count);
+
+    // get the node count
+    size_t node_count() const;
 };
 
 #endif // MODEL_HPP

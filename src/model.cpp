@@ -19,6 +19,19 @@ bool model::eval(const std::any* a_params, size_t a_param_count)
     return l_child->eval(a_params, a_param_count);
 }
 
+size_t model::node_count() const
+{
+    size_t l_result = 1;
+
+    if(m_negative_child != nullptr)
+        l_result += m_negative_child->node_count();
+
+    if(m_positive_child != nullptr)
+        l_result += m_positive_child->node_count();
+
+    return l_result;
+}
+
 #ifdef UNIT_TEST
 #include "test_utils.hpp"
 

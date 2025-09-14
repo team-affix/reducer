@@ -278,15 +278,23 @@ model build_model(
     };
 }
 
+template <typename... Params>
 model learn_model(
     program& a_program, scope& a_scope,
-    std::multimap<std::type_index, size_t>& a_param_types,
     const std::vector<std::pair<std::vector<std::any>, bool>>& a_data,
     const size_t& a_iterations, const size_t& a_recursion_limit,
     const double& a_exploration_constant)
 {
     std::mt19937 l_rnd_gen(27);
     monte_carlo::tree_node<choice> l_root;
+
+    // get the parameter types
+    std::vector<std::type_index> l_param_types_list = {typeid(Params)...};
+
+    // convert the parameter types to a multimap
+    std::multimap<std::type_index, size_t> l_param_types;
+    for(size_t i = 0; i < l_param_types_list.size(); ++i)
+        l_param_types.emplace(l_param_types_list[i], i);
 
     // initialize the best reward to the lowest possible
     // value
@@ -308,7 +316,7 @@ model learn_model(
         scope l_scope = l_original_scope;
 
         // construct the model
-        model l_model = build_model(l_program, l_scope, a_param_types, a_data,
+        model l_model = build_model(l_program, l_scope, l_param_types, a_data,
                                     l_sim, a_recursion_limit);
 
         // compute the number of nodes in the whole program
@@ -802,13 +810,6 @@ void test_learn_model()
             {{true, true, false}, false},   {{true, true, true}, true},
         };
 
-        // set the input type
-        std::multimap<std::type_index, size_t> l_input_types{
-            {typeid(bool), 0},
-            {typeid(bool), 1},
-            {typeid(bool), 2},
-        };
-
         // initialize the program and scope
         program l_program;
         scope l_scope;
@@ -827,8 +828,8 @@ void test_learn_model()
         l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
-                                    ITERATIONS, 10, 100);
+        model l_model = learn_model<bool, bool, bool>(
+            l_program, l_scope, l_data, ITERATIONS, 10, 100);
     }
 
     // learn a&&(b exor c exor d)
@@ -856,14 +857,6 @@ void test_learn_model()
             {{true, true, true, true}, true},
         };
 
-        // set the input type
-        std::multimap<std::type_index, size_t> l_input_types{
-            {typeid(bool), 0},
-            {typeid(bool), 1},
-            {typeid(bool), 2},
-            {typeid(bool), 3},
-        };
-
         // initialize the program and scope
         program l_program;
         scope l_scope;
@@ -882,8 +875,8 @@ void test_learn_model()
         l_scope.add_function(l_program.add_primitive("and", l_and));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
-                                    ITERATIONS, 10, 100);
+        model l_model = learn_model<bool, bool, bool, bool>(
+            l_program, l_scope, l_data, ITERATIONS, 10, 100);
     }
 
     // learn x > 0 && x < 3 function
@@ -896,11 +889,6 @@ void test_learn_model()
             {{-3}, false}, {{-2}, false}, {{-1}, false}, {{0}, false},
             {{1}, true},   {{2}, true},   {{3}, false},  {{4}, false},
             {{5}, false},  {{6}, false},
-        };
-
-        // set the input type
-        std::multimap<std::type_index, size_t> l_input_types{
-            {typeid(int), 0},
         };
 
         // initialize the program and scope
@@ -928,8 +916,8 @@ void test_learn_model()
             "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
-                                    ITERATIONS, 10, 100);
+        model l_model =
+            learn_model<int>(l_program, l_scope, l_data, ITERATIONS, 10, 100);
     }
 
     // learn x^2 < y
@@ -941,12 +929,6 @@ void test_learn_model()
             {{0, 0}, false},  {{0, 1}, true},  {{0, 2}, true},  {{1, 0}, false},
             {{1, 2}, true},   {{2, 3}, false}, {{2, 4}, false}, {{2, 5}, true},
             {{7, 49}, false}, {{7, 50}, true},
-        };
-
-        // set the input type
-        std::multimap<std::type_index, size_t> l_input_types{
-            {typeid(int), 0},
-            {typeid(int), 1},
         };
 
         // initialize the program and scope
@@ -978,8 +960,8 @@ void test_learn_model()
             "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
-                                    ITERATIONS, 10, 100);
+        model l_model = learn_model<int, int>(l_program, l_scope, l_data,
+                                              ITERATIONS, 10, 100);
     }
 
     // learn xy < y
@@ -991,12 +973,6 @@ void test_learn_model()
             {{0, 0}, false}, {{0, 1}, true},   {{0, 2}, true},  {{1, 1}, false},
             {{1, 2}, false}, {{1, 3}, false},  {{2, 1}, false}, {{2, 2}, false},
             {{-1, 1}, true}, {{-10, 1}, true},
-        };
-
-        // set the input type
-        std::multimap<std::type_index, size_t> l_input_types{
-            {typeid(int), 0},
-            {typeid(int), 1},
         };
 
         // initialize the program and scope
@@ -1032,8 +1008,8 @@ void test_learn_model()
             "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
-                                    ITERATIONS, 10, 1000);
+        model l_model = learn_model<int, int>(l_program, l_scope, l_data,
+                                              ITERATIONS, 10, 1000);
     }
 }
 

@@ -7,12 +7,13 @@
 ////////////////////////////////////////////////////
 /////////////////// CHOICE TYPES ///////////////////
 ////////////////////////////////////////////////////
-struct place_node
+struct place_functor_node
 {
     func* m_func;
 };
-struct place_new_param
+struct place_param_node
 {
+    size_t m_index;
 };
 struct terminate
 {
@@ -21,12 +22,12 @@ struct make_function
 {
 };
 
-using choice =
-    std::variant<place_node, place_new_param, terminate, make_function>;
+using choice = std::variant<place_functor_node, place_param_node, terminate,
+                            make_function>;
 
 // less than comparisons
-bool operator<(const place_node&, const place_node&);
-bool operator<(const place_new_param&, const place_new_param&);
+bool operator<(const place_functor_node&, const place_functor_node&);
+bool operator<(const place_param_node&, const place_param_node&);
 bool operator<(const terminate&, const terminate&);
 bool operator<(const make_function&, const make_function&);
 

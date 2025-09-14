@@ -11,11 +11,11 @@
 //////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-bool operator<(const place_node& a_lhs, const place_node& a_rhs)
+bool operator<(const place_functor_node& a_lhs, const place_functor_node& a_rhs)
 {
     return a_lhs.m_func < a_rhs.m_func;
 }
-bool operator<(const place_new_param& a_lhs, const place_new_param& a_rhs)
+bool operator<(const place_param_node& a_lhs, const place_param_node& a_rhs)
 {
     return false;
 }
@@ -33,16 +33,26 @@ bool operator<(const make_function&, const make_function&)
 ////////////////////////////////////////////////////
 
 func_body
-build_function(program& a_program, scope& a_scope, func* a_func,
+build_function(program& a_program, scope& a_scope,
+               std::multimap<std::type_index, size_t>& a_param_types,
                std::stringstream& a_repr_stream,
-               const std::type_index& a_return_type, const bool& a_allow_params,
+               const std::type_index& a_return_type,
+               const bool& a_allow_adding_params,
                monte_carlo::simulation<choice, std::mt19937>& a_simulation,
                const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
-    /////////////// GET THE SCOPE ENTRY ////////////////
+    /////////////// GET THE SCOPE RANGES ///////////////
     ////////////////////////////////////////////////////
-    const auto& l_scope_entry = a_scope.m_entries.at(a_return_type);
+    const auto& l_nullary_range =
+        a_scope.m_nullaries.equal_range(a_return_type);
+    const auto& l_non_nullary_range =
+        a_scope.m_non_nullaries.equal_range(a_return_type);
+
+    ////////////////////////////////////////////////////
+    //////////////// GET THE PARAM RANGE ///////////////
+    ////////////////////////////////////////////////////
+    const auto& l_param_range = a_param_types.equal_range(a_return_type);
 
     ////////////////////////////////////////////////////
     ////////////// POPULATE CHOICE VECTOR //////////////
@@ -50,50 +60,57 @@ build_function(program& a_program, scope& a_scope, func* a_func,
     std::vector<choice> l_node_choices;
 
     // allow choosing any nullary of this type
-    std::transform(l_scope_entry.m_nullaries.begin(),
-                   l_scope_entry.m_nullaries.end(),
-                   std::back_inserter(l_node_choices),
-                   [](auto a_nullary) { return place_node{a_nullary}; });
+    std::transform(l_nullary_range.first, l_nullary_range.second,
+                   std::back_inserter(l_node_choices), [](auto a_nullary)
+                   { return place_functor_node{a_nullary.second}; });
 
-    if(a_allow_params)
-        l_node_choices.push_back(place_new_param{});
-
+    // if the recursion limit has not been reached,
+    // push non-nullary function types into list
     if(a_recursion_limit > 0)
     {
-        // if the recursion limit has not been reached,
-        // push non-nullary function types into list
-        std::transform(l_scope_entry.m_non_nullaries.begin(),
-                       l_scope_entry.m_non_nullaries.end(),
+        std::transform(l_non_nullary_range.first, l_non_nullary_range.second,
                        std::back_inserter(l_node_choices),
                        [](auto a_non_nullary)
-                       { return place_node{a_non_nullary}; });
+                       { return place_functor_node{a_non_nullary.second}; });
     }
+
+    // allow choosing any known param of this type
+    std::transform(l_param_range.first, l_param_range.second,
+                   std::back_inserter(l_node_choices), [](auto a_entry)
+                   { return place_param_node{a_entry.second}; });
+
+    // allow choosing the next param of this type
+    if(a_allow_adding_params)
+        l_node_choices.push_back(place_param_node{a_param_types.size()});
 
     ////////////////////////////////////////////////////
     ////////////// CHOOSE A NODE TO PLACE //////////////
     ////////////////////////////////////////////////////
     choice l_node_choice = a_simulation.choose(l_node_choices);
 
-    // if the choice is a place_new_param
-    if(std::holds_alternative<place_new_param>(l_node_choice))
+    // if the choice is a place_param_node
+    if(const auto& l_place_param_node =
+           std::get_if<place_param_node>(&l_node_choice))
     {
-        ////////////////////////////////////////////////////
-        /// CONSTRUCT THE NEW FUNC_T CAPTURING THE PARAM ///
-        ////////////////////////////////////////////////////
-        const auto l_param_func_it =
-            a_program.add_parameter(a_func, a_return_type);
+        // if the choice is a new param
+        if(l_place_param_node->m_index == a_param_types.size())
+        {
+            // add the param to the param types
+            a_param_types.insert({a_return_type, l_place_param_node->m_index});
+        }
 
-        // add the function to the scope
-        a_scope.add_function(l_param_func_it);
+        // add the param's representation to the stream
+        a_repr_stream << "?" << l_place_param_node->m_index;
 
-        ////////////////////////////////////////////////////
-        ///////////// REFERENCE THIS NEW FUNC_T ////////////
-        ////////////////////////////////////////////////////
-        l_node_choice = place_node{l_param_func_it};
+        // regardless, return the param node
+        return func_body{
+            .m_data = param{l_place_param_node->m_index},
+            .m_children = {},
+        };
     }
 
     // extract the func
-    auto l_node_func = std::get<place_node>(l_node_choice).m_func;
+    auto l_node_func = std::get<place_functor_node>(l_node_choice).m_func;
 
     // add the node's representation to the stream
     a_repr_stream << l_node_func->m_repr << "(";
@@ -104,15 +121,16 @@ build_function(program& a_program, scope& a_scope, func* a_func,
     size_t l_node_arity = l_node_func->m_param_types.size();
 
     // pre-allocate the args vector
-    std::list<func_body> l_node_children;
+    std::vector<func_body> l_node_children(l_node_func->m_param_types.size());
 
     // loop through with iterator, construct args in place
     for(auto l_param_type_it = l_node_func->m_param_types.begin();
         l_param_type_it != l_node_func->m_param_types.end(); ++l_param_type_it)
     {
-        l_node_children.push_back(build_function(
-            a_program, a_scope, a_func, a_repr_stream, *l_param_type_it,
-            a_allow_params, a_simulation, a_recursion_limit - 1));
+        l_node_children[l_param_type_it->second] =
+            build_function(a_program, a_scope, a_param_types, a_repr_stream,
+                           l_param_type_it->first, a_allow_adding_params,
+                           a_simulation, a_recursion_limit - 1);
 
         // if this is not the last param, add a comma
         if(std::next(l_param_type_it) != l_node_func->m_param_types.end())
@@ -122,25 +140,25 @@ build_function(program& a_program, scope& a_scope, func* a_func,
     a_repr_stream << ")";
 
     // create an invoking lambda
-    auto l_functor = [l_node_func](std::list<std::any>::const_iterator a_begin,
-                                   std::list<std::any>::const_iterator a_end)
-    { return l_node_func->eval(a_begin, a_end); };
+    auto l_functor =
+        [l_node_func](const std::any* a_params, size_t a_param_count)
+    { return l_node_func->m_body.eval(a_params, a_param_count); };
 
     ////////////////////////////////////////////////////
     //////////// CONSTRUCT THE FUNC_NODE_T /////////////
     ////////////////////////////////////////////////////
     return func_body{
-        .m_functor = l_functor,
+        .m_data = l_functor,
         .m_children = l_node_children,
     };
 }
 
-template <typename GlobalInput>
-model build_model(program& a_program, scope& a_scope,
-                  GlobalInput& a_global_input,
-                  const std::list<std::pair<GlobalInput, bool>>& a_data,
-                  monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-                  const size_t& a_recursion_limit)
+model build_model(
+    program& a_program, scope& a_scope,
+    std::multimap<std::type_index, size_t>& a_param_types,
+    const std::vector<std::pair<std::vector<std::any>, bool>>& a_data,
+    monte_carlo::simulation<choice, std::mt19937>& a_simulation,
+    const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
     //////////////// CHECK FOR TRIVIALITY //////////////
@@ -174,13 +192,16 @@ model build_model(program& a_program, scope& a_scope,
     const std::type_index BINNING_RETURN_TYPE = std::type_index(typeid(bool));
 
     // construct the negative bin
-    std::list<std::pair<GlobalInput, bool>> l_negative_bin;
+    std::vector<std::pair<std::vector<std::any>, bool>> l_negative_bin;
 
     // construct the positive bin
-    std::list<std::pair<GlobalInput, bool>> l_positive_bin;
+    std::vector<std::pair<std::vector<std::any>, bool>> l_positive_bin;
 
-    // declare the binning function
-    std::shared_ptr<func> l_binning_function = nullptr;
+    // declare the binning function body
+    func_body l_binning_function_body;
+
+    // construct the repr stream
+    std::stringstream l_repr_stream;
 
     // create a copy of the original program
     program l_original_program = a_program;
@@ -194,25 +215,18 @@ model build_model(program& a_program, scope& a_scope,
         l_negative_bin.clear();
         l_positive_bin.clear();
 
-        // clear the binning function
-        l_binning_function = std::make_shared<func>(BINNING_RETURN_TYPE,
-                                                    func_body{}, std::string());
+        // clear the repr stream
+        l_repr_stream.str("");
 
         // restore the original program
         a_program = l_original_program;
 
-        // construct the repr stream
-        std::stringstream l_repr_stream;
-
         // construct the binning function body
         // [create a binning function that will bin (evaluate
         // on) each data point]
-        l_binning_function->m_body = build_function(
-            a_program, a_scope, l_binning_function.get(), l_repr_stream,
+        l_binning_function_body = build_function(
+            a_program, a_scope, a_param_types, l_repr_stream,
             BINNING_RETURN_TYPE, false, a_simulation, a_recursion_limit);
-
-        // set the repr of the binning function
-        l_binning_function->m_repr = l_repr_stream.str();
 
         ////////////////////////////////////////////////////
         ////////////// EVALUATE BINNING FUNCTION ///////////
@@ -222,16 +236,9 @@ model build_model(program& a_program, scope& a_scope,
         // data points
         for(const auto& [l_x, l_y] : a_data)
         {
-            // set the global params
-            a_global_input = l_x;
-
-            // the binning function is nullary, thus evaluate on empty input
-            std::list<std::any> l_empty_input;
-
             // evaluate the binning function (should return bool)
-            bool l_binning_result =
-                std::any_cast<bool>(l_binning_function->eval(
-                    l_empty_input.begin(), l_empty_input.end()));
+            bool l_binning_result = std::any_cast<bool>(
+                l_binning_function_body.eval(l_x.data(), l_x.size()));
 
             // store in the appropriate bin
             if(l_binning_result)
@@ -240,6 +247,11 @@ model build_model(program& a_program, scope& a_scope,
                 l_negative_bin.emplace_back(l_x, l_y);
         }
     }
+
+    // construct the function definition
+    auto l_binning_function =
+        std::make_shared<func>(typeid(bool), a_param_types,
+                               l_binning_function_body, l_repr_stream.str());
 
     // add the binning function to the program
     a_program.m_funcs.push_back(l_binning_function);
@@ -250,12 +262,12 @@ model build_model(program& a_program, scope& a_scope,
 
     // construct the negative child
     model l_negative_child =
-        build_model(a_program, a_scope, a_global_input, l_negative_bin,
+        build_model(a_program, a_scope, a_param_types, l_negative_bin,
                     a_simulation, a_recursion_limit);
 
     // construct the positive child
     model l_positive_child =
-        build_model(a_program, a_scope, a_global_input, l_positive_bin,
+        build_model(a_program, a_scope, a_param_types, l_positive_bin,
                     a_simulation, a_recursion_limit);
 
     // construct the final node
@@ -266,12 +278,12 @@ model build_model(program& a_program, scope& a_scope,
     };
 }
 
-template <typename GlobalInput>
-model learn_model(program& a_program, scope& a_scope,
-                  GlobalInput& a_global_input,
-                  const std::list<std::pair<GlobalInput, bool>>& a_data,
-                  const size_t& a_iterations, const size_t& a_recursion_limit,
-                  const double& a_exploration_constant)
+model learn_model(
+    program& a_program, scope& a_scope,
+    std::multimap<std::type_index, size_t>& a_param_types,
+    const std::vector<std::pair<std::vector<std::any>, bool>>& a_data,
+    const size_t& a_iterations, const size_t& a_recursion_limit,
+    const double& a_exploration_constant)
 {
     std::mt19937 l_rnd_gen(27);
     monte_carlo::tree_node<choice> l_root;
@@ -296,7 +308,7 @@ model learn_model(program& a_program, scope& a_scope,
         scope l_scope = l_original_scope;
 
         // construct the model
-        model l_model = build_model(l_program, l_scope, a_global_input, a_data,
+        model l_model = build_model(l_program, l_scope, a_param_types, a_data,
                                     l_sim, a_recursion_limit);
 
         // compute the number of nodes in the whole program
@@ -775,22 +787,20 @@ void test_learn_model()
     {
         constexpr size_t ITERATIONS = 1000;
 
-        // set the input type
-        using global_input = std::tuple<bool, bool, bool>;
-
-        global_input l_global_input{
-            false,
-            false,
-            false,
-        };
-
         // nested exor data
         // 8 rows
-        std::list<std::pair<global_input, bool>> l_data{
+        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
             {{false, false, false}, false}, {{false, false, true}, true},
             {{false, true, false}, true},   {{false, true, true}, false},
             {{true, false, false}, true}, //{{true, false, true}, false},
             {{true, true, false}, false},   {{true, true, true}, true},
+        };
+
+        // set the input type
+        std::multimap<std::type_index, size_t> l_input_types{
+            {typeid(bool), 0},
+            {typeid(bool), 1},
+            {typeid(bool), 2},
         };
 
         // initialize the program and scope
@@ -804,21 +814,6 @@ void test_learn_model()
             std::function([l_exor](bool a_x, bool a_y, bool a_z)
                           { return l_exor(l_exor(a_x, a_y), a_z); });
 
-        // add primitive for g[0]
-        l_scope.add_function(l_program.add_primitive(
-            "g0", std::function([&l_global_input]
-                                { return std::get<0>(l_global_input); })));
-
-        // add primitive for g[1]
-        l_scope.add_function(l_program.add_primitive(
-            "g1", std::function([&l_global_input]
-                                { return std::get<1>(l_global_input); })));
-
-        // add primitive for g[2]
-        l_scope.add_function(l_program.add_primitive(
-            "g2", std::function([&l_global_input]
-                                { return std::get<2>(l_global_input); })));
-
         // add two-way exor
         l_scope.add_function(l_program.add_primitive("exor", l_exor));
 
@@ -826,26 +821,24 @@ void test_learn_model()
         l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
                                     ITERATIONS, 10, 100);
     }
     // learn x > 0 && x < 3 function
     {
         constexpr size_t ITERATIONS = 1000;
 
-        // set the input type
-        using global_input = std::tuple<int>;
-
-        global_input l_global_input{
-            0,
-        };
-
         // x > 0 && x < 3 data
         // 8 rows
-        std::list<std::pair<global_input, bool>> l_data{
+        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
             {{-3}, false}, {{-2}, false}, {{-1}, false}, {{0}, false},
             {{1}, true},   {{2}, true},   {{3}, false},  {{4}, false},
             {{5}, false},  {{6}, false},
+        };
+
+        // set the input type
+        std::multimap<std::type_index, size_t> l_input_types{
+            {typeid(int), 0},
         };
 
         // initialize the program and scope
@@ -860,11 +853,6 @@ void test_learn_model()
         l_scope.add_function(l_program.add_primitive(
             "succ", std::function([](int a_n) { return a_n + 1; })));
 
-        // add primitive for g[0]
-        l_scope.add_function(l_program.add_primitive(
-            "g0", std::function([&l_global_input]
-                                { return std::get<0>(l_global_input); })));
-
         // add primitive for >
         l_scope.add_function(l_program.add_primitive(
             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
@@ -878,7 +866,7 @@ void test_learn_model()
             "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
                                     ITERATIONS, 10, 100);
     }
 
@@ -886,19 +874,17 @@ void test_learn_model()
     {
         constexpr size_t ITERATIONS = 1000;
 
-        // set the input type
-        using global_input = std::tuple<int, int>;
-
-        global_input l_global_input{
-            0,
-            0,
-        };
-
         // x^2 < y data
-        std::list<std::pair<global_input, bool>> l_data{
+        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
             {{0, 0}, false},  {{0, 1}, true},  {{0, 2}, true},  {{1, 0}, false},
             {{1, 2}, true},   {{2, 3}, false}, {{2, 4}, false}, {{2, 5}, true},
             {{7, 49}, false}, {{7, 50}, true},
+        };
+
+        // set the input type
+        std::multimap<std::type_index, size_t> l_input_types{
+            {typeid(int), 0},
+            {typeid(int), 1},
         };
 
         // initialize the program and scope
@@ -917,16 +903,6 @@ void test_learn_model()
         l_scope.add_function(l_program.add_primitive(
             "square", std::function([](int a_n) { return a_n * a_n; })));
 
-        // add primitive for g[0]
-        l_scope.add_function(l_program.add_primitive(
-            "g0", std::function([&l_global_input]
-                                { return std::get<0>(l_global_input); })));
-
-        // add primitive for g[1]
-        l_scope.add_function(l_program.add_primitive(
-            "g1", std::function([&l_global_input]
-                                { return std::get<1>(l_global_input); })));
-
         // add primitive for >
         l_scope.add_function(l_program.add_primitive(
             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
@@ -940,7 +916,7 @@ void test_learn_model()
             "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
                                     ITERATIONS, 10, 100);
     }
 
@@ -948,19 +924,17 @@ void test_learn_model()
     {
         constexpr size_t ITERATIONS = 10000;
 
-        // set the input type
-        using global_input = std::tuple<int, int>;
-
-        global_input l_global_input{
-            0,
-            0,
-        };
-
         // xy < y data
-        std::list<std::pair<global_input, bool>> l_data{
+        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
             {{0, 0}, false}, {{0, 1}, true},   {{0, 2}, true},  {{1, 1}, false},
             {{1, 2}, false}, {{1, 3}, false},  {{2, 1}, false}, {{2, 2}, false},
             {{-1, 1}, true}, {{-10, 1}, true},
+        };
+
+        // set the input type
+        std::multimap<std::type_index, size_t> l_input_types{
+            {typeid(int), 0},
+            {typeid(int), 1},
         };
 
         // initialize the program and scope
@@ -983,16 +957,6 @@ void test_learn_model()
         l_scope.add_function(l_program.add_primitive(
             "*", std::function([](int a_n, int a_m) { return a_n * a_m; })));
 
-        // add primitive for g[0]
-        l_scope.add_function(l_program.add_primitive(
-            "g0", std::function([&l_global_input]
-                                { return std::get<0>(l_global_input); })));
-
-        // add primitive for g[1]
-        l_scope.add_function(l_program.add_primitive(
-            "g1", std::function([&l_global_input]
-                                { return std::get<1>(l_global_input); })));
-
         // add primitive for >
         l_scope.add_function(l_program.add_primitive(
             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
@@ -1006,7 +970,7 @@ void test_learn_model()
             "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
 
         // learn a model
-        model l_model = learn_model(l_program, l_scope, l_global_input, l_data,
+        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
                                     ITERATIONS, 10, 1000);
     }
 }

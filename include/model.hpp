@@ -17,8 +17,7 @@ struct model
     std::shared_ptr<model> m_positive_child;
 
     // the function to evaluate the model
-    bool eval(std::list<std::any>::const_iterator a_begin,
-              std::list<std::any>::const_iterator a_end);
+    bool eval(const std::any* a_params, size_t a_param_count);
 };
 
 #endif // MODEL_HPP

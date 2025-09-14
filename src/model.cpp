@@ -2,21 +2,21 @@
 #include "../include/program.hpp"
 #include <cassert>
 
-bool model::eval(std::list<std::any>::const_iterator a_begin,
-                 std::list<std::any>::const_iterator a_end)
+bool model::eval(const std::any* a_params, size_t a_param_count)
 {
     // if both children are nullptr, then the model is homogenous
     if(m_negative_child == nullptr && m_positive_child == nullptr)
         return m_homogenous_value;
 
-    // evaluate the binning function
-    bool l_binning_result = std::any_cast<bool>(m_func->eval(a_begin, a_end));
+    // evaluate the binning function (these are always nullary)
+    bool l_binning_result =
+        std::any_cast<bool>(m_func->m_body.eval(a_params, a_param_count));
 
     // get the appropriate child
     model* l_child =
         l_binning_result ? m_positive_child.get() : m_negative_child.get();
 
-    return l_child->eval(a_begin, a_end);
+    return l_child->eval(a_params, a_param_count);
 }
 
 #ifdef UNIT_TEST
@@ -28,11 +28,8 @@ void test_model_eval()
     {
         model l_model{.m_homogenous_value = false};
 
-        // construct input
-        std::list<std::any> l_input;
-
         // evaluate the model
-        bool l_result = l_model.eval(l_input.begin(), l_input.end());
+        bool l_result = l_model.eval(nullptr, 0);
 
         // check the result
         assert(l_result == false);
@@ -42,11 +39,8 @@ void test_model_eval()
     {
         model l_model{.m_homogenous_value = true};
 
-        // construct input
-        std::list<std::any> l_input;
-
         // evaluate the model
-        bool l_result = l_model.eval(l_input.begin(), l_input.end());
+        bool l_result = l_model.eval(nullptr, 0);
 
         // check the result
         assert(l_result == true);
@@ -73,15 +67,15 @@ void test_model_eval()
             std::make_unique<model>(model{.m_homogenous_value = true});
 
         // construct input
-        std::list<std::any> l_input;
+        std::vector<std::any> l_input;
 
         // test truthy input
         l_input = {10};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
-        // test falsy input
+        // test falsy inputs
         l_input = {-10};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == false);
+        assert(l_model.eval(l_input.data(), l_input.size()) == false);
     }
 
     // model with 1 binning function and a left child
@@ -116,23 +110,23 @@ void test_model_eval()
             std::make_unique<model>(model{.m_homogenous_value = true});
 
         // construct input
-        std::list<std::any> l_input;
+        std::vector<std::any> l_input;
 
         // test input 10 (positive and even)
         l_input = {10};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // test input 7 (positive and odd)
         l_input = {7};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // test input -10 (negative and even)
         l_input = {-10};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // test input -7 (negative and odd)
         l_input = {-7};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == false);
+        assert(l_model.eval(l_input.data(), l_input.size()) == false);
     }
 
     // model with 1 binning function and a left, and right child
@@ -178,39 +172,39 @@ void test_model_eval()
             std::make_unique<model>(model{.m_homogenous_value = true});
 
         // construct input
-        std::list<std::any> l_input;
+        std::vector<std::any> l_input;
 
         // positive, even, divisible by 3
         l_input = {6};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // positive, even, not divisible by 3
         l_input = {4};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == false);
+        assert(l_model.eval(l_input.data(), l_input.size()) == false);
 
         // positive, odd, divisible by 3
         l_input = {9};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // positive, odd, not divisible by 3
         l_input = {7};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == false);
+        assert(l_model.eval(l_input.data(), l_input.size()) == false);
 
         // negative, even, divisible by 3
         l_input = {-6};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // negative, even, not divisible by 3
         l_input = {-4};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == true);
+        assert(l_model.eval(l_input.data(), l_input.size()) == true);
 
         // negative, odd, divisible by 3
         l_input = {-9};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == false);
+        assert(l_model.eval(l_input.data(), l_input.size()) == false);
 
         // negative, odd, not divisible by 3
         l_input = {-7};
-        assert(l_model.eval(l_input.begin(), l_input.end()) == false);
+        assert(l_model.eval(l_input.data(), l_input.size()) == false);
     }
 }
 

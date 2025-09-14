@@ -824,6 +824,62 @@ void test_learn_model()
         model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
                                     ITERATIONS, 10, 100);
     }
+
+    // learn a&&(b exor c exor d)
+    {
+        constexpr size_t ITERATIONS = 10000;
+
+        // nested exor data
+        // 16 rows
+        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
+            {{false, false, false, false}, false},
+            {{false, false, false, true}, false},
+            {{false, false, true, false}, false},
+            {{false, false, true, true}, false},
+            {{false, true, false, false}, false},
+            {{false, true, false, true}, false},
+            {{false, true, true, false}, false},
+            {{false, true, true, true}, false},
+            {{true, false, false, false}, false},
+            {{true, false, false, true}, true},
+            {{true, false, true, false}, true},
+            {{true, false, true, true}, false},
+            {{true, true, false, false}, true},
+            {{true, true, false, true}, false},
+            {{true, true, true, false}, false},
+            {{true, true, true, true}, true},
+        };
+
+        // set the input type
+        std::multimap<std::type_index, size_t> l_input_types{
+            {typeid(bool), 0},
+            {typeid(bool), 1},
+            {typeid(bool), 2},
+            {typeid(bool), 3},
+        };
+
+        // initialize the program and scope
+        program l_program;
+        scope l_scope;
+
+        // add some primitive functions
+        std::function l_exor = std::function(
+            [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
+
+        std::function l_and =
+            std::function([](bool a_x, bool a_y) { return a_x && a_y; });
+
+        // add two-way exor
+        l_scope.add_function(l_program.add_primitive("exor", l_exor));
+
+        // add three-way exor
+        l_scope.add_function(l_program.add_primitive("and", l_and));
+
+        // learn a model
+        model l_model = learn_model(l_program, l_scope, l_input_types, l_data,
+                                    ITERATIONS, 10, 100);
+    }
+
     // learn x > 0 && x < 3 function
     {
         constexpr size_t ITERATIONS = 1000;

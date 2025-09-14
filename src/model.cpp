@@ -37,8 +37,8 @@ std::string model::repr() const
     if(m_func == nullptr)
         return std::to_string(m_homogenous_value);
 
-    return "[" + m_func->m_repr + "] ? [" + m_positive_child->repr() + "] : [" +
-           m_negative_child->repr() + "]";
+    return "[" + m_func->m_repr + "] ? {" + m_positive_child->repr() + "} : {" +
+           m_negative_child->repr() + "}";
 }
 
 #ifdef UNIT_TEST

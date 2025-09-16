@@ -2,7 +2,7 @@
 #include <list>
 
 // adds a function based on its arity and type
-void scope::add_function(func* a_function)
+void scope::add_function(const func* a_function)
 {
     // add to the appropriate list
     if(a_function->m_param_types.empty())
@@ -30,7 +30,7 @@ void test_scope_entry_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(typeid(int),
                              std::multimap<std::type_index, size_t>{},
-                             func_body{}, "f0");
+                             func::body{}, "f0");
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_nullaries.size() == 1);
         assert(l_scope.m_non_nullaries.empty());
@@ -42,7 +42,7 @@ void test_scope_entry_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(typeid(int),
                              std::multimap<std::type_index, size_t>{},
-                             func_body{}, "f0");
+                             func::body{}, "f0");
         l_funcs.front().m_param_types.emplace(typeid(int), 0);
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_nullaries.empty());
@@ -66,7 +66,7 @@ void test_scope_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(l_return_type,
                              std::multimap<std::type_index, size_t>{},
-                             func_body{}, "f0");
+                             func::body{}, "f0");
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_nullaries.size() == 1);
         assert(l_scope.m_non_nullaries.empty());
@@ -82,7 +82,7 @@ void test_scope_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(l_return_type,
                              std::multimap<std::type_index, size_t>{},
-                             func_body{}, "f0");
+                             func::body{}, "f0");
         l_funcs.front().m_param_types.emplace(typeid(std::string), 0);
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_nullaries.empty());
@@ -99,7 +99,7 @@ void test_scope_add_function()
         std::list<func> l_funcs;
         l_funcs.emplace_back(l_return_type,
                              std::multimap<std::type_index, size_t>{},
-                             func_body{}, "f0");
+                             func::body{}, "f0");
         l_funcs.front().m_param_types.emplace(typeid(std::string), 0);
         l_scope.add_function(&l_funcs.front());
         assert(l_scope.m_nullaries.empty());

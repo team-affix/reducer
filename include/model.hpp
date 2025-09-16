@@ -10,7 +10,7 @@ struct model
     bool m_homogenous_value;
 
     // the function to produce the bins
-    func* m_func;
+    const func* m_func;
 
     // the next functions to evaluate
     std::shared_ptr<model> m_negative_child;

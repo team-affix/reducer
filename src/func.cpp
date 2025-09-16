@@ -1,37 +1,43 @@
 #include "../include/func.hpp"
 #include <numeric>
 
-std::any func_body::eval(const std::any* a_params, size_t a_param_count) const
+std::any func::body::eval(const std::any* a_params, size_t a_param_count) const
 {
     // if this holds a parameter, return the parameter
-    if(const auto* l_param = std::get_if<param>(&m_data))
+    if(const auto* l_param = std::get_if<param>(&m_functor))
         return a_params[l_param->m_index];
 
-    // get the functor, and evaluate it
-    const auto& l_functor = std::get<functor>(m_data);
     // construct the arguments for the functor
     std::vector<std::any> l_functor_args(m_children.size());
 
     // evaluate all children
     std::transform(m_children.begin(), m_children.end(), l_functor_args.begin(),
-                   [a_params, a_param_count](const func_body& a_child)
+                   [a_params, a_param_count](const body& a_child)
                    { return a_child.eval(a_params, a_param_count); });
 
-    // evaluate the functor
-    return l_functor(l_functor_args.data(), l_functor_args.size());
+    // if this holds a primitive, evaluate it
+    if(const auto* l_primitive = std::get_if<primitive>(&m_functor))
+        return l_primitive->m_defn(l_functor_args.data(),
+                                   l_functor_args.size());
+
+    // if this holds a func, evaluate it
+    const auto* l_func = std::get<const func*>(m_functor);
+
+    // evaluate the func
+    return l_func->m_body.eval(l_functor_args.data(), l_functor_args.size());
 }
 
-size_t func_body::node_count() const
+size_t func::body::node_count() const
 {
     // count nodes in children, add one for this node
     return std::accumulate(m_children.begin(), m_children.end(), 1,
-                           [](size_t a_sum, const func_body& a_child)
+                           [](size_t a_sum, const body& a_child)
                            { return a_sum + a_child.node_count(); });
 }
 
 func::func(const std::type_index& a_return_type,
            const std::multimap<std::type_index, size_t>& a_param_types,
-           const func_body& a_body, const std::string& a_repr)
+           const body& a_body, const std::string& a_repr)
     : m_return_type(a_return_type), m_param_types(a_param_types),
       m_body(a_body), m_repr(a_repr)
 {
@@ -44,9 +50,12 @@ func::func(const std::type_index& a_return_type,
 void test_func_construction()
 {
     const std::type_index l_return_type = typeid(int);
-    const func_body l_body{
-        .m_data = [](const std::any* a_params, size_t a_param_count)
-        { return std::any(10); },
+    const func::body l_body{
+        .m_functor =
+            func::primitive{
+                [](const std::any* a_params, size_t a_param_count)
+                { return std::any(10); },
+            },
         .m_children = {},
     };
     const std::string l_repr = "func123";
@@ -62,9 +71,12 @@ void test_func_body_eval()
 {
     // nullary
     {
-        func_body l_node{
-            .m_data = [](const std::any* a_params, size_t a_param_count)
-            { return std::any(10); },
+        func::body l_node{
+            .m_functor =
+                func::primitive{
+                    [](const std::any* a_params, size_t a_param_count)
+                    { return std::any(10); },
+                },
             .m_children = {},
         };
         // evaluate the node
@@ -76,13 +88,16 @@ void test_func_body_eval()
 
     // unary
     {
-        func_body l_node{
-            .m_data = [](const std::any* a_params, size_t a_param_count)
-            { return std::any(10 + std::any_cast<int>(a_params[0])); },
+        func::body l_node{
+            .m_functor =
+                func::primitive{
+                    [](const std::any* a_params, size_t a_param_count)
+                    { return std::any(10 + std::any_cast<int>(a_params[0])); },
+                },
             .m_children =
                 {
-                    func_body{
-                        .m_data = param{0},
+                    func::body{
+                        .m_functor = func::param{0},
                         .m_children = {},
                     },
                 },
@@ -98,21 +113,23 @@ void test_func_body_eval()
 
     // binary
     {
-        func_body l_node{
-            .m_data =
-                [](const std::any* a_params, size_t a_param_count)
-            {
-                return std::any(10 + std::any_cast<int>(a_params[0]) +
-                                std::any_cast<int>(a_params[1]));
-            },
+        func::body l_node{
+            .m_functor =
+                func::primitive{
+                    [](const std::any* a_params, size_t a_param_count)
+                    {
+                        return std::any(10 + std::any_cast<int>(a_params[0]) +
+                                        std::any_cast<int>(a_params[1]));
+                    },
+                },
             .m_children =
                 {
-                    func_body{
-                        .m_data = param{0},
+                    func::body{
+                        .m_functor = func::param{0},
                         .m_children = {},
                     },
-                    func_body{
-                        .m_data = param{1},
+                    func::body{
+                        .m_functor = func::param{1},
                         .m_children = {},
                     },
                 },
@@ -128,22 +145,28 @@ void test_func_body_eval()
 
     // doubly-nested unary
     {
-        func_body l_node{
-            .m_data = [](const std::any* a_params, size_t a_param_count)
-            { return std::any(10 + std::any_cast<int>(a_params[0])); },
+        func::body l_node{
+            .m_functor =
+                func::primitive{
+                    [](const std::any* a_params, size_t a_param_count)
+                    { return std::any(10 + std::any_cast<int>(a_params[0])); },
+                },
             .m_children =
                 {
-                    func_body{
-                        .m_data =
-                            [](const std::any* a_params, size_t a_param_count)
-                        {
-                            return std::any(11 +
-                                            std::any_cast<int>(a_params[0]));
-                        },
+                    func::body{
+                        .m_functor =
+                            func::primitive{
+                                [](const std::any* a_params,
+                                   size_t a_param_count)
+                                {
+                                    return std::any(
+                                        11 + std::any_cast<int>(a_params[0]));
+                                },
+                            },
                         .m_children =
                             {
-                                func_body{
-                                    .m_data = param{0},
+                                func::body{
+                                    .m_functor = func::param{0},
                                     .m_children = {},
                                 },
                             },
@@ -164,17 +187,17 @@ void test_func_body_node_count()
 {
     // nullary
     {
-        func_body l_node;
+        func::body l_node;
         // assert that the node count is 1
         assert(l_node.node_count() == 1);
     }
 
     // unary
     {
-        func_body l_node{
+        func::body l_node{
             .m_children =
                 {
-                    func_body{},
+                    func::body{},
                 },
         };
         // assert that the node count is 1
@@ -183,8 +206,8 @@ void test_func_body_node_count()
 
     // binary
     {
-        func_body l_node{
-            .m_children = {func_body{}, func_body{}},
+        func::body l_node{
+            .m_children = {func::body{}, func::body{}},
         };
         // assert that the node count is 3
         assert(l_node.node_count() == 3);
@@ -192,11 +215,11 @@ void test_func_body_node_count()
 
     // doubly-nested unary
     {
-        func_body l_node{
+        func::body l_node{
             .m_children =
                 {
-                    func_body{
-                        .m_children = {func_body{}},
+                    func::body{
+                        .m_children = {func::body{}},
                     },
                 },
         };
@@ -206,8 +229,8 @@ void test_func_body_node_count()
 
     // ternary
     {
-        func_body l_node{
-            .m_children = {func_body{}, func_body{}, func_body{}},
+        func::body l_node{
+            .m_children = {func::body{}, func::body{}, func::body{}},
         };
         // assert that the node count is 4
         assert(l_node.node_count() == 4);
@@ -215,14 +238,14 @@ void test_func_body_node_count()
 
     // doubly-nested binary
     {
-        func_body l_node{
+        func::body l_node{
             .m_children =
                 {
-                    func_body{
-                        .m_children = {func_body{}, func_body{}},
+                    func::body{
+                        .m_children = {func::body{}, func::body{}},
                     },
-                    func_body{
-                        .m_children = {func_body{}, func_body{}},
+                    func::body{
+                        .m_children = {func::body{}, func::body{}},
                     },
                 },
         };

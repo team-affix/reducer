@@ -61,7 +61,8 @@ struct program
         // create the function
         auto l_func = std::make_shared<func>(
             l_return_type, l_param_types,
-            func_body{.m_data = l_general_functor}, a_repr);
+            func::body{.m_functor = func::primitive{l_general_functor}},
+            a_repr);
 
         // add the function to the program
         m_funcs.push_back(l_func);
@@ -70,8 +71,8 @@ struct program
         for(int i = 0; i < l_param_types.size(); ++i)
         {
             // add the parameter to the body
-            l_func->m_body.m_children.push_back(func_body{
-                .m_data = param{(size_t)i},
+            l_func->m_body.m_children.push_back(func::body{
+                .m_functor = func::param{(size_t)i},
             });
         }
 

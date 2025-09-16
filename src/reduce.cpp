@@ -11,13 +11,13 @@
 //////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-bool operator<(const place_functor_node& a_lhs, const place_functor_node& a_rhs)
-{
-    return a_lhs.m_func < a_rhs.m_func;
-}
 bool operator<(const place_param_node& a_lhs, const place_param_node& a_rhs)
 {
     return false;
+}
+bool operator<(const place_func_node& a_lhs, const place_func_node& a_rhs)
+{
+    return a_lhs.m_func < a_rhs.m_func;
 }
 bool operator<(const terminate&, const terminate&)
 {
@@ -32,7 +32,7 @@ bool operator<(const make_function&, const make_function&)
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-func_body
+func::body
 build_function(program& a_program, scope& a_scope,
                std::multimap<std::type_index, size_t>& a_param_types,
                std::stringstream& a_repr_stream,
@@ -62,7 +62,7 @@ build_function(program& a_program, scope& a_scope,
     // allow choosing any nullary of this type
     std::transform(l_nullary_range.first, l_nullary_range.second,
                    std::back_inserter(l_node_choices), [](auto a_nullary)
-                   { return place_functor_node{a_nullary.second}; });
+                   { return place_func_node{a_nullary.second}; });
 
     // if the recursion limit has not been reached,
     // push non-nullary function types into list
@@ -71,7 +71,7 @@ build_function(program& a_program, scope& a_scope,
         std::transform(l_non_nullary_range.first, l_non_nullary_range.second,
                        std::back_inserter(l_node_choices),
                        [](auto a_non_nullary)
-                       { return place_functor_node{a_non_nullary.second}; });
+                       { return place_func_node{a_non_nullary.second}; });
     }
 
     // allow choosing any known param of this type
@@ -103,14 +103,14 @@ build_function(program& a_program, scope& a_scope,
         a_repr_stream << "?" << l_place_param_node->m_index;
 
         // regardless, return the param node
-        return func_body{
-            .m_data = param{l_place_param_node->m_index},
+        return func::body{
+            .m_functor = func::param{l_place_param_node->m_index},
             .m_children = {},
         };
     }
 
     // extract the func
-    auto l_node_func = std::get<place_functor_node>(l_node_choice).m_func;
+    auto l_node_func = std::get<place_func_node>(l_node_choice).m_func;
 
     // add the node's representation to the stream
     a_repr_stream << l_node_func->m_repr << "(";
@@ -121,7 +121,7 @@ build_function(program& a_program, scope& a_scope,
     size_t l_node_arity = l_node_func->m_param_types.size();
 
     // pre-allocate the args vector
-    std::vector<func_body> l_node_children(l_node_func->m_param_types.size());
+    std::vector<func::body> l_node_children(l_node_func->m_param_types.size());
 
     // loop through with iterator, construct args in place
     for(auto l_param_type_it = l_node_func->m_param_types.begin();
@@ -139,16 +139,11 @@ build_function(program& a_program, scope& a_scope,
 
     a_repr_stream << ")";
 
-    // create an invoking lambda
-    auto l_functor =
-        [l_node_func](const std::any* a_params, size_t a_param_count)
-    { return l_node_func->m_body.eval(a_params, a_param_count); };
-
     ////////////////////////////////////////////////////
     //////////// CONSTRUCT THE FUNC_NODE_T /////////////
     ////////////////////////////////////////////////////
-    return func_body{
-        .m_data = l_functor,
+    return func::body{
+        .m_functor = l_node_func,
         .m_children = l_node_children,
     };
 }
@@ -198,7 +193,7 @@ model build_model(
     std::vector<std::pair<std::vector<std::any>, bool>> l_positive_bin;
 
     // declare the binning function body
-    func_body l_binning_function_body;
+    func::body l_binning_function_body;
 
     // construct the repr stream
     std::stringstream l_repr_stream;

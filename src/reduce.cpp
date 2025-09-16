@@ -1103,6 +1103,59 @@ void test_learn_model()
         model l_model = learn_model<std::string>(l_program, l_scope, l_data,
                                                  ITERATIONS, 10, 1000);
     }
+
+    // // learn v[4] == param
+    // {
+    //     constexpr size_t ITERATIONS = 10000;
+
+    //     // 2 < string length < 5 data
+    //     std::vector<std::pair<std::tuple<std::vector<int>, int>, bool>>
+    //         l_og_data{
+    //             {{{1, 1, 12, 13, 1}, 1}, true},
+    //             {{{2, 5, 1, 9, 4}, 5}, false},
+    //             {{{4, 2, 2, 5, 4}, 2}, false},
+    //             {{{6, 8, 20, 2, 7, 8, 9}, 7}, true},
+    //             {{{7, 1, 7, 31, 7, 8, 9}, 3}, false},
+    //         };
+
+    //     // convert the data to a vector of pairs of vectors of any and bool
+    //     std::vector<std::pair<std::vector<std::any>, bool>> l_data;
+    //     for(const auto& l_example : l_og_data)
+    //         l_data.emplace_back(
+    //             std::vector<std::any>{std::get<0>(l_example.first),
+    //                                   std::get<1>(l_example.first)},
+    //             l_example.second);
+
+    //     // initialize the program and scope
+    //     program l_program;
+    //     scope l_scope;
+
+    //     // add primitive for 0
+    //     l_scope.add_function(
+    //         l_program.add_primitive("0", std::function([]() { return 0; })));
+
+    //     // add primitive for succ(n)
+    //     l_scope.add_function(l_program.add_primitive(
+    //         "succ", std::function([](int a_n) { return a_n + 1; })));
+
+    //     // add primitive for v[i]
+    //     l_scope.add_function(l_program.add_primitive(
+    //         "index", std::function(
+    //                      [](std::vector<int> a_v, int a_i)
+    //                      {
+    //                          // compute the index by modulus
+    //                          int l_index = a_i % a_v.size();
+    //                          return a_v[l_index];
+    //                      })));
+
+    //     // add primitive for ==
+    //     l_scope.add_function(l_program.add_primitive(
+    //         "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+    //     // learn a model
+    //     model l_model = learn_model<std::vector<int>, int>(
+    //         l_program, l_scope, l_data, ITERATIONS, 10, 1000);
+    // }
 }
 
 void reduce_test_main()

@@ -3,7 +3,6 @@
 
 #include <any>
 #include <functional>
-#include <list>
 #include <map>
 #include <string>
 #include <typeindex>

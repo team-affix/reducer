@@ -1,4 +1,5 @@
 #include "../include/scope.hpp"
+#include <list>
 
 // adds a function based on its arity and type
 void scope::add_function(func* a_function)

@@ -1,7 +1,8 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
-#include "func.hpp"
+#include <any>
+#include <functional>
 #include <memory>
 
 struct model
@@ -10,14 +11,15 @@ struct model
     bool m_homogenous_value;
 
     // the function to produce the bins
-    const func* m_func;
+    std::string m_func_repr;
+    std::function<bool(const std::any*)> m_func;
 
     // the next functions to evaluate
     std::shared_ptr<model> m_negative_child;
     std::shared_ptr<model> m_positive_child;
 
     // the function to evaluate the model
-    bool eval(const std::any* a_params, size_t a_param_count);
+    bool eval(const std::any* a_params);
 
     // get the node count
     size_t node_count() const;

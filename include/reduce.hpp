@@ -1,7 +1,9 @@
 #ifndef REDUCE_HPP
 #define REDUCE_HPP
 
-#include "func.hpp"
+#include <any>
+#include <cstddef>
+#include <functional>
 #include <variant>
 
 ////////////////////////////////////////////////////
@@ -16,11 +18,11 @@ struct create_and_return_param
 };
 struct compose_func
 {
-    const func* m_func;
+    const std::function<std::any(const std::any*)> m_func;
 };
 struct return_func
 {
-    const func* m_func;
+    const std::function<std::any(const std::any*)> m_func;
 };
 struct create_and_return_func
 {

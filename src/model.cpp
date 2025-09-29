@@ -1,22 +1,20 @@
 #include "../include/model.hpp"
-#include "../include/program.hpp"
 #include <cassert>
 
-bool model::eval(const std::any* a_params, size_t a_param_count)
+bool model::eval(const std::any* a_params)
 {
     // if the model is homogenous, then return the homogenous value
     if(m_func == nullptr)
         return m_homogenous_value;
 
     // evaluate the binning function (these are always nullary)
-    bool l_binning_result =
-        std::any_cast<bool>(m_func->m_body.eval(a_params, a_param_count));
+    bool l_binning_result = m_func(a_params);
 
     // get the appropriate child
     model* l_child =
         l_binning_result ? m_positive_child.get() : m_negative_child.get();
 
-    return l_child->eval(a_params, a_param_count);
+    return l_child->eval(a_params);
 }
 
 size_t model::node_count() const
@@ -37,7 +35,7 @@ std::string model::repr() const
     if(m_func == nullptr)
         return std::to_string(m_homogenous_value);
 
-    return "[" + m_func->m_repr + "] ? {" + m_positive_child->repr() + "} : {" +
+    return "[" + m_func_repr + "] ? {" + m_positive_child->repr() + "} : {" +
            m_negative_child->repr() + "}";
 }
 
@@ -51,7 +49,7 @@ void test_model_eval()
         model l_model{.m_homogenous_value = false};
 
         // evaluate the model
-        bool l_result = l_model.eval(nullptr, 0);
+        bool l_result = l_model.eval(nullptr);
 
         // check the result
         assert(l_result == false);
@@ -62,7 +60,7 @@ void test_model_eval()
         model l_model{.m_homogenous_value = true};
 
         // evaluate the model
-        bool l_result = l_model.eval(nullptr, 0);
+        bool l_result = l_model.eval(nullptr);
 
         // check the result
         assert(l_result == true);
@@ -70,12 +68,10 @@ void test_model_eval()
 
     // model with 1 binning function
     {
-        // construct program
-        program l_program;
-
         // add a primitive binning function
-        auto l_func_0 = l_program.add_primitive(
-            "bin0", std::function([](int a_x) { return a_x > 0; }));
+        auto l_func_0 =
+            std::function([](const std::any* a_params)
+                          { return std::any_cast<int>(*a_params) > 0; });
 
         // construct model
         model l_model{.m_func = l_func_0};
@@ -93,26 +89,24 @@ void test_model_eval()
 
         // test truthy input
         l_input = {10};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // test falsy inputs
         l_input = {-10};
-        assert(l_model.eval(l_input.data(), l_input.size()) == false);
+        assert(l_model.eval(l_input.data()) == false);
     }
 
     // model with 1 binning function and a left child
     {
-        // construct program
-        program l_program;
-
         // add a primitive binning function
-        auto l_func_0 = l_program.add_primitive(
-            "bin0", std::function([](int a_x) { return a_x > 0; })); // positive
+        auto l_func_0 =
+            std::function([](const std::any* a_params)
+                          { return std::any_cast<int>(*a_params) > 0; });
 
         // add another primitive binning function
-        auto l_func_1 = l_program.add_primitive(
-            "bin1",
-            std::function([](int a_x) { return a_x % 2 == 0; })); // even
+        auto l_func_1 =
+            std::function([](const std::any* a_params)
+                          { return std::any_cast<int>(*a_params) % 2 == 0; });
 
         // construct model
         model l_model{.m_func = l_func_0};
@@ -136,39 +130,37 @@ void test_model_eval()
 
         // test input 10 (positive and even)
         l_input = {10};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // test input 7 (positive and odd)
         l_input = {7};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // test input -10 (negative and even)
         l_input = {-10};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // test input -7 (negative and odd)
         l_input = {-7};
-        assert(l_model.eval(l_input.data(), l_input.size()) == false);
+        assert(l_model.eval(l_input.data()) == false);
     }
 
     // model with 1 binning function and a left, and right child
     {
-        // construct program
-        program l_program;
-
         // add a primitive binning function
-        auto l_func_0 = l_program.add_primitive(
-            "bin0", std::function([](int a_x) { return a_x > 0; })); // positive
+        auto l_func_0 =
+            std::function([](const std::any* a_params)
+                          { return std::any_cast<int>(*a_params) > 0; });
 
         // add another primitive binning function
-        auto l_func_1 = l_program.add_primitive(
-            "bin1",
-            std::function([](int a_x) { return a_x % 2 == 0; })); // even
+        auto l_func_1 =
+            std::function([](const std::any* a_params)
+                          { return std::any_cast<int>(*a_params) % 2 == 0; });
 
         // add another primitive binning function
-        auto l_func_2 = l_program.add_primitive(
-            "bin2", std::function([](int a_x)
-                                  { return a_x % 3 == 0; })); // divisible by 3
+        auto l_func_2 =
+            std::function([](const std::any* a_params)
+                          { return std::any_cast<int>(*a_params) % 3 == 0; });
 
         // construct model
         model l_model{.m_func = l_func_0};
@@ -198,35 +190,35 @@ void test_model_eval()
 
         // positive, even, divisible by 3
         l_input = {6};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // positive, even, not divisible by 3
         l_input = {4};
-        assert(l_model.eval(l_input.data(), l_input.size()) == false);
+        assert(l_model.eval(l_input.data()) == false);
 
         // positive, odd, divisible by 3
         l_input = {9};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // positive, odd, not divisible by 3
         l_input = {7};
-        assert(l_model.eval(l_input.data(), l_input.size()) == false);
+        assert(l_model.eval(l_input.data()) == false);
 
         // negative, even, divisible by 3
         l_input = {-6};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // negative, even, not divisible by 3
         l_input = {-4};
-        assert(l_model.eval(l_input.data(), l_input.size()) == true);
+        assert(l_model.eval(l_input.data()) == true);
 
         // negative, odd, divisible by 3
         l_input = {-9};
-        assert(l_model.eval(l_input.data(), l_input.size()) == false);
+        assert(l_model.eval(l_input.data()) == false);
 
         // negative, odd, not divisible by 3
         l_input = {-7};
-        assert(l_model.eval(l_input.data(), l_input.size()) == false);
+        assert(l_model.eval(l_input.data()) == false);
     }
 }
 

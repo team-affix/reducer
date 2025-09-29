@@ -28,7 +28,7 @@ void test_scope_add_constant()
 {
     {
         scope l_scope(nullptr);
-        symbol l_symbol("x", type(type::constant("int"), {}));
+        symbol l_symbol("x", type(type::constant("int", {}), {}));
 
         l_scope.add_constant(l_symbol, 1);
 
@@ -38,7 +38,7 @@ void test_scope_add_constant()
 
     {
         scope l_scope(nullptr);
-        symbol l_symbol("x", type(type::constant("string"), {}));
+        symbol l_symbol("x", type(type::constant("string", {}), {}));
 
         l_scope.add_constant(l_symbol, std::string("hello"));
 

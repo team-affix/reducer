@@ -1,6 +1,7 @@
 #ifndef TYPE_HPP
 #define TYPE_HPP
 
+#include <functional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -15,9 +16,13 @@ struct type
         // the name of the constant
         std::string m_name;
 
+        // the dependencies of the type
+        std::vector<type> m_deps;
+
         // only constructor
-        constant(const std::string& a_name);
+        constant(const std::string& a_name, const std::vector<type>& a_deps);
     };
+
     // represents a variable in a given type (like T in List<T>)
     struct variable
     {
@@ -29,14 +34,19 @@ struct type
     };
 
     // the root of the type
-    std::variant<constant, variable> m_root;
+    std::variant<constant, variable> m_data;
 
-    // the dependencies of the type
-    std::vector<type> m_deps;
+    // a function which validates the type
+    std::function<bool(const type*)> m_validate;
 
     // only constructor
-    type(const std::variant<constant, variable>& a_root,
-         const std::vector<type>& a_deps);
+    type(
+        const std::variant<constant, variable>& a_data,
+        const std::function<bool(const type*)>& a_validate = [](const type*)
+        { return true; });
+
+    // unification of variable with something else
+    bool unify(const variable& a_var, const type& a_other);
 };
 
 // type func_type(const type& a_return_type,

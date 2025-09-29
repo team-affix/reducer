@@ -25,30 +25,31 @@ bool operator==(const symbol& a_lhs, const symbol& a_rhs)
 
 void test_symbol_construction_and_equality()
 {
-    symbol l_symbol("x", type(type::constant("int"), {}));
+    symbol l_symbol("x", type(type::constant("int", {}), {}));
     assert(l_symbol.m_repr == "x");
-    assert(l_symbol.m_type == type(type::constant("int"), {}));
-    assert(!(l_symbol == symbol("y", type(type::constant("int"), {}))));
-    assert(!(l_symbol == symbol("x", type(type::constant("string"), {}))));
+    assert(l_symbol.m_type == type(type::constant("int", {}), {}));
+    assert(!(l_symbol == symbol("y", type(type::constant("int", {}), {}))));
+    assert(!(l_symbol == symbol("x", type(type::constant("string", {}), {}))));
     assert(
-        !(l_symbol == symbol("x", type(type::constant("int"),
-                                       {type{type::constant("string"), {}}}))));
+        !(l_symbol ==
+          symbol("x", type(type::constant(
+                          "int", {type{type::constant("string", {}), {}}})))));
 }
 
 void test_symbol_comparison()
 {
     // name comparison
     {
-        symbol l_symbol("x", type(type::constant("int"), {}));
-        symbol l_symbol2("y", type(type::constant("int"), {}));
+        symbol l_symbol("x", type(type::constant("int", {}), {}));
+        symbol l_symbol2("y", type(type::constant("int", {}), {}));
         assert(l_symbol < l_symbol2);
         assert(!(l_symbol2 < l_symbol));
     }
 
     // type comparison
     {
-        symbol l_symbol("x", type(type::constant("int"), {}));
-        symbol l_symbol2("x", type(type::constant("string"), {}));
+        symbol l_symbol("x", type(type::constant("int", {}), {}));
+        symbol l_symbol2("x", type(type::constant("string", {}), {}));
         assert(l_symbol < l_symbol2);
         assert(!(l_symbol2 < l_symbol));
     }

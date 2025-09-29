@@ -81,6 +81,43 @@ bool operator==(const type& a_lhs, const type& a_rhs)
 
 #include "test_utils.hpp"
 
+void test_type_constant_construction()
+{
+    // int
+    {
+        type::constant l_constant("int");
+        assert(l_constant.m_name == "int");
+    }
+
+    // string
+    {
+        type::constant l_constant("string");
+        assert(l_constant.m_name == "string");
+    }
+}
+
+void test_type_variable_construction()
+{
+    type::variable l_variable(0);
+    assert(l_variable.m_index == 0);
+}
+
+void test_type_construction()
+{
+    type l_type(type::constant("int"), {});
+    assert(std::get<type::constant>(l_type.m_root).m_name == "int");
+    assert(l_type.m_deps.empty());
+
+    type l_type2(type::variable(0), {});
+    assert(std::get<type::variable>(l_type2.m_root).m_index == 0);
+    assert(l_type2.m_deps.empty());
+
+    type l_type3(type::constant("vector"), {type(type::variable(0), {})});
+    assert(std::get<type::constant>(l_type3.m_root).m_name == "vector");
+    assert(l_type3.m_deps.size() == 1);
+    assert(std::get<type::variable>(l_type3.m_deps[0].m_root).m_index == 0);
+}
+
 void test_type_constant_comparison()
 {
     // int < string
@@ -183,6 +220,8 @@ void type_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
+    TEST(test_type_constant_construction);
+    TEST(test_type_variable_construction);
     TEST(test_type_constant_comparison);
     TEST(test_type_variable_comparison);
     TEST(test_type_comparison);

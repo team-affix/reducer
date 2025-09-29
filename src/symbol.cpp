@@ -35,11 +35,16 @@ void test_symbol_construction_and_equality()
                                        {type{type::constant("string"), {}}}))));
 }
 
+void test_symbol_comparison()
+{
+}
+
 void symbol_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
     TEST(test_symbol_construction_and_equality);
+    TEST(test_symbol_comparison);
 }
 
 #endif

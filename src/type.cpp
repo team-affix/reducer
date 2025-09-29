@@ -37,7 +37,7 @@ type::constant::constant(const std::string& a_name) : m_name(a_name)
 {
 }
 
-type::type(const std::variant<variable, constant>& a_root,
+type::type(const std::variant<constant, variable>& a_root,
            const std::vector<type>& a_deps)
     : m_root(a_root), m_deps(a_deps)
 {
@@ -81,8 +81,114 @@ bool operator==(const type& a_lhs, const type& a_rhs)
 
 #include "test_utils.hpp"
 
+void test_type_constant_comparison()
+{
+    // int < string
+    {
+        type::constant l_constant("int");
+        type::constant l_constant2("string");
+        assert(l_constant < l_constant2);
+        assert(!(l_constant2 < l_constant));
+    }
+}
+
+void test_type_variable_comparison()
+{
+    // int < string
+    {
+        type::variable l_variable(0);
+        type::variable l_variable2(1);
+        assert(l_variable < l_variable2);
+        assert(!(l_variable2 < l_variable));
+    }
+}
+
+void test_type_comparison()
+{
+    // int < string
+    {
+        type l_type(type::constant("int"), {});
+        type l_type2(type::constant("string"), {});
+        assert(l_type < l_type2);
+        assert(!(l_type2 < l_type));
+    }
+
+    // vector<int> < vector<string>
+    {
+        type l_type(type::constant("vector"),
+                    {type(type::constant("int"), {})});
+        type l_type2(type::constant("vector"),
+                     {type(type::constant("string"), {})});
+        assert(l_type < l_type2);
+        assert(!(l_type2 < l_type));
+    }
+
+    // map<int, string> < map<string, int>
+    {
+        type l_type(type::constant("map"),
+                    {type(type::constant("int"), {}),
+                     type(type::constant("string"), {})});
+        type l_type2(type::constant("map"), {type(type::constant("string"), {}),
+                                             type(type::constant("int"), {})});
+        assert(l_type < l_type2);
+        assert(!(l_type2 < l_type));
+    }
+}
+
+void test_type_constant_equality()
+{
+    // int == int
+    {
+        type::constant l_constant("int");
+        type::constant l_constant2("int");
+        assert(l_constant == l_constant2);
+        assert(!(l_constant == type::constant("string")));
+    }
+}
+
+void test_type_variable_equality()
+{
+    // int == int
+    {
+        type::variable l_variable(0);
+        type::variable l_variable2(0);
+        assert(l_variable == l_variable2);
+        assert(!(l_variable == type::variable(1)));
+    }
+}
+
+void test_type_equality()
+{
+    // int == int
+    {
+        type l_type(type::constant("int"), {});
+        type l_type2(type::constant("int"), {});
+        assert(l_type == l_type2);
+        assert(!(l_type == type(type::constant("string"), {})));
+    }
+
+    // vector<int> == vector<int>
+    {
+        type l_type(type::constant("vector"),
+                    {type(type::constant("int"), {})});
+        type l_type2(type::constant("vector"),
+                     {type(type::constant("int"), {})});
+        assert(l_type == l_type2);
+        assert(!(l_type == type(type::constant("vector"),
+                                {type(type::constant("string"), {})})));
+    }
+}
+
 void type_test_main()
 {
+    constexpr bool ENABLE_DEBUG_LOGS = true;
+
+    TEST(test_type_constant_comparison);
+    TEST(test_type_variable_comparison);
+    TEST(test_type_comparison);
+    TEST(test_type_constant_equality);
+    TEST(test_type_variable_equality);
+    TEST(test_type_equality);
 }
 
 #endif

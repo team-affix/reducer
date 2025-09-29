@@ -9,6 +9,15 @@
 // are the parameters, e.g. List<int>)
 struct type
 {
+    // represents a constant in a given type (like List in List<T>)
+    struct constant
+    {
+        // the name of the constant
+        std::string m_name;
+
+        // only constructor
+        constant(const std::string& a_name);
+    };
     // represents a variable in a given type (like T in List<T>)
     struct variable
     {
@@ -19,24 +28,14 @@ struct type
         variable(size_t a_index);
     };
 
-    // represents a constant in a given type (like List in List<T>)
-    struct constant
-    {
-        // the name of the constant
-        std::string m_name;
-
-        // only constructor
-        constant(const std::string& a_name);
-    };
-
     // the root of the type
-    std::variant<variable, constant> m_root;
+    std::variant<constant, variable> m_root;
 
     // the dependencies of the type
     std::vector<type> m_deps;
 
     // only constructor
-    type(const std::variant<variable, constant>& a_root,
+    type(const std::variant<constant, variable>& a_root,
          const std::vector<type>& a_deps);
 };
 

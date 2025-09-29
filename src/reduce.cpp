@@ -11,13 +11,27 @@
 //////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-bool operator<(const place_param_node& a_lhs, const place_param_node& a_rhs)
+bool operator<(const return_param& a_lhs, const return_param& a_rhs)
+{
+    return a_lhs.m_index < a_rhs.m_index;
+}
+bool operator<(const create_and_return_param& a_lhs,
+               const create_and_return_param& a_rhs)
 {
     return false;
 }
-bool operator<(const place_func_node& a_lhs, const place_func_node& a_rhs)
+bool operator<(const compose_func& a_lhs, const compose_func& a_rhs)
 {
     return a_lhs.m_func < a_rhs.m_func;
+}
+bool operator<(const return_func& a_lhs, const return_func& a_rhs)
+{
+    return a_lhs.m_func < a_rhs.m_func;
+}
+bool operator<(const create_and_return_func& a_lhs,
+               const create_and_return_func& a_rhs)
+{
+    return false;
 }
 bool operator<(const terminate&, const terminate&)
 {
@@ -34,118 +48,229 @@ bool operator<(const make_function&, const make_function&)
 
 func::body
 build_function(program& a_program, scope& a_scope,
-               std::multimap<std::type_index, size_t>& a_param_types,
-               std::stringstream& a_repr_stream,
-               const std::type_index& a_return_type,
+               std::multimap<type, size_t>& a_param_types,
+               std::stringstream& a_repr_stream, const type& a_return_type,
                const bool& a_allow_adding_params,
                monte_carlo::simulation<choice, std::mt19937>& a_simulation,
                const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
-    /////////////// GET THE SCOPE RANGES ///////////////
+    ////////////// POPULATE CHOICE VECTOR //////////////
     ////////////////////////////////////////////////////
-    const auto& l_nullary_range =
-        a_scope.m_nullaries.equal_range(a_return_type);
-    const auto& l_non_nullary_range =
-        a_scope.m_non_nullaries.equal_range(a_return_type);
+    std::vector<choice> l_choices;
 
     ////////////////////////////////////////////////////
-    //////////////// GET THE PARAM RANGE ///////////////
+    ///////////// POPULATE PARAMETER CHOICES ///////////
     ////////////////////////////////////////////////////
     const auto& l_param_range = a_param_types.equal_range(a_return_type);
 
+    // allow choosing any known param of this type
+    std::transform(l_param_range.first, l_param_range.second,
+                   std::back_inserter(l_choices),
+                   [](auto a_entry) { return return_param{a_entry.second}; });
+
+    // allow choosing the next param of this type
+    if(a_allow_adding_params)
+        l_choices.push_back(create_and_return_param{});
+
     ////////////////////////////////////////////////////
-    ////////////// POPULATE CHOICE VECTOR //////////////
+    /////////////// POPULATE NULLARY CHOICES ///////////
     ////////////////////////////////////////////////////
-    std::vector<choice> l_node_choices;
+    const auto& l_nullary_range =
+        a_scope.equal_range(func_type(a_return_type, {}));
 
     // allow choosing any nullary of this type
     std::transform(l_nullary_range.first, l_nullary_range.second,
-                   std::back_inserter(l_node_choices), [](auto a_nullary)
-                   { return place_func_node{a_nullary.second}; });
+                   std::back_inserter(l_choices), [](auto a_nullary)
+                   { return compose_func{a_nullary.second}; });
+
+    ////////////////////////////////////////////////////
+    //////////// POPULATE NON-NULLARY CHOICES //////////
+    ////////////////////////////////////////////////////
 
     // if the recursion limit has not been reached,
     // push non-nullary function types into list
     if(a_recursion_limit > 0)
     {
-        std::transform(l_non_nullary_range.first, l_non_nullary_range.second,
-                       std::back_inserter(l_node_choices),
-                       [](auto a_non_nullary)
-                       { return place_func_node{a_non_nullary.second}; });
+        // the non-nullaries come immediately after the nullaries
+        for(auto l_it = l_nullary_range.second;
+            l_it != a_scope.end() &&
+            get_return_type(l_it->second->m_signature) == a_return_type;
+            ++l_it)
+        {
+            l_choices.push_back(compose_func{l_it->second});
+        }
     }
 
-    // allow choosing any known param of this type
-    std::transform(l_param_range.first, l_param_range.second,
-                   std::back_inserter(l_node_choices), [](auto a_entry)
-                   { return place_param_node{a_entry.second}; });
-
-    // allow choosing the next param of this type
-    if(a_allow_adding_params)
-        l_node_choices.push_back(place_param_node{a_param_types.size()});
-
     ////////////////////////////////////////////////////
-    ////////////// CHOOSE A NODE TO PLACE //////////////
+    /////// IF FUNC TYPE, POPULATE FUNC CHOICES ////////
     ////////////////////////////////////////////////////
-    choice l_node_choice = a_simulation.choose(l_node_choices);
 
-    // if the choice is a place_param_node
-    if(const auto& l_place_param_node =
-           std::get_if<place_param_node>(&l_node_choice))
+    // if the return type is a func type
+    if(is_func_type(a_return_type))
     {
-        // if the choice is a new param
-        if(l_place_param_node->m_index == a_param_types.size())
-        {
-            // add the param to the param types
-            a_param_types.insert({a_return_type, l_place_param_node->m_index});
-        }
+        // add the functions from the scope to the choices
+        const auto& l_scope_func_range = a_scope.equal_range(a_return_type);
 
+        std::transform(l_scope_func_range.first, l_scope_func_range.second,
+                       std::back_inserter(l_choices),
+                       [](auto a_func) { return return_func{a_func.second}; });
+
+        // WE ACTUALLY DON'T ADD THE PARAMS AS THEY ARE ALREADY ADDED TO THE
+        // CHOICE VECTOR
+        // // add the functions from the params to the choices
+        // const auto& l_param_func_range =
+        //     a_param_types.equal_range(a_return_type);
+
+        // std::transform(l_param_func_range.first, l_param_func_range.second,
+        //                std::back_inserter(l_choices),
+        //                [](auto a_func) { return return_param{a_func.second};
+        //                });
+
+        // allow choosing to make an anonymous func
+        l_choices.push_back(create_and_return_func{});
+    }
+
+    ////////////////////////////////////////////////////
+    ///////////////// CHOOSE AN ACTION /////////////////
+    ////////////////////////////////////////////////////
+    choice l_choice = a_simulation.choose(l_choices);
+
+    // if the choice is a return_param
+    if(const auto& l_return_param = std::get_if<return_param>(&l_choice))
+    {
         // add the param's representation to the stream
-        a_repr_stream << "?" << l_place_param_node->m_index;
+        a_repr_stream << "?" << l_return_param->m_index;
 
-        // regardless, return the param node
+        // return the param node
         return func::body{
-            .m_functor = func::param{l_place_param_node->m_index},
+            .m_functor = func::param{l_return_param->m_index},
             .m_children = {},
         };
     }
 
-    // extract the func
-    auto l_node_func = std::get<place_func_node>(l_node_choice).m_func;
-
-    // add the node's representation to the stream
-    a_repr_stream << l_node_func->m_repr << "(";
-
-    ////////////////////////////////////////////////////
-    //////////////// CONSTRUCT CHILDREN ////////////////
-    ////////////////////////////////////////////////////
-    size_t l_node_arity = l_node_func->m_param_types.size();
-
-    // pre-allocate the args vector
-    std::vector<func::body> l_node_children(l_node_func->m_param_types.size());
-
-    // loop through with iterator, construct args in place
-    for(auto l_param_type_it = l_node_func->m_param_types.begin();
-        l_param_type_it != l_node_func->m_param_types.end(); ++l_param_type_it)
+    // if the choice is a create_and_return_param
+    if(const auto& l_create_and_return_param =
+           std::get_if<create_and_return_param>(&l_choice))
     {
-        l_node_children[l_param_type_it->second] =
-            build_function(a_program, a_scope, a_param_types, a_repr_stream,
-                           l_param_type_it->first, a_allow_adding_params,
-                           a_simulation, a_recursion_limit - 1);
+        // get the index of the new param
+        size_t l_new_param_index = a_param_types.size();
 
-        // if this is not the last param, add a comma
-        if(std::next(l_param_type_it) != l_node_func->m_param_types.end())
-            a_repr_stream << ",";
+        // add the param's representation to the stream
+        a_repr_stream << "?" << l_new_param_index;
+
+        // add the param to the param types
+        a_param_types.insert({a_return_type, l_new_param_index});
+
+        // return the param node
+        return func::body{
+            .m_functor = func::param{l_new_param_index},
+            .m_children = {},
+        };
     }
 
-    a_repr_stream << ")";
+    // if the choice is a compose_func
+    if(const auto& l_compose_func = std::get_if<compose_func>(&l_choice))
+    {
+        // extract the func
+        auto l_node_func = l_compose_func->m_func;
 
-    ////////////////////////////////////////////////////
-    //////////// CONSTRUCT THE FUNC_NODE_T /////////////
-    ////////////////////////////////////////////////////
-    return func::body{
-        .m_functor = l_node_func,
-        .m_children = l_node_children,
-    };
+        // add the node's representation to the stream
+        a_repr_stream << l_node_func->m_repr << "(";
+
+        ////////////////////////////////////////////////////
+        //////////////// CONSTRUCT CHILDREN ////////////////
+        ////////////////////////////////////////////////////
+
+        // get the param types
+        const auto& l_func_param_types =
+            get_param_types(l_node_func->m_signature);
+
+        // pre-allocate the args vector
+        std::vector<func::body> l_node_children(l_func_param_types.size());
+
+        // loop through with iterator, construct args in place
+        for(int i = 0; i < l_func_param_types.size(); ++i)
+        {
+            l_node_children[i] =
+                build_function(a_program, a_scope, a_param_types, a_repr_stream,
+                               l_func_param_types[i], a_allow_adding_params,
+                               a_simulation, a_recursion_limit - 1);
+
+            // if this is not the last param, add a comma
+            if(i + 1 != l_func_param_types.size())
+                a_repr_stream << ",";
+        }
+
+        a_repr_stream << ")";
+
+        ////////////////////////////////////////////////////
+        //////////// CONSTRUCT THE FUNC_NODE_T /////////////
+        ////////////////////////////////////////////////////
+        return func::body{
+            .m_functor = l_node_func,
+            .m_children = l_node_children,
+        };
+    }
+
+    // if the choice is a return_func
+    if(const auto& l_return_func = std::get_if<return_func>(&l_choice))
+    {
+        // extract the func
+        auto l_node_func = l_return_func->m_func;
+
+        // add the node's representation to the stream
+        a_repr_stream << l_node_func->m_repr;
+
+        // return the func node
+        return func::body{
+            .m_functor = func::primitive{std::function(
+                [l_return_func](const std::any*, size_t)
+                { return std::any(l_return_func->m_func); })},
+            .m_children = {},
+        };
+    }
+
+    // if the choice is a create_and_return_func
+    if(const auto& l_create_and_return_func =
+           std::get_if<create_and_return_func>(&l_choice))
+    {
+        // get the function's return type
+        const auto& l_func_return_type = get_return_type(a_return_type);
+
+        // get the function's param types
+        const auto& l_func_param_types = get_param_types(a_return_type);
+
+        // construct the repr stream
+        std::stringstream l_func_repr_stream;
+
+        // convert the param types to a multimap
+        std::multimap<type, size_t> l_func_param_types_multimap;
+        for(size_t i = 0; i < l_func_param_types.size(); ++i)
+            l_func_param_types_multimap.emplace(l_func_param_types[i], i);
+
+        // create the function
+        auto l_anon_func_body = build_function(
+            a_program, a_scope, l_func_param_types_multimap, l_func_repr_stream,
+            l_func_return_type, false, a_simulation, a_recursion_limit);
+
+        // create the anon func given the signature (a_return_type)
+        auto l_anon_func = std::make_shared<func>(
+            a_return_type, l_anon_func_body, l_func_repr_stream.str());
+
+        // add this function to the program
+        a_program.m_funcs.push_back(l_anon_func);
+
+        // return the func node
+        return func::body{
+            .m_functor = func::primitive{std::function(
+                [l_anon_func](const std::any*, size_t)
+                { return std::any(l_anon_func.get()); })},
+            .m_children = {},
+        };
+    }
+
+    throw std::runtime_error("Error: invalid choice when building function.");
 }
 
 model build_model(
@@ -1118,8 +1243,8 @@ void test_learn_model()
     //             {{{7, 1, 7, 31, 7, 8, 9}, 3}, false},
     //         };
 
-    //     // convert the data to a vector of pairs of vectors of any and bool
-    //     std::vector<std::pair<std::vector<std::any>, bool>> l_data;
+    //     // convert the data to a vector of pairs of vectors of any and
+    //     bool std::vector<std::pair<std::vector<std::any>, bool>> l_data;
     //     for(const auto& l_example : l_og_data)
     //         l_data.emplace_back(
     //             std::vector<std::any>{std::get<0>(l_example.first),
@@ -1132,7 +1257,8 @@ void test_learn_model()
 
     //     // add primitive for 0
     //     l_scope.add_function(
-    //         l_program.add_primitive("0", std::function([]() { return 0; })));
+    //         l_program.add_primitive("0", std::function([]() { return 0;
+    //         })));
 
     //     // add primitive for succ(n)
     //     l_scope.add_function(l_program.add_primitive(
@@ -1150,7 +1276,8 @@ void test_learn_model()
 
     //     // add primitive for ==
     //     l_scope.add_function(l_program.add_primitive(
-    //         "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+    //         "<", std::function([](int a_x, int a_y) { return a_x < a_y;
+    //         })));
 
     //     // learn a model
     //     model l_model = learn_model<std::vector<int>, int>(

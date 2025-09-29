@@ -7,13 +7,23 @@
 ////////////////////////////////////////////////////
 /////////////////// CHOICE TYPES ///////////////////
 ////////////////////////////////////////////////////
-struct place_param_node
+struct return_param
 {
     size_t m_index;
 };
-struct place_func_node
+struct create_and_return_param
+{
+};
+struct compose_func
 {
     const func* m_func;
+};
+struct return_func
+{
+    const func* m_func;
+};
+struct create_and_return_func
+{
 };
 struct terminate
 {
@@ -23,11 +33,15 @@ struct make_function
 };
 
 using choice =
-    std::variant<place_func_node, place_param_node, terminate, make_function>;
+    std::variant<return_param, create_and_return_param, compose_func,
+                 return_func, create_and_return_func, terminate, make_function>;
 
 // less than comparisons
-bool operator<(const place_func_node&, const place_func_node&);
-bool operator<(const place_param_node&, const place_param_node&);
+bool operator<(const return_param&, const return_param&);
+bool operator<(const create_and_return_param&, const create_and_return_param&);
+bool operator<(const compose_func&, const compose_func&);
+bool operator<(const return_func&, const return_func&);
+bool operator<(const create_and_return_func&, const create_and_return_func&);
 bool operator<(const terminate&, const terminate&);
 bool operator<(const make_function&, const make_function&);
 

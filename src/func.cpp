@@ -35,12 +35,15 @@ size_t func::body::node_count() const
                            { return a_sum + a_child.node_count(); });
 }
 
-func::func(const std::type_index& a_return_type,
-           const std::multimap<std::type_index, size_t>& a_param_types,
-           const body& a_body, const std::string& a_repr)
-    : m_return_type(a_return_type), m_param_types(a_param_types),
-      m_body(a_body), m_repr(a_repr)
+func::func(const type& a_signature, const body& a_body,
+           const std::string& a_repr)
+    : m_signature(a_signature), m_body(a_body), m_repr(a_repr)
 {
+}
+
+bool operator<(const func::param& a_lhs, const func::param& a_rhs)
+{
+    return a_lhs.m_index < a_rhs.m_index;
 }
 
 #ifdef UNIT_TEST
@@ -49,7 +52,7 @@ func::func(const std::type_index& a_return_type,
 
 void test_func_construction()
 {
-    const std::type_index l_return_type = typeid(int);
+    const type l_signature = func_type(type{"int"}, {});
     const func::body l_body{
         .m_functor =
             func::primitive{
@@ -59,9 +62,8 @@ void test_func_construction()
         .m_children = {},
     };
     const std::string l_repr = "func123";
-    func l_func{l_return_type, {}, l_body, l_repr};
-    assert(l_func.m_return_type == l_return_type);
-    assert(l_func.m_param_types.empty());
+    func l_func{l_signature, l_body, l_repr};
+    assert(l_func.m_signature == l_signature);
     assert(l_func.m_body.node_count() == 1);
     assert(std::any_cast<int>(l_func.m_body.eval(nullptr, 0)) == 10);
     assert(l_func.m_repr == l_repr);

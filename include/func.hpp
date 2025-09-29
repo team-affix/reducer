@@ -1,11 +1,10 @@
 #ifndef FUNC_HPP
 #define FUNC_HPP
 
+#include "type.hpp"
 #include <any>
 #include <functional>
-#include <map>
 #include <string>
-#include <typeindex>
 #include <variant>
 
 // contains total information about a function
@@ -39,18 +38,20 @@ struct func
         size_t node_count() const;
     };
 
-    // the parameters
-    std::type_index m_return_type;
-    std::multimap<std::type_index, size_t> m_param_types;
+    // the signature and body of the function
+    type m_signature;
     body m_body;
     std::string m_repr;
+
     // normal constructor
-    func(const std::type_index& a_return_type,
-         const std::multimap<std::type_index, size_t>& a_param_types,
-         const body& a_body, const std::string& a_repr);
+    func(const type& a_signature, const body& a_body,
+         const std::string& a_repr);
+
     // prevent copying
     func(const func&) = delete;
     func& operator=(const func&) = delete;
 };
+
+bool operator<(const func::param& a_lhs, const func::param& a_rhs);
 
 #endif

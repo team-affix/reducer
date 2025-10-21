@@ -154,7 +154,6 @@ test(ground_type) :-
     ground_type(0, ((A::b)~>c)@d),
     A == tm0.
 
-    
 
 
 
@@ -332,6 +331,55 @@ test(equivalent) :-
         (x::int)~>(y::int)~>int,
         (z::int)~>(w::int)~>int).
 
+
+
+
+test(apply) :-
+    apply(a, [], Args, Params, a),
+    Args == [],
+    Params == [].
+
+test(apply) :-
+    \+ apply(a, [], _, _, b).
+
+test(apply) :-
+    apply((a::b)~>c, [], Args, Params, (d::b)~>c),
+    Args == [],
+    Params == [].
+
+test(apply) :-
+    apply((a::b)~>c, [], Args, Params, c),
+    Args =@= [_],
+    Params == [b].
+
+test(apply) :-
+    % fails because apply calls equivalent, which fails because
+    % the lhs is nonground.
+    \+ apply((_::b)~>c, [], _, _, (a::b)~>c).
+
+test(apply) :-
+    apply((a::b)~>a, [], Args, Params, (f::b)~>X),
+    Args == [],
+    Params == [],
+    X == f.
+
+test(apply) :-
+    apply((a::b)~>a, [], Args, Params, (d::c)~>d),
+    print(Args),
+    print(Params).
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
 % test main
 :-

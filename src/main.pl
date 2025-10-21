@@ -25,11 +25,21 @@ ground_type(_, Type) :-
     atom(Type).
 
 ground_type(Index, A@B) :-
+    nonvar(A), % even though they may be nonground,
+    nonvar(B), % we need them to be nonvar for the grounding to work.
     ground_type(Index, A),
     NextIndex is Index + 1,
     ground_type(NextIndex, B).
 
 ground_type(Index, (A::B)~>C) :-
+    % B should be nonvar at this point, as:
+    %     if B was var at any point, and the whole thing is a valid type,
+    %     then B should have been bound to an earlier binder name, which
+    %     should have been made an atom by this point.
+    %     and if B is itself a function type, then it may contain
+    %     more binders, which can be variables, but it is still nonvar
+    %     as function types are compound terms.
+    nonvar(B),
     % step 1: make sure A is an atom
     binder_name(Index, A),
     % step 2: ground B.

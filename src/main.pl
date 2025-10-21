@@ -8,6 +8,28 @@
 :- op(600, xfy, ::).
 
 
+% ground_type/2
+% schema: ground_type(Env, Type)
+% Env: environment
+% Type: input type to ground.
+ground_type(Env, Type) :-
+    var(Type),
+    !,
+    length(Env, L),
+    atom_concat(bn, L, Type).
+
+ground_type(_, Type) :-
+    atom(Type).
+
+ground_type(Env, A@B) :-
+    ground_type(Env, A),
+    ground_type(Env, B).
+
+ground_type(Env, (A::B)~>C) :-
+    ground_type(Env, A),
+    ground_type(Env, B),
+    ground_type([[A|B]|Env], C).
+
 % determine if two types are equivalent up to renamings.
 % schema: equivalent(Mappings, A, B)
 % Mappings: association list of binder name mappings.
@@ -63,105 +85,144 @@ maxlevel(lsuc@X, lsuc@Y, lsuc@Z) :-
     maxlevel(X, Y, Z).
 
 
-% typecheck a list of terms and types.
-typecheck_all(_, [], []).
-typecheck_all(Limit, [X|XT], [Y|YT]) :-
-    typecheck(Limit, X, Y),
-    typecheck_all(Limit, XT, YT).
-
-
-%:- table typecheck/3.
-
-typecheck(Limit, Term, Type) :-
-    % step 1: get postulate of given type
-    postulate(PTerm, PType),
-    % step 2: determine if some application of the
-    %     postulated type produces the desired type.
-    apply(PType, [], Args, Params, Type),
-    % step 3: express the application
-    express_application(PTerm, Args, Term),
-    % step 4: check if the requirements can be met.
-    Limit > 0,
-    NewLimit is Limit - 1,
-    typecheck_all(NewLimit, Args, Params).
-
-% base cases for typechecking
-% - function types are types (so long as their components are types)
-typecheck(Limit, (_::A)~>B, set@MaxLevel) :-
-    Limit > 0,
-    NewLimit is Limit - 1,
-    typecheck(NewLimit, A, set@ALevel),
-    typecheck(NewLimit, B, set@BLevel),
-    maxlevel(ALevel, BLevel, MaxLevel).
-
-
-% make sure that the type table is cached for quick lookups.
-%:- table postulate/2.
-:- dynamic postulate/2.
-
-% postulate schema:
-% postulate(Term, Type)
-% Term: term to postulate a type for.
-% Type: type of the term.
-
-% define level constructors
-postulate(level, set@lzero).  % circular, yes I know.
-postulate(lzero, level).
-postulate(lsuc,  (l :: level) ~> level).
-
-% define set
-postulate(set, (l :: level) ~> set@(lsuc@l)).
-
-postulate(bool     , set@lzero).
-postulate(int      , set@lzero).
-postulate(double   , set@lzero).
-postulate(string   , set@lzero).
-postulate(vector   , (t :: set@lzero) ~> set@lzero). % X itself has to be a type.
-postulate(sum_type , (t :: set@lzero) ~> (x :: t) ~> set@lzero).
-postulate(map      , (k :: set@lzero) ~> (v :: set@lzero) ~> set@lzero).
-
-postulate(false                 , bool).
-postulate(true                  , bool).
-postulate(lessthan              , (lhs :: int) ~> (rhs :: int) ~> bool).
-postulate('0'                   , int).
-postulate(default_int           , int).
-postulate(square                , (x :: int) ~> int).
-postulate(suc                   , (x :: int) ~> int).
-postulate(size                  , (t :: set@lzero) ~> (v :: vector@t) ~> int).
-postulate(default_double        , double).
-postulate(default_string        , string).
-postulate(default_vector        , (t :: set@lzero) ~> vector@t).
-postulate(cons                  , (t :: set@lzero) ~> (v :: vector@t) ~> (x :: t) ~> vector@t).
-postulate(default_sum_type      , (t :: set@lzero) ~> (x :: t) ~> sum_type@t@x).
-postulate(default_map           ,
-    (k :: set@lzero) ~>
-    (v :: set@lzero) ~>
-    (compare :: (lhs :: k) ~> (rhs :: k) ~> bool) ~>
-    (default :: v) ~>
-    (kr :: strictly_ordered@k@compare) ~>
-    (vr :: default_constructable@v@default) ~>
-    map@k@v).
-
-
-% declare/3
-% schema: declare(RLimit, Term, Type)
-% declare a term and its type, given some checking recursion limit.
-declare(RLimit, Term, Type) :-
+% can_declare/4
+% schema: can_declare(Limit, Term, Type, Env)
+% Limit: recursion limit.
+% Term: term to check for declaration.
+% Type: type to check for declaration.
+% Env: environment.
+% NOTE: all declarations in env are expected to be ground.
+can_declare(Limit, Term, Type, Env) :-
     % step 1: make sure the term is an atom
     atom(Term),
     % step 2: make sure the type is ground
     ground(Type),
-    % step 3: make sure the term is not already declared.
-    \+ postulate(Term, _),
+    % step 3: make sure the term is not already part of the environment.
+    \+ member([Term|_], Env),
     % step 4: make sure the type is valid (belongs to a universe).
-    typecheck(RLimit, Type, set@L),
-    level(L),
-    % step 5: declare the term and its type.
-    assertz(postulate(Term, Type)).
+    typecheck(Limit, Env, Type, set@L),
+    level(L).
 
 
+% define declarea/4
+% NOTE: declares a term and its type at the start of the environment.
+declarea(_    , []      , Env, Env   ).
+declarea(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
+    can_declare(Limit, Term, Type, Env),
+    append([[Term|Type]], Env, TmpEnv),
+    declarea(Limit, RestDecls, TmpEnv, NewEnv).
 
-iterative_deepening_typecheck(Limit, Term, Type) :-
-    typecheck(Limit, Term, Type);
+
+% define declarez/4
+% NOTE: declares a term and its type at the end of the environment.
+declarez(_    , []      , Env, Env   ).
+declarez(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
+    can_declare(Limit, Term, Type, Env),
+    append(Env, [[Term|Type]], TmpEnv),
+    declarez(Limit, RestDecls, TmpEnv, NewEnv).
+
+
+% typecheck a list of terms and types.
+typecheck_all(_, _, [], []).
+typecheck_all(Limit, Env, [X|XT], [Y|YT]) :-
+    typecheck(Limit, Env, X, Y),
+    typecheck_all(Limit, Env, XT, YT).
+
+
+% typecheck/4
+% schema: typecheck(Limit, Env, Term, Type)
+% Limit: recursion limit.
+% Env: environment (association list of term,type pairs, including those from global signature and local context).
+% Term: term to typecheck.
+% Type: type to check against.
+% NOTE: typechecking must always yield a ground term,type pair.
+typecheck(Limit, Env, Term, Type) :-
+    % step 1: get term,type pair from environment.
+    member([PTerm|PType], Env),
+    % step 2: determine if some application of the
+    %     retrieved type produces the desired type.
+    apply(PType, [], Args, Params, Type),
+    % step 3: express the application, determining
+    %     if the retrieved term applied to args
+    %     matches the desired term.
+    express_application(PTerm, Args, Term),
+    % step 4: check if the arguments fulfill
+    %     the parameter types.
+    Limit > 0,
+    NewLimit is Limit - 1,
+    typecheck_all(NewLimit, Env, Args, Params),
+    % step 5: make sure the type is ground.
+    ground_type(Env, Type).
+
+% base cases for typechecking
+% - function types are types (so long as their components are types)
+typecheck(Limit, Env, (X::A)~>B, set@MaxLevel) :-
+    % step 1: make sure X is an atom
+    (
+        atom(X);
+        length(Env, L),
+        atom_concat(bn, L, X)
+    ),
+    % step 2: handle recursion limit
+    Limit > 0,
+    NewLimit is Limit - 1,
+    % step 3: get the left universe level, and bind A. Do not supply
+    %     A as part of the env here, as it will cause problems due
+    %     to being ungrounded. Once A is added to the env, it will
+    %     be used as the left-hand side of an equivalence and thus must
+    %     be ground by that time.
+    typecheck(NewLimit, Env, A, set@ALevel),
+    % step 4: add the term,type pair to the env.
+    %     this validates groundedness of X,A.
+    declarea(NewLimit, [[X|A]], Env, NewEnv),
+    % step 5: get the right universe level.
+    typecheck(NewLimit, NewEnv, B, set@BLevel),
+    % step 6: the pi-type has the max level of its components.
+    maxlevel(ALevel, BLevel, MaxLevel).
+
+
+% define default_environment/1
+% NOTE: this constructs an environment with all the necessary
+%     declarations for the set family of universes.
+default_environment(Env) :-
+    Env = [
+        [level|set@lzero],
+        [lzero|level],
+        [lsuc|(l::level) ~> level],
+        [set|(l::level) ~> set@(lsuc@l)]
+    ].
+
+
+my_env(Env) :-
+    default_environment(DefaultEnv),
+    declarez(10, [
+        [bool|set@lzero],
+        [int|set@lzero],
+        [double|set@lzero],
+        [string|set@lzero],
+        [vector|(t :: set@lzero) ~> set@lzero],
+        [sum_type|(t :: set@lzero) ~> (x :: t) ~> set@lzero],
+        [map|(k :: set@lzero) ~> (v :: set@lzero) ~> set@lzero],
+        [false|bool],
+        [true|bool],
+        [lessthan|(lhs :: int) ~> (rhs :: int) ~> bool],
+        ['0'|int],
+        [default_int|int],
+        [square|(x :: int) ~> int],
+        [suc|(x :: int) ~> int],
+        [size|(t :: set@lzero) ~> (v :: vector@t) ~> int],
+        [default_double|double],
+        [default_string|string],
+        [default_vector|(t :: set@lzero) ~> vector@t],
+        [cons|(t :: set@lzero) ~> (v :: vector@t) ~> (x :: t) ~> vector@t],
+        [default_sum_type|(t :: set@lzero) ~> (x :: t) ~> sum_type@t@x]
+    ], DefaultEnv, Env).
+
+
+iterative_deepening_typecheck(Limit, Env, Term, Type) :-
+    typecheck(Limit, Env, Term, Type);
     NewLimit is Limit + 1,
-    iterative_deepening_typecheck(NewLimit, Term, Type).
+    iterative_deepening_typecheck(NewLimit, Env, Term, Type).
+
+
+:- dynamic persist/1.

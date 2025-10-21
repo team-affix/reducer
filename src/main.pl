@@ -8,13 +8,13 @@
 :- op(600, xfy, ::).
 
 
-% define binder_name/2
-binder_name(_, X) :-
-    atom(X).
+% define ground_term/2
+ground_term(_, Term) :-
+    atom(Term).
 
-binder_name(Index, Name) :-
-    var(Name),
-    atom_concat(bn, Index, Name).
+ground_term(Index, Term) :-
+    var(Term),
+    atom_concat(tm, Index, Term).
 
 
 % ground_type/2
@@ -41,7 +41,7 @@ ground_type(Index, (A::B)~>C) :-
     %     as function types are compound terms.
     nonvar(B),
     % step 1: make sure A is an atom
-    binder_name(Index, A),
+    ground_term(Index, A),
     % step 2: ground B.
     ground_type(Index, B),
     % step 3: compute the next index for naming.
@@ -119,7 +119,7 @@ can_declare(Limit, Term, Type, Env) :-
     % step 1: get len of env for renaming vars to atoms.
     length(Env, NameIndex),
     % step 2: make sure the term is an atom
-    binder_name(NameIndex, Term),
+    ground_term(NameIndex, Term),
     % step 3: make sure the type is ground
     ground_type(NameIndex, Type),
     % step 4: make sure the term is not already part of the environment.

@@ -8,6 +8,13 @@
 :- op(600, xfy, ::).
 
 
+% define binder_name/2
+binder_name(_, X) :-
+    atom(X).
+binder_name(Index, Name) :-
+    var(Name),
+    atom_concat(bn, Index, Name).
+
 % ground_type/2
 % schema: ground_type(Env, Type)
 % Env: environment
@@ -23,11 +30,7 @@ ground_type(Index, A@B) :-
 
 ground_type(Index, (A::B)~>C) :-
     % step 1: make sure A is an atom
-    (
-        atom(A);
-        var(A),
-        atom_concat(bn, Index, A)
-    ),
+    binder_name(Index, A),
     % step 2: ground B.
     ground_type(Index, B),
     % step 3: compute the next index for naming.
@@ -164,11 +167,8 @@ typecheck(Limit, Env, Term, Type) :-
 % - function types are types (so long as their components are types)
 typecheck(Limit, Env, (X::A)~>B, set@MaxLevel) :-
     % step 1: make sure X is an atom
-    (
-        atom(X);
-        length(Env, L),
-        atom_concat(bn, L, X)
-    ),
+    length(Env, L),
+    binder_name(L, X),
     % step 2: handle recursion limit
     Limit > 0,
     NewLimit is Limit - 1,

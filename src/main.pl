@@ -130,7 +130,7 @@ can_declare(Limit, Term, Type, Env) :-
 
 
 % define declarea/4
-% NOTE: declares a term and its type at the start of the environment.
+% NOTE: prepends a declaration to the environment.
 declarea(_    , []      , Env, Env   ).
 declarea(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
     can_declare(Limit, Term, Type, Env),
@@ -139,7 +139,7 @@ declarea(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
 
 
 % define declarez/4
-% NOTE: declares a term and its type at the end of the environment.
+% NOTE: appends a declaration to the environment.
 declarez(_    , []      , Env, Env   ).
 declarez(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
     can_declare(Limit, Term, Type, Env),

@@ -11,15 +11,16 @@
 % define binder_name/2
 binder_name(_, X) :-
     atom(X).
+
 binder_name(Index, Name) :-
     var(Name),
     atom_concat(bn, Index, Name).
+
 
 % ground_type/2
 % schema: ground_type(Env, Type)
 % Env: environment
 % Type: input type to ground.
-
 ground_type(_, Type) :-
     atom(Type).
 
@@ -68,6 +69,7 @@ equivalent(Mappings, (N1::T1)~>R1, (N2::T2)~>R2) :-
 % schema: apply(Type, Args, Params, Result)
 apply(A, Mappings, [], [], B) :-
     equivalent(Mappings, A, B).
+
 apply((X::A)~>B, Mappings, [XY|RestArgs], [AY|RestParams], R) :-
     atom(X),
     equivalent(Mappings, A, AY),
@@ -100,17 +102,21 @@ maxlevel(lsuc@X, lsuc@Y, lsuc@Z) :-
 % Term: term to check for declaration.
 % Type: type to check for declaration.
 % Env: environment.
-% NOTE: all declarations in env are expected to be ground.
+% NOTE: all term,type pairs in env are expected to be ground.
+% NOTE: all terms will be grounded before declaration.
+% NOTE: all types will be grounded before declaration.
 can_declare(Limit, Term, Type, Env) :-
-    % step 1: make sure the term is an atom
-    atom(Term),
-    % step 2: make sure the type is ground
-    ground(Type),
-    % step 3: make sure the term is not already part of the environment.
+    % step 1: get len of env for renaming vars to atoms.
+    length(Env, NameIndex),
+    % step 2: make sure the term is an atom
+    binder_name(NameIndex, Term),
+    % step 3: make sure the type is ground
+    ground_type(NameIndex, Type),
+    % step 4: make sure the term is not already part of the environment.
     \+ member([Term|_], Env),
-    % step 4: make sure the type is valid (belongs to a universe).
-    typecheck(Limit, Env, Type, set@L),
-    level(L).
+    % step 5: make sure the type is valid (belongs to a universe).
+    typecheck(Limit, Env, Type, set@Level),
+    level(Level).
 
 
 % define declarea/4
@@ -159,31 +165,23 @@ typecheck(Limit, Env, Term, Type) :-
     %     the parameter types.
     Limit > 0,
     NewLimit is Limit - 1,
-    typecheck_all(NewLimit, Env, Args, Params),
-    % step 5: make sure the type is ground.
-    ground_type(0, Type).
+    typecheck_all(NewLimit, Env, Args, Params).
 
 % base cases for typechecking
 % - function types are types (so long as their components are types)
 typecheck(Limit, Env, (X::A)~>B, set@MaxLevel) :-
-    % step 1: make sure X is an atom
-    length(Env, L),
-    binder_name(L, X),
-    % step 2: handle recursion limit
+    % step 1: handle recursion limit
     Limit > 0,
     NewLimit is Limit - 1,
-    % step 3: get the left universe level, and bind A. Do not supply
-    %     A as part of the env here, as it will cause problems due
-    %     to being ungrounded. Once A is added to the env, it will
-    %     be used as the left-hand side of an equivalence and thus must
-    %     be ground by that time.
+    % step 2: get the left universe level, and instantiate A.
+    %     NOTE: A may be unground, but upon declaration, it will be grounded.
     typecheck(NewLimit, Env, A, set@ALevel),
-    % step 4: prepend the term,type pair to the env.
-    %     this validates groundedness of X,A.
+    % step 3: prepend the term,type pair to the env.
+    %     this grounds X,A.
     declarea(NewLimit, [[X|A]], Env, NewEnv),
-    % step 5: get the right universe level.
+    % step 4: get the right universe level.
     typecheck(NewLimit, NewEnv, B, set@BLevel),
-    % step 6: the pi-type has the max level of its components.
+    % step 5: the pi-type has the max level of its components.
     maxlevel(ALevel, BLevel, MaxLevel).
 
 

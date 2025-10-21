@@ -12,23 +12,29 @@
 % schema: ground_type(Env, Type)
 % Env: environment
 % Type: input type to ground.
-ground_type(Env, Type) :-
-    var(Type),
-    !,
-    length(Env, L),
-    atom_concat(bn, L, Type).
 
 ground_type(_, Type) :-
     atom(Type).
 
-ground_type(Env, A@B) :-
-    ground_type(Env, A),
-    ground_type(Env, B).
+ground_type(Index, A@B) :-
+    ground_type(Index, A),
+    NextIndex is Index + 1,
+    ground_type(NextIndex, B).
 
-ground_type(Env, (A::B)~>C) :-
-    ground_type(Env, A),
-    ground_type(Env, B),
-    ground_type([[A|B]|Env], C).
+ground_type(Index, (A::B)~>C) :-
+    % step 1: make sure A is an atom
+    (
+        atom(A);
+        var(A),
+        atom_concat(bn, Index, A)
+    ),
+    % step 2: ground B.
+    ground_type(Index, B),
+    % step 3: compute the next index for naming.
+    NextIndex is Index + 1,
+    % step 4: ground C.
+    ground_type(NextIndex, C).
+
 
 % determine if two types are equivalent up to renamings.
 % schema: equivalent(Mappings, A, B)
@@ -152,7 +158,7 @@ typecheck(Limit, Env, Term, Type) :-
     NewLimit is Limit - 1,
     typecheck_all(NewLimit, Env, Args, Params),
     % step 5: make sure the type is ground.
-    ground_type(Env, Type).
+    ground_type(0, Type).
 
 % base cases for typechecking
 % - function types are types (so long as their components are types)
@@ -172,7 +178,7 @@ typecheck(Limit, Env, (X::A)~>B, set@MaxLevel) :-
     %     be used as the left-hand side of an equivalence and thus must
     %     be ground by that time.
     typecheck(NewLimit, Env, A, set@ALevel),
-    % step 4: add the term,type pair to the env.
+    % step 4: prepend the term,type pair to the env.
     %     this validates groundedness of X,A.
     declarea(NewLimit, [[X|A]], Env, NewEnv),
     % step 5: get the right universe level.

@@ -386,9 +386,71 @@ test(apply) :-
 test(apply) :-
     \+ apply((a::b)~>c, [], Args, Params, (d::e)~>c).
 
-    
-    
-    
+test(apply) :-
+    apply((a::b)~>(c::d)~>e, [], Args, Params, e),
+    Args =@= [_, _],
+    Params == [b, d].
+
+test(apply) :-
+    apply((a::b)~>(c::d)~>e, [], Args, Params, (f::d)~>e),
+    Args =@= [_],
+    Params == [b].
+
+test(apply) :-
+    apply(a, [], Args, Params, X),
+    X == a.
+
+test(apply) :-
+    apply((a::b)~>c, [], Args, Params, (X::Y)~>Z),
+    Args == [],
+    Params == [],
+    var(X), % X remains unbound as it is only used as an identifier.
+    Y == b, % Y gets bound as its counterpart, b, is a concrete type
+    Z == c. % Z gets bound as its counterpart, c, is a concrete type
+
+test(apply) :-
+    apply((a::b)~>c@a, [], Args, Params, (X::b)~>Y),
+    Args == [],
+    Params == [],
+    var(X),
+    Y == c@X. % equivalent to c@a except for name (a became X)
+
+ test(apply) :-
+    apply(a@b, [], Args, Params, X),
+    Args == [],
+    Params == [],
+    X == a@b.
+
+test(apply) :-
+    apply(a@b, [], Args, Params, a@X),
+    Args == [],
+    Params == [],
+    X == b.
+
+test(apply) :-
+    apply(a@b@c, [], Args, Params, a@b@X),
+    Args == [],
+    Params == [],
+    X == c.
+
+test(apply) :-
+    apply(a@b@c, [], Args, Params, a@X@c),
+    Args == [],
+    Params == [],
+    X == b.
+
+test(apply) :-
+    apply((t::s)~>(x::t)~>sum_type@t@x, [], Args, Params, sum_type@int@zero),
+    Args == [int, zero],
+    Params == [s, int].
+
+test(apply) :-
+    apply((t::s)~>(x::t)~>sum_type@t@x, [], Args, Params, sum_type@X@Y),
+    Args = [Z|Rest],
+    Z == X,
+    Rest =@= [_],
+    Params == [s, X].
+
     
     
     

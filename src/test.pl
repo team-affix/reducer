@@ -689,8 +689,149 @@ test(can_declare) :-
     \+ can_declare(10, my_sum_val, sum_type@int@int, NewEnv).
 
 
+
+
+test(declarea) :-
+    default_environment(Env),
+    declarea(10, [], Env, NewEnv),
+    NewEnv == Env.
+
+test(declarea) :-
+    default_environment(Env),
+    % fails because the depth limit is too shallow for typechecking.
+    \+ declarea(0, [[a|level]], Env, _).
+
+test(declarea) :-
+    default_environment(Env),
+    declarea(10, [[a|level]], Env, NewEnv),
+    NewEnv == [
+        [a|level]|Env
+    ].
+
+test(declarea) :-
+    default_environment(Env),
+    declarea(10, [[a|level], [b|level]], Env, NewEnv),
+    NewEnv == [
+        [b|level],
+        [a|level]|Env
+    ].
+
+test(declarea) :-
+    default_environment(Env),
+    declarea(10, [[bool|set@lzero], [true|bool], [false|bool]], Env, NewEnv),
+    NewEnv == [
+        [false|bool],
+        [true|bool],
+        [bool|set@lzero]|Env
+    ].
+
+test(declarea) :-
+    default_environment(Env),
+    % fails as bool is not a valid type yet.
+    \+ declarea(10, [[true|bool], [false|bool], [bool|set@lzero]], Env, _).
+
+test(declarea) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [not|(x::bool)~>bool]
+    ],
+    declarea(10, Additions, Env, NewEnv),
+    reverse(Additions, ReverseAdditions),
+    append(ReverseAdditions, Env, NewEnv).
+
+test(declarea) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    declarea(10, Additions, Env, NewEnv),
+    reverse(Additions, ReverseAdditions),
+    append(ReverseAdditions, Env, NewEnv).
+
+test(declarea) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarea(10, Additions, Env, NewEnv),
+    reverse(Additions, ReverseAdditions),
+    append(ReverseAdditions, Env, NewEnv).
+
+
     
     
+test(declarez) :-
+    default_environment(Env),
+    declarez(10, [], Env, NewEnv),
+    NewEnv == Env.
+
+test(declarez) :-
+    default_environment(Env),
+    % fails because the depth limit is too shallow for typechecking.
+    \+ declarez(0, [[a|level]], Env, _).
+
+test(declarez) :-
+    default_environment(Env),
+    declarez(10, [[a|level]], Env, NewEnv),
+    append(Env, [[a|level]], NewEnv).
+
+test(declarez) :-
+    default_environment(Env),
+    declarez(10, [[a|level], [b|level]], Env, NewEnv),
+    append(Env, [[a|level], [b|level]], NewEnv).
+
+test(declarez) :-
+    default_environment(Env),
+    declarez(10, [[bool|set@lzero], [true|bool], [false|bool]], Env, NewEnv),
+    append(Env, [[bool|set@lzero], [true|bool], [false|bool]], NewEnv).
+
+test(declarez) :-
+    default_environment(Env),
+    % fails as bool is not a valid type yet.
+    \+ declarez(10, [[true|bool], [false|bool], [bool|set@lzero]], Env, _).
+
+test(declarez) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [not|(x::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    append(Env, Additions, NewEnv).
+
+test(declarez) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    append(Env, Additions, NewEnv).
+
+test(declarez) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    append(Env, Additions, NewEnv).
+
+
+
+
+
 
 % test main
 :-

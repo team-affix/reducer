@@ -675,8 +675,18 @@ test(can_declare) :-
         [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
     ],
     append(Env, Additions, NewEnv),
-    % fails as sty@t@x is not a valid type.
     can_declare(10, my_sum_val, sum_type@int@zero, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    % fails as sum_type@int@int is not a valid type.
+    \+ can_declare(10, my_sum_val, sum_type@int@int, NewEnv).
 
 
     

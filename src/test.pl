@@ -384,7 +384,7 @@ test(apply) :-
     Params == [b].
 
 test(apply) :-
-    \+ apply((a::b)~>c, [], Args, Params, (d::e)~>c).
+    \+ apply((a::b)~>c, [], _, _, (d::e)~>c).
 
 test(apply) :-
     apply((a::b)~>(c::d)~>e, [], Args, Params, e),
@@ -398,6 +398,8 @@ test(apply) :-
 
 test(apply) :-
     apply(a, [], Args, Params, X),
+    Args == [],
+    Params == [],
     X == a.
 
 test(apply) :-
@@ -448,6 +450,7 @@ test(apply) :-
     apply((t::s)~>(x::t)~>sum_type@t@x, [], Args, Params, sum_type@X@Y),
     Args = [Z|Rest],
     Z == X,
+    var(Y),
     Rest =@= [_],
     Params == [s, X].
 
@@ -456,16 +459,226 @@ test(apply) :-
     Args = [Z|Rest],
     Z == X,
     Rest =@= [_],
+    var(Y),
     Params == [s, X],
     K == sum_type.
 
+
+
+
+test(express_application) :-
+    express_application(a, [], a).
+
+test(express_application) :-
+    express_application(a, [b], a@b).
+
+test(express_application) :-
+    express_application(a, [b, c], a@b@c).
+
+test(express_application) :-
+    express_application(a, [X], a@X),
+    var(X).
+
+test(express_application) :-
+    express_application(a@b, [c], a@b@c).
+
+test(express_application) :-
+    express_application(a, [], X),
+    X == a.
+    
+test(express_application) :-
+    express_application(a, [b], X),
+    X == a@b.
+
+    
+    
+
+test(level) :-
+    level(lzero).
+
+test(level) :-
+    level(lsuc@lzero).
+
+test(level) :-
+    level(lsuc@X),
+    X == lzero.
+
+test(level) :-
+    level(lsuc@(lsuc@lzero)).
     
     
     
     
+test(maxlevel) :-
+    maxlevel(lzero, lzero, lzero).
+
+test(maxlevel) :-
+    maxlevel(lzero, lsuc@lzero, lsuc@lzero).
+
+test(maxlevel) :-
+    maxlevel(lsuc@lzero, lzero, lsuc@lzero).
+
+test(maxlevel) :-
+    maxlevel(lsuc@lzero, lsuc@lzero, lsuc@lzero).
+
+test(maxlevel) :-
+    maxlevel(lsuc@X, lzero, lsuc@X),
+    var(X).
+
+test(maxlevel) :-
+    maxlevel(lzero, lsuc@(lsuc@lzero), lsuc@(lsuc@lzero)).
+
+test(maxlevel) :-
+    maxlevel(lsuc@(lsuc@lzero), lzero, lsuc@(lsuc@lzero)).
     
+test(maxlevel) :-
+    maxlevel(lsuc@(lsuc@lzero), lsuc@(lsuc@lzero), lsuc@(lsuc@lzero)).
+
+
+
     
-    
+test(default_environment) :-
+    default_environment(Env),
+    Env == [
+        [level|set@lzero],
+        [lzero|level],
+        [lsuc|(l::level) ~> level],
+        [set|(l::level) ~> set@(lsuc@l)]
+    ].
+
+
+
+
+test(can_declare) :-
+    default_environment(Env),
+    can_declare(10, a, level, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    % fails as level2 is not a valid type.
+    \+ can_declare(10, a, level2, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    can_declare(10, a, set@lzero, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    % set already defined
+    \+ can_declare(10, set, level, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    can_declare(10, a, (l::level) ~> level, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    can_declare(10, X, level, Env),
+    X == tm4.
+
+test(can_declare) :-
+    default_environment(Env),
+    % fails as _ is not a valid type. this is because
+    %     if a variable appears in a type, it must be introduced in a binder.
+    \+ can_declare(10, a, _, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    can_declare(10, a, (l::set@lzero) ~> level, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    can_declare(10, int, set@lzero, Env).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    can_declare(10, zero, int, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    can_declare(10, square, (x::int) ~> int, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    can_declare(10, square, (X::int) ~> int, NewEnv),
+    X == tm5.
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int]
+    ],
+    append(Env, Additions, NewEnv),
+    can_declare(10, sum_type, (t::set@lzero)~>(x::t)~>set@lzero, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    can_declare(10, default_sum_type, (t::set@lzero)~>(x::t)~>sum_type@t@x, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    % fails as sum_type@t@t is not a valid type.
+    \+ can_declare(10, default_sum_type, (t::set@lzero)~>(x::t)~>sum_type@t@t, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    % fails as sum_type@x@x is not a valid type.
+    \+ can_declare(10, default_sum_type, (t::set@lzero)~>(x::t)~>sum_type@x@x, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    % fails as sty@t@x is not a valid type.
+    \+ can_declare(10, default_sum_type, (t::set@lzero)~>(x::t)~>sty@t@x, NewEnv).
+
+test(can_declare) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int],
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    append(Env, Additions, NewEnv),
+    % fails as sty@t@x is not a valid type.
+    can_declare(10, my_sum_val, sum_type@int@zero, NewEnv).
+
+
     
     
 

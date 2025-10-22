@@ -451,6 +451,14 @@ test(apply) :-
     Rest =@= [_],
     Params == [s, X].
 
+test(apply) :-
+    apply((t::s)~>(x::t)~>sum_type@t@x, [], Args, Params, K@X@Y),
+    Args = [Z|Rest],
+    Z == X,
+    Rest =@= [_],
+    Params == [s, X],
+    K == sum_type.
+
     
     
     

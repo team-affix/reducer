@@ -364,9 +364,27 @@ test(apply) :-
     X == f.
 
 test(apply) :-
+    % I originally thought it would fail, but technically,
+    %     if we partially apply the lhs with the rhs, and
+    %     the rhs is of type b, then the result should be
+    %     of type (d::b)~>d.
+    % NOTE: when partially applying ZERO times, it DOES FAIL
+    % (thus, we must apply once)
+    % NOTE: if wondering why it is weird, its because normally,
+    %     we would not have something in the form: (a::b)~>a,
+    %     since b is normally a non-universe type, making 'a' a non-type,
+    %     after which it cannot exist on the rhs of the arrow ~>.
     apply((a::b)~>a, [], Args, Params, (d::c)~>d),
-    print(Args),
-    print(Params).
+    Args == [(d::c)~>d],
+    Params == [b].
+
+test(apply) :-
+    apply((a::b)~>a, [], Args, Params, int),
+    Args == [int],
+    Params == [b].
+
+test(apply) :-
+    \+ apply((a::b)~>c, [], Args, Params, (d::e)~>c).
 
     
     

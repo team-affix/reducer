@@ -831,6 +831,316 @@ test(declarez) :-
 
 
 
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, lzero, T),
+    T == level.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    % lzero1 is not a valid term.
+    \+ typecheck(10, NewEnv, lzero1, _).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, lsuc@lzero, T),
+    T == level.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    % lzero1 is not a valid term.
+    \+ typecheck(10, NewEnv, lsuc@lzero1, _).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    % level has the wrong type for being an argument of lsuc.
+    \+ typecheck(10, NewEnv, lsuc@level, _).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, lsuc, T),
+    T =@= (_::level)~>level.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, set@lzero, T),
+    T == set@(lsuc@lzero).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, set, T),
+    T =@= (X::level)~>set@(lsuc@X).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, level, T),
+    T == set@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, level, T),
+    T == set@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, int, T),
+    T == set@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [int|set@lzero],
+        [zero|int]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, zero, T),
+    T == int.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, sum_type, T),
+    T =@= (X::set@lzero)~>(_::X)~>set@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, sum_type@level, T),
+    T =@= (_::level)~>set@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, sum_type@level@lzero, T),
+    T == set@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, default_sum_type, T),
+    T =@= (X::set@lzero)~>(Y::X)~>sum_type@X@Y.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, default_sum_type@level, T),
+    T =@= (X::level)~>sum_type@level@X.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, default_sum_type@level@lzero, T),
+    T == sum_type@level@lzero.
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(10, NewEnv, default_sum_type@level@(lsuc@lzero), T),
+    T == sum_type@level@(lsuc@lzero).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [sum_type|(t::set@lzero)~>(x::t)~>set@lzero],
+        [default_sum_type|(t::set@lzero)~>(x::t)~>sum_type@t@x]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    % level has the wrong type for being an argument of lsuc.
+    \+ typecheck(10, NewEnv, default_sum_type@level@(lsuc@level), _).
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    findall(V, typecheck(10, NewEnv, V, bool), Vs),
+    Vs == [false, true].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [not|(x::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    findall(V, typecheck(2, NewEnv, V, bool), Vs),
+    Vs == [false, true, not@false, not@true].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [and|(x::bool)~>(y::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    findall(V, typecheck(2, NewEnv, V, bool), Vs),
+    Vs == [false, true, and@false@false, and@false@true, and@true@false, and@true@true].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [int|set@lzero],
+        [zero|int],
+        [func|(x::int)~>(y::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    findall(V, typecheck(2, NewEnv, V, bool), Vs),
+    Vs == [
+        false,
+        true,
+        func@zero@false,
+        func@zero@true
+    ].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [int|set@lzero],
+        [zero|int],
+        [succ|(x::int)~>int],
+        [func|(x::int)~>(y::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    % partial application!
+    findall(V, typecheck(3, NewEnv, V, (z::bool)~>bool), Vs),
+    Vs == [
+        func@zero,
+        func@(succ@zero)
+    ].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [int|set@lzero],
+        [zero|int],
+        [succ|(x::int)~>int],
+        [func|(x::int)~>(y::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    findall(V, typecheck(3, NewEnv, V, (z::int)~>(w::bool)~>bool), Vs),
+    Vs == [
+        func
+    ].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [int|set@lzero],
+        [zero|int],
+        [succ|(x::int)~>int],
+        [func|(x::int)~>(y::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    findall(V, typecheck(3, NewEnv, V, (_::int)~>(_::bool)~>bool), Vs),
+    Vs == [
+        func
+    ].
+
+test(typecheck) :-
+    default_environment(Env),
+    Additions = [
+        [bool|set@lzero],
+        [false|bool],
+        [true|bool],
+        [int|set@lzero],
+        [zero|int],
+        [succ|(x::int)~>int],
+        [func|(x::int)~>(y::bool)~>bool]
+    ],
+    declarez(10, Additions, Env, NewEnv),
+    typecheck(3, NewEnv, func@zero, T),
+    T =@= (_::bool)~>bool.
+
+
+
 
 
 % test main

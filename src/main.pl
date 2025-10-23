@@ -7,24 +7,31 @@
 % helper operator for representing named types.
 :- op(600, xfy, ::).
 
+% helper operator for representing function definitions.
+:- op(650, fy, lambda).
+
 
 % define ground_term/2
-ground_term(_, Term) :-
-    atom(Term).
-
+% schema: ground_term(!Index, ?>!Term)
 ground_term(Index, Term) :-
+    number(Index),
+    atom(Term).
+ground_term(Index, Term) :-
+    number(Index),
     var(Term),
     atom_concat(tm, Index, Term).
 
 
 % ground_type/2
-% schema: ground_type(Env, Type)
+% schema: ground_type(!Index, ?>!Type)
 % Env: environment
 % Type: input type to ground.
-ground_type(_, Type) :-
+ground_type(Index, Type) :-
+    number(Index),
     atom(Type).
 
 ground_type(Index, A@B) :-
+    number(Index),
     nonvar(A), % even though they may be nonground,
     nonvar(B), % we need them to be nonvar for the grounding to work.
     ground_type(Index, A),
@@ -32,6 +39,7 @@ ground_type(Index, A@B) :-
     ground_type(NextIndex, B).
 
 ground_type(Index, (A::B)~>C) :-
+    number(Index),
     % B should be nonvar at this point, as:
     %     if B was var at any point, and the whole thing is a valid type,
     %     then B should have been bound to an earlier binder name, which
@@ -104,6 +112,46 @@ maxlevel(lzero, lsuc@X, lsuc@X).
 maxlevel(lsuc@X, lzero, lsuc@X).
 maxlevel(lsuc@X, lsuc@Y, lsuc@Z) :-
     maxlevel(X, Y, Z).
+
+
+% define reduce/3
+reduce(Defs, A@B, R) :-
+    % A needs reducing
+    reduce(Defs, A, AR),
+    A \= AR,
+    !,
+    reduce(Defs, AR@B, R).
+
+reduce(Defs, A@B, R) :-
+    % B needs reducing
+    reduce(Defs, B, BR),
+    B \= BR,
+    !,
+    reduce(Defs, A@BR, R).
+
+reduce(Defs, (A::B)~>C, R) :-
+    % B needs reducing
+    reduce(Defs, B, BR),
+    B \= BR,
+    !,
+    reduce(Defs, (A::BR)~>C, R).
+
+reduce(Defs, (A::B)~>C, R) :-
+    % C needs reducing
+    reduce(Defs, C, CR),
+    C \= CR,
+    !,
+    reduce(Defs, (A::B)~>CR, R).
+
+reduce(Defs, A, BR) :-
+    member([A|B], Defs),
+    reduce(Defs, B, BR),
+    !.
+    
+reduce(Defs, A, A) :-
+    \+ member([A|_], Defs),
+    !.
+    
 
 
 % can_declare/4

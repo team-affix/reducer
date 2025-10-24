@@ -1,12 +1,12 @@
 %%%%%%%%
-% unit test file for the main.pl file.
+% unit test file for the modular type checker.
 %%%%%%%%
 
 %%%%%%%
 % Test helpers listed here
 %%%%%%%
 
-:- consult(main).
+:- ensure_loaded(examples).
 
 %%%%%%%
 % Test cases listed here

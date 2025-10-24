@@ -39,6 +39,7 @@ reduce(NI, NewNI, Defs, A~>B, X~>Y) :-
     %     and reduce the body.
     reduce(NI2, NewNI, [[A|X]|Defs], B, Y).
 
+% beta reduction
 reduce(NI, NewNI, Defs, (A~>B)@C, R) :-
     % if we make it here, then
     %     this is the only way to reduce the lhs
@@ -50,6 +51,21 @@ reduce(NI, NewNI, Defs, (A~>B)@C, R) :-
     % append the new alpha-equivalence mapping to the defs
     %     and reduce the body.
     reduce(NI1, NewNI, [[A|C]|Defs], B, R).
+
+% cond reduction
+reduce(NI, NewNI, Defs, A?B=>C//D, R) :-
+    % if we make it here, then
+    %     this is the only way to reduce the lhs
+    !,
+    % reduce A
+    reduce(NI, NI1, Defs, A, AR),
+    % reduce B
+    reduce(NI1, NI2, Defs, B, BR),
+    % reduce C if A and B reduce to the same term
+    AR == BR -> reduce(NI2, NewNI, Defs, C, R)
+    ;
+    % reduce D
+    reduce(NI2, NewNI, Defs, D, R).
 
 reduce(NI, NewNI, Defs, A@B, R) :-
     % reduce A

@@ -115,6 +115,7 @@ maxlevel(lsuc@X, lsuc@Y, lsuc@Z) :-
 
 
 % define reduce/3
+
 reduce(Defs, A@B, R) :-
     % A needs reducing
     reduce(Defs, A, AR),
@@ -143,6 +144,14 @@ reduce(Defs, (A::B)~>C, R) :-
     !,
     reduce(Defs, (A::B)~>CR, R).
 
+% Beta reduction: ((X::Type)~>Body) @ Arg reduces to Body[X := Arg]
+reduce(Defs, ((X::Type)~>Body)@Arg, R) :-
+    nonvar(Type),
+    !,
+    % Use apply to perform substitution
+    apply((X::Type)~>Body, [], [Arg], [Type], Substituted),
+    reduce(Defs, Substituted, R).
+
 reduce(Defs, A, BR) :-
     member([A|B], Defs),
     reduce(Defs, B, BR),
@@ -152,7 +161,6 @@ reduce(Defs, A, A) :-
     \+ member([A|_], Defs),
     !.
     
-
 
 % can_declare/4
 % schema: can_declare(Limit, Term, Type, Env)
@@ -241,6 +249,23 @@ typecheck(Limit, Env, (X::A)~>B, set@MaxLevel) :-
     typecheck(NewLimit, NewEnv, B, set@BLevel),
     % step 5: the pi-type has the max level of its components.
     maxlevel(ALevel, BLevel, MaxLevel).
+
+% base cases for typechecking
+% - function definitions have function types
+typecheck(Limit, Env, (X::A)~>B, (X::A)~>BType) :-
+    % step 1: handle recursion limit
+    Limit > 0,
+    NewLimit is Limit - 1,
+    % step 2: get the left universe level, and instantiate A.
+    %     NOTE: A may be unground, but upon declaration, it will be grounded.
+    typecheck(NewLimit, Env, A, set@ALevel),
+    % step 3: prepend the term,type pair to the env.
+    %     this grounds X,A.
+    declarea(NewLimit, [[X|A]], Env, NewEnv),
+    % step 4: get the body type.
+    typecheck(NewLimit, NewEnv, B, BType),
+    % step 5: the body must not be a type.
+    BType \= set@_.
 
 
 % define default_environment/1

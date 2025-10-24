@@ -1072,6 +1072,7 @@ test(typecheck) :-
     ].
 
 test(typecheck) :-
+    print("24?"),
     default_environment(Env),
     Additions = [
         [bool|set@lzero],
@@ -1085,6 +1086,7 @@ test(typecheck) :-
     declarez(10, Additions, Env, NewEnv),
     % partial application!
     findall(V, typecheck(3, NewEnv, V, (z::bool)~>bool), Vs),
+    print(Vs),
     Vs == [
         func@zero,
         func@(succ@zero)

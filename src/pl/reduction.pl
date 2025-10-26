@@ -6,6 +6,13 @@
 % expression reducer
 :- table reduce/5.
 
+% early checks
+reduce(NI, _, Defs, A, _) :-
+    assertion(number(NI)),
+    assertion(is_list(Defs)),
+    assertion(ground(A)),
+    fail.
+
 % function signature reduction
 reduce(NI, NewNI, Defs, (A::B)~>C, (X::Y)~>Z) :-
     % if we make it here, then

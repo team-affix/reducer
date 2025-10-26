@@ -6,6 +6,12 @@
 % determine if two types are equivalent up to renamings.
 :- table equivalent/3.
 
+equivalent(_, A, A) :-
+    % if they are exactly the same, dont bother reducing.
+    % (this handles the case where lhs xor rhs are variable)
+    ground(A),
+    !.
+
 equivalent(Defs, A, B) :-
     % reduce A and B
     reduce(Defs, A, AR),

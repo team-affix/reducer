@@ -1,34 +1,46 @@
 :- ensure_loaded(syntax).
-:- ensure_loaded(grounding).
 :- ensure_loaded(application).
 :- ensure_loaded(universes).
-
-
-% Forward declaration - environment.pl will define these
-:- discontiguous declarea/4.
-:- discontiguous can_declare/4.
-
+:- ensure_loaded(environment).
+:- ensure_loaded(variable).
+:- use_module(library(error)).
 
 % typecheck a list of terms and types.
-typecheck_all(_, _, [], []).
-typecheck_all(Limit, Env, [X|XT], [Y|YT]) :-
-    typecheck(Limit, Env, X, Y),
-    typecheck_all(Limit, Env, XT, YT).
+typecheck_all(_, _, _, [], []) :-
+    !.
+typecheck_all(Limit, Gamma, Rho, [X|XT], [Y|YT]) :-
+    typecheck(Limit, Gamma, Rho, X, Y),
+    typecheck_all(Limit, Gamma, Rho, XT, YT).
 
 
-% typecheck/4
-% schema: typecheck(Limit, Env, Term, Type)
+% typecheck/5
+% schema: typecheck(Limit, Gamma, Rho, Term, Type)
 % Limit: recursion limit.
-% Env: environment (association list of term,type pairs, including those from global signature and local context).
+% Gamma: type environment
+%     (association list of term,type pairs,
+%     including those from global signature and local context).
+% Rho: definition environment
+%     (association list of term,definition pairs).
 % Term: term to typecheck.
 % Type: type to check against.
 % NOTE: typechecking must always yield a ground term,type pair.
-typecheck(Limit, Env, Term, Type) :-
+
+% early checks
+typecheck(Limit, Gamma, Rho, _, _) :-
+    assertion(number(Limit)),
+    assertion(is_list(Gamma)),
+    assertion(is_list(Rho)),
+    fail.
+
+% standard case, lookup term,type pair from environment and
+%     determine if some application of the retrieved type
+%     produces the desired type.
+typecheck(Limit, Gamma, Rho, Term, Type) :-
     % step 1: get term,type pair from environment.
-    member([PTerm|PType], Env),
+    member([PTerm|PType], Gamma),
     % step 2: determine if some application of the
     %     retrieved type produces the desired type.
-    apply(PType, [], Args, Params, Type),
+    apply(PType, Rho, Args, Params, Type),
     % step 3: express the application, determining
     %     if the retrieved term applied to args
     %     matches the desired term.
@@ -37,45 +49,49 @@ typecheck(Limit, Env, Term, Type) :-
     %     the parameter types.
     Limit > 0,
     NewLimit is Limit - 1,
-    typecheck_all(NewLimit, Env, Args, Params).
+    typecheck_all(NewLimit, Gamma, Rho, Args, Params).
 
 % base cases for typechecking
 % - function types are types (so long as their components are types)
-typecheck(Limit, Env, (X::A)~>B, set@MaxLevel) :-
+typecheck(Limit, Gamma, Rho, (X::A)~>B, set@MaxLevel) :-
     % step 1: handle recursion limit
     Limit > 0,
     NewLimit is Limit - 1,
     % step 2: get the left universe level, and instantiate A.
     %     NOTE: A may be unground, but upon declaration, it will be grounded.
-    typecheck(NewLimit, Env, A, set@ALevel),
+    typecheck(NewLimit, Gamma, Rho, A, set@ALevel),
     % step 3: prepend the term,type pair to the env.
     %     this grounds X,A.
-    declarea(NewLimit, [[X|A]], Env, NewEnv),
+    declarea(NewLimit, [[X|A]], Gamma, NewGamma),
     % step 4: get the right universe level.
-    typecheck(NewLimit, NewEnv, B, set@BLevel),
+    typecheck(NewLimit, NewGamma, Rho, B, set@BLevel),
     % step 5: the pi-type has the max level of its components.
     maxlevel(ALevel, BLevel, MaxLevel).
 
 % base cases for typechecking
 % - function definitions have function types
-typecheck(Limit, Env, (X::A)~>B, (X::A)~>BType) :-
+typecheck(Limit, Gamma, Rho, A~>B, (X::AType)~>BType) :-
     % step 1: handle recursion limit
     Limit > 0,
     NewLimit is Limit - 1,
     % step 2: get the left universe level, and instantiate A.
     %     NOTE: A may be unground, but upon declaration, it will be grounded.
-    typecheck(NewLimit, Env, A, set@ALevel),
-    % step 3: prepend the term,type pair to the env.
+    typecheck(NewLimit, Gamma, Rho, AType, set@_),
+    % step 3: make sure A is grounded.
+    (atom(A), !; next_variable(A)),
+    % step 4: make sure X is grounded.
+    (atom(X), !; next_variable(X)),
+    % step 5: prepend the term,type pair to the env.
     %     this grounds X,A.
-    declarea(NewLimit, [[X|A]], Env, NewEnv),
-    % step 4: get the body type.
-    typecheck(NewLimit, NewEnv, B, BType),
-    % step 5: the body must not be a type.
+    declarea(NewLimit, [[A|AType]], Gamma, NewGamma),
+    % step 6: get the body type.
+    typecheck(NewLimit, NewGamma, Rho, B, BType),
+    % step 7: the body must not be a type.
     BType \= set@_.
 
 
-iterative_deepening_typecheck(Limit, Env, Term, Type) :-
-    typecheck(Limit, Env, Term, Type);
+iterative_deepening_typecheck(Limit, Gamma, Rho, Term, Type) :-
+    typecheck(Limit, Gamma, Rho, Term, Type);
     NewLimit is Limit + 1,
-    iterative_deepening_typecheck(NewLimit, Env, Term, Type).
+    iterative_deepening_typecheck(NewLimit, Gamma, Rho, Term, Type).
 

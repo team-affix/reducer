@@ -3,7 +3,7 @@
 
 my_env(Env) :-
     default_environment(DefaultEnv),
-    declarez(10, [
+    declarez(10, DefaultEnv, [], [
         [bool|set@lzero],
         [int|set@lzero],
         [double|set@lzero],
@@ -24,5 +24,5 @@ my_env(Env) :-
         [default_vector|(t :: set@lzero) ~> vector@t],
         [cons|(t :: set@lzero) ~> (v :: vector@t) ~> (x :: t) ~> vector@t],
         [default_sum_type|(t :: set@lzero) ~> (x :: t) ~> sum_type@t@x]
-    ], DefaultEnv, Env).
+    ], Env).
 

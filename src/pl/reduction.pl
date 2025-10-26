@@ -10,6 +10,43 @@ reduce(NI, NewNI, Defs, (A::B)~>C, (X::Y)~>Z) :-
     % if we make it here, then
     %     this is the only way to reduce the lhs
     !,
+    reduce_function_signature(NI, NewNI, Defs, (A::B)~>C, (X::Y)~>Z).
+
+% function definition reduction
+reduce(NI, NewNI, Defs, A~>B, X~>Y) :-
+    % if we make it here, then
+    %     this is the only way to reduce the lhs
+    !,
+    reduce_function_definition(NI, NewNI, Defs, A~>B, X~>Y).
+    
+% function application reduction
+reduce(NI, NewNI, Defs, A@B, R) :-
+    % if we make it here, then
+    %     this is the only way to reduce the lhs
+    !,
+    reduce_function_application(NI, NewNI, Defs, A@B, R).
+
+% cond reduction
+reduce(NI, NewNI, Defs, A?B, R) :-
+    % if we make it here, then
+    %     this is the only way to reduce the lhs
+    !,
+    reduce_cond(NI, NewNI, Defs, A?B, R).
+
+% delta reduction
+reduce(NI, NewNI, Defs, A, BR) :-
+    member([A|B], Defs),
+    !,
+    reduce(NI, NewNI, Defs, B, BR).
+    
+% base case for reduction
+reduce(NI, NI, _, A, A).
+
+
+% function signature reducer
+:- table reduce_function_signature/5.
+
+reduce_function_signature(NI, NewNI, Defs, (A::B)~>C, (X::Y)~>Z) :-
     % make sure A is not already defined
     \+ member([A|_], Defs),
     % ground A
@@ -24,8 +61,11 @@ reduce(NI, NewNI, Defs, (A::B)~>C, (X::Y)~>Z) :-
     %     and reduce the body.
     reduce(NI4, NewNI, [[A|X]|Defs], C, Z).
 
-% function definition reduction
-reduce(NI, NewNI, Defs, A~>B, X~>Y) :-
+
+% function definition reducer
+:- table reduce_function_definition/5.
+
+reduce_function_definition(NI, NewNI, Defs, A~>B, X~>Y) :-
     % if we make it here, then
     %     this is the only way to reduce the lhs
     !,
@@ -38,9 +78,13 @@ reduce(NI, NewNI, Defs, A~>B, X~>Y) :-
     % append the new alpha-equivalence mapping to the defs
     %     and reduce the body.
     reduce(NI2, NewNI, [[A|X]|Defs], B, Y).
-    
-% function application reduction if lhs becomes a function definition
-reduce(NI, NewNI, Defs, A@B, R) :-
+
+
+% function application reducer
+:- table reduce_function_application/5.
+
+% if lhs becomes a function definition
+reduce_function_application(NI, NewNI, Defs, A@B, R) :-
     % reduce A
     reduce(NI, NI1, Defs, A, X~>Y),
     !,
@@ -49,18 +93,19 @@ reduce(NI, NewNI, Defs, A@B, R) :-
     % then beta-reduce
     reduce(NI2, NewNI, [[X|BR]|Defs], Y, R).
 
-% function application reduction if lhs does not become a function definition
-reduce(NI, NewNI, Defs, A@B, X@Y) :-
-    % if we make it here, then
-    %     this is the only way to reduce the lhs
-    !,
+% if lhs does not become a function definition
+reduce_function_application(NI, NewNI, Defs, A@B, X@Y) :-
     % reduce A
     reduce(NI, NI1, Defs, A, X),
     % reduce B
     reduce(NI1, NewNI, Defs, B, Y).
 
-% cond reduction, if eval succeeds
-reduce(NI, NewNI, Defs, A?B, R) :-
+
+% cond reducer
+:- table reduce_cond/5.
+
+% if eval succeeds
+reduce_cond(NI, NewNI, Defs, A?B, R) :-
     % reduce A
     reduce(NI, NI1, Defs, A, AR),
     % reduce B
@@ -68,28 +113,17 @@ reduce(NI, NewNI, Defs, A?B, R) :-
     eval_cond_body(NI2, NewNI, Defs, AR, BR, R),
     !.
 
-% cond reduction, if eval fails
-reduce(NI, NewNI, Defs, A?B, X?Y) :-
-    % if we make it here, then
-    %     this is the only way to reduce the lhs
-    !,
+% if eval fails
+reduce_cond(NI, NewNI, Defs, A?B, X?Y) :-
     % reduce A
     reduce(NI, NI1, Defs, A, X),
     % reduce B
     reduce_cond_body(NI1, NewNI, Defs, B, Y).
 
-% delta reduction if term defined
-reduce(NI, NewNI, Defs, A, BR) :-
-    member([A|B], Defs),
-    !,
-    reduce(NI, NewNI, Defs, B, BR).
-    
-% delta reduction if term undefined
-reduce(NI, NI, _, A, A).
-
 
 % cond body reducer
 :- table reduce_cond_body/5.
+
 reduce_cond_body(NI, NI, _, end, end).
 reduce_cond_body(NI, NewNI, Defs, B=>C//D, BR=>CR//DR) :-
     !,

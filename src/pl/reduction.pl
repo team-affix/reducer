@@ -1,9 +1,10 @@
 :- ensure_loaded(syntax).
 :- ensure_loaded(grounding).
+:- ensure_loaded(copy).
 
+
+% expression reducer
 :- table reduce/5.
-
-% define reduce/5
 
 % function signature reduction
 reduce(NI, NewNI, Defs, (A::B)~>C, (X::Y)~>Z) :-
@@ -37,7 +38,8 @@ reduce(NI, NewNI, Defs, A?B, R) :-
 reduce(NI, NewNI, Defs, A, BR) :-
     member([A|B], Defs),
     !,
-    reduce(NI, NewNI, Defs, B, BR).
+    copy_expr(NI, NI1, [], B, BC),
+    reduce(NI1, NewNI, Defs, BC, BR).
     
 % base case for reduction
 reduce(NI, NI, _, A, A).

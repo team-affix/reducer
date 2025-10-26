@@ -17,9 +17,9 @@ can_declare(Limit, Term, Type, Env) :-
     % step 1: get len of env for renaming vars to atoms.
     length(Env, NameIndex),
     % step 2: make sure the term is an atom
-    ground_term(NameIndex, Term),
+    atom(Term),
     % step 3: make sure the type is ground
-    ground_type(NameIndex, Type),
+    ground(Type),
     % step 4: make sure the term is not already part of the environment.
     \+ member([Term|_], Env),
     % step 5: make sure the type is valid (belongs to a universe).

@@ -15,16 +15,16 @@
 % NOTE: all types will be grounded before declaration.
 assert_declarable(Limit, Term, Type, Env) :-
     % step 1: get len of env for renaming vars to atoms.
-    length(Env, NameIndex),
+    length(Env, NameIndex), % TODO: this is not needed.
     % step 2: make sure the term is an atom
-    atom(Term),
+    assertion(atom(Term)),
     % step 3: make sure the type is ground
-    ground(Type),
+    assertion(ground(Type)),
     % step 4: make sure the term is not already part of the environment.
-    \+ member([Term|_], Env),
+    assertion(\+ member([Term|_], Env)),
     % step 5: make sure the type is valid (belongs to a universe).
-    typecheck(Limit, Env, Type, set@Level),
-    level(Level).
+    assertion(typecheck(Limit, Env, Type, set@Level)),
+    assertion(level(Level)).
 
 
 % define declarea/4

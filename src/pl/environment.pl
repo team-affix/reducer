@@ -13,7 +13,7 @@
 % NOTE: all term,type pairs in env are expected to be ground.
 % NOTE: all terms will be grounded before declaration.
 % NOTE: all types will be grounded before declaration.
-can_declare(Limit, Term, Type, Env) :-
+assert_declarable(Limit, Term, Type, Env) :-
     % step 1: get len of env for renaming vars to atoms.
     length(Env, NameIndex),
     % step 2: make sure the term is an atom
@@ -31,7 +31,7 @@ can_declare(Limit, Term, Type, Env) :-
 % NOTE: prepends a declaration to the environment.
 declarea(_    , []      , Env, Env   ).
 declarea(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
-    can_declare(Limit, Term, Type, Env),
+    assert_declarable(Limit, Term, Type, Env),
     append([[Term|Type]], Env, TmpEnv),
     declarea(Limit, RestDecls, TmpEnv, NewEnv).
 
@@ -40,7 +40,7 @@ declarea(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
 % NOTE: appends a declaration to the environment.
 declarez(_    , []      , Env, Env   ).
 declarez(Limit, [[Term|Type]|RestDecls], Env, NewEnv) :-
-    can_declare(Limit, Term, Type, Env),
+    assert_declarable(Limit, Term, Type, Env),
     append(Env, [[Term|Type]], TmpEnv),
     declarez(Limit, RestDecls, TmpEnv, NewEnv).
 

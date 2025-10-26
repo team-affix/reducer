@@ -9,7 +9,7 @@ ground_term(Index, Index, Term) :-
 ground_term(Index, NewIndex, Term) :-
     number(Index),
     var(Term),
-    atom_concat(tm, Index, Term),
+    atom_concat(var, Index, Term),
     NewIndex is Index + 1.
 
 

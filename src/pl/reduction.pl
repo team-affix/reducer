@@ -54,7 +54,9 @@ reduce(Defs, A, BR) :-
     reduce(Defs, BC, BR).
     
 % base case for reduction
-reduce(_, A, A).
+reduce(_, A, A) :-
+    % A must be an atom
+    assertion(atom(A)).
 
 
 % function signature reducer

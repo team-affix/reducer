@@ -7,10 +7,17 @@
 % NOTE: NOT TABLED, USES GLOBAL VARIABLE INDEX
 
 % early checks
-copy_expr(Renames, A, _) :-
+copy_expr(Renames, _, _) :-
     assertion(is_list(Renames)),
-    assertion(ground(A)),
+    assertion(ground(Renames)),
     fail.
+
+% delay copy until possible
+copy_expr(Renames, A, X) :-
+    var(A),
+    var(X),
+    !,
+    when((nonvar(A);nonvar(X)), copy_expr(Renames, A, X)).
 
 % copy a function signature
 copy_expr(Renames, (A::B)~>C, (X::Y)~>Z) :-
@@ -18,9 +25,9 @@ copy_expr(Renames, (A::B)~>C, (X::Y)~>Z) :-
     copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z).
 
 % copy a function definition
-copy_expr(Renames, A~>B, X~>Y) :-
+copy_expr(Renames, A~~>B, X~~>Y) :-
     !,
-    copy_function_definition(Renames, A~>B, X~>Y).
+    copy_function_definition(Renames, A~~>B, X~~>Y).
 
 % copy function application
 copy_expr(Renames, A@B, X@Y) :-
@@ -34,8 +41,8 @@ copy_expr(Renames, A?B, X?Y) :-
 
 % copy a renamed atom
 copy_expr(Renames, A, X) :-
-    % make sure A is an atom
-    assertion(atom(A)),
+    % make sure either A or X is an atom
+    assertion(atom(A);atom(X)),
     % get the rename for A
     member([A|X], Renames),
     !.
@@ -49,10 +56,12 @@ copy_expr(_, A, A) :-
 % copy a function signature
 
 copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z) :-
-    % make sure A is not already renamed
+    % make sure both vars are atoms
+    (atom(A),!;next_variable(A)),
+    (atom(X),!;next_variable(X)),
+    % make sure A and X are not already renamed
     assertion(\+ member([A|_], Renames)),
-    % create new variable name
-    next_variable(X),
+    assertion(\+ member([_|X], Renames)),
     % copy B
     copy_expr(Renames, B, Y),
     % copy C
@@ -61,11 +70,13 @@ copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z) :-
 
 % copy a function definition
 
-copy_function_definition(Renames, A~>B, X~>Y) :-
-    % make sure A is not already renamed
+copy_function_definition(Renames, A~~>B, X~~>Y) :-
+    % make sure both vars are atoms
+    (atom(A),!;next_variable(A)),
+    (atom(X),!;next_variable(X)),
+    % make sure A and X are not already renamed
     assertion(\+ member([A|_], Renames)),
-    % create new variable name
-    next_variable(X),
+    assertion(\+ member([_|X], Renames)),
     % copy B
     copy_expr([[A|X]|Renames], B, Y).
 

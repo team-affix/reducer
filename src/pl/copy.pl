@@ -21,44 +21,43 @@ copy_expr(Renames, A, X) :-
 
 % copy a function signature
 copy_expr(Renames, (A::B)~>C, (X::Y)~>Z) :-
-    !,
     copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z).
 
 % copy a function definition
 copy_expr(Renames, A~~>B, X~~>Y) :-
-    !,
     copy_function_definition(Renames, A~~>B, X~~>Y).
 
 % copy function application
 copy_expr(Renames, A@B, X@Y) :-
-    !,
     copy_function_application(Renames, A@B, X@Y).
 
 % copy cond
 copy_expr(Renames, A?B, X?Y) :-
-    !,
     copy_cond(Renames, A?B, X?Y).
 
 % copy a renamed atom
 copy_expr(Renames, A, X) :-
     % make sure either A or X is an atom
-    assertion(atom(A);atom(X)),
+    (atom(A);atom(X)),
     % get the rename for A
     member([A|X], Renames),
     !.
 
 % copy an unrenamed atom
-copy_expr(_, A, A) :-
+copy_expr(Renames, A, A) :-
     % make sure A is an atom
-    assertion(atom(A)).
+    atom(A),
+    % make sure A is not already renamed
+    \+ member([A|_], Renames),
+    \+ member([_|A], Renames).
 
 
 % copy a function signature
 
 copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z) :-
     % make sure both vars are atoms
-    (atom(A),!;next_variable(A)),
-    (atom(X),!;next_variable(X)),
+    (atom(A);next_variable(A)),
+    (atom(X);next_variable(X)),
     % make sure A and X are not already renamed
     assertion(\+ member([A|_], Renames)),
     assertion(\+ member([_|X], Renames)),
@@ -72,8 +71,8 @@ copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z) :-
 
 copy_function_definition(Renames, A~~>B, X~~>Y) :-
     % make sure both vars are atoms
-    (atom(A),!;next_variable(A)),
-    (atom(X),!;next_variable(X)),
+    (atom(A);next_variable(A)),
+    (atom(X);next_variable(X)),
     % make sure A and X are not already renamed
     assertion(\+ member([A|_], Renames)),
     assertion(\+ member([_|X], Renames)),
@@ -101,8 +100,7 @@ copy_cond(Renames, A?B, X?Y) :-
 
 % copy a cond body
 
-copy_cond_body(_, end, end) :-
-    !.
+copy_cond_body(_, end, end).
 
 copy_cond_body(Renames, A=>B//C, X=>Y//Z) :-
     % copy A

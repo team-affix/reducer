@@ -4,7 +4,7 @@
 
 
 % expression reducer
-:- table reduce/3.
+% NOTE: NOT TABLED, USES GLOBAL VARIABLE INDEX
 
 % early checks
 reduce(Defs, A, _) :-
@@ -20,11 +20,11 @@ reduce(Defs, (A::B)~>C, (X::Y)~>Z) :-
     reduce_function_signature(Defs, (A::B)~>C, (X::Y)~>Z).
 
 % function definition reduction
-reduce(Defs, A~>B, X~>Y) :-
+reduce(Defs, A~~>B, X~~>Y) :-
     % if we make it here, then
     %     this is the only way to reduce the lhs
     !,
-    reduce_function_definition(Defs, A~>B, X~>Y).
+    reduce_function_definition(Defs, A~~>B, X~~>Y).
     
 % function application reduction
 reduce(Defs, A@B, R) :-
@@ -60,7 +60,6 @@ reduce(_, A, A) :-
 
 
 % function signature reducer
-:- table reduce_function_signature/3.
 
 reduce_function_signature(Defs, (A::B)~>C, (A::Y)~>Z) :-
     % reduce B
@@ -70,20 +69,18 @@ reduce_function_signature(Defs, (A::B)~>C, (A::Y)~>Z) :-
 
 
 % function definition reducer
-:- table reduce_function_definition/3.
 
-reduce_function_definition(Defs, A~>B, A~>Y) :-
+reduce_function_definition(Defs, A~~>B, A~~>Y) :-
     % reduce the body.
     reduce(Defs, B, Y).
 
 
 % function application reducer
-:- table reduce_function_application/3.
 
 % if lhs becomes a function definition
 reduce_function_application(Defs, A@B, R) :-
     % reduce A
-    reduce(Defs, A, X~>Y),
+    reduce(Defs, A, X~~>Y),
     !,
     % make sure X is not already defined
     assertion(\+ member([X|_], Defs)),
@@ -101,7 +98,6 @@ reduce_function_application(Defs, A@B, X@Y) :-
 
 
 % cond reducer
-:- table reduce_cond/3.
 
 % if eval succeeds
 reduce_cond(Defs, A?B, R) :-
@@ -121,9 +117,9 @@ reduce_cond(Defs, A?B, X?Y) :-
 
 
 % cond body reducer
-:- table reduce_cond_body/3.
 
-reduce_cond_body(_, end, end).
+reduce_cond_body(_, end, end) :-
+    !.
 reduce_cond_body(Defs, B=>C//D, BR=>CR//DR) :-
     !,
     reduce(Defs, B, BR),
@@ -131,7 +127,6 @@ reduce_cond_body(Defs, B=>C//D, BR=>CR//DR) :-
     reduce_cond_body(Defs, D, DR).
 
 % cond body evaluation
-:- table eval_cond_body/4.
 eval_cond_body(Defs, AR, B=>C//_, CR) :-
     equivalent(Defs, AR, B),
     !,

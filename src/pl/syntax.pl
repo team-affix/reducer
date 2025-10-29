@@ -16,3 +16,5 @@
 % helper operator for representing named types.
 :- op(605, xfy, ::).
 
+% helper operator for representing function definitions.
+:- op(606, xfy, ~~>).

@@ -7,45 +7,42 @@
 % NOTE: NOT TABLED, USES GLOBAL VARIABLE INDEX
 
 % early checks
-copy_expr(Renames, _, _) :-
-    assertion(is_list(Renames)),
-    assertion(ground(Renames)),
-    fail.
-
-% delay copy until possible
 copy_expr(Renames, A, X) :-
-    var(A),
-    var(X),
-    !,
-    when((nonvar(A);nonvar(X)), copy_expr(Renames, A, X)).
+    assertion(is_list(Renames)),
+    assertion(ground(A) -> true ; ground(X)),
+    fail.
 
 % copy a function signature
 copy_expr(Renames, (A::B)~>C, (X::Y)~>Z) :-
+    !,
     copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z).
 
 % copy a function definition
 copy_expr(Renames, A~~>B, X~~>Y) :-
+    !,
     copy_function_definition(Renames, A~~>B, X~~>Y).
 
 % copy function application
 copy_expr(Renames, A@B, X@Y) :-
+    !,
     copy_function_application(Renames, A@B, X@Y).
 
 % copy cond
 copy_expr(Renames, A?B, X?Y) :-
+    !,
     copy_cond(Renames, A?B, X?Y).
 
 % copy a renamed atom
 copy_expr(Renames, A, X) :-
-    % make sure either A or X is an atom
-    (atom(A);atom(X)),
+    % make sure A is an atom
+    (atom(A) -> true ; atom(X)),
     % get the rename for A
     member([A|X], Renames),
     !.
 
 % copy an unrenamed atom
 copy_expr(Renames, A, A) :-
-    % make sure A is an atom
+    % A should be an atom
     atom(A),
     % make sure A is not already renamed
     \+ member([A|_], Renames),
@@ -55,9 +52,9 @@ copy_expr(Renames, A, A) :-
 % copy a function signature
 
 copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z) :-
-    % make sure both vars are atoms
-    (atom(A);next_variable(A)),
-    (atom(X);next_variable(X)),
+    % make sure A and X are atoms
+    (atom(A) -> true ; next_variable(A)),
+    (atom(X) -> true ; next_variable(X)),
     % make sure A and X are not already renamed
     assertion(\+ member([A|_], Renames)),
     assertion(\+ member([_|X], Renames)),
@@ -70,9 +67,9 @@ copy_function_signature(Renames, (A::B)~>C, (X::Y)~>Z) :-
 % copy a function definition
 
 copy_function_definition(Renames, A~~>B, X~~>Y) :-
-    % make sure both vars are atoms
-    (atom(A);next_variable(A)),
-    (atom(X);next_variable(X)),
+    % make sure A and X are atoms
+    (atom(A) -> true ; next_variable(A)),
+    (atom(X) -> true ; next_variable(X)),
     % make sure A and X are not already renamed
     assertion(\+ member([A|_], Renames)),
     assertion(\+ member([_|X], Renames)),
@@ -100,7 +97,8 @@ copy_cond(Renames, A?B, X?Y) :-
 
 % copy a cond body
 
-copy_cond_body(_, end, end).
+copy_cond_body(_, end, end) :-
+    !.
 
 copy_cond_body(Renames, A=>B//C, X=>Y//Z) :-
     % copy A

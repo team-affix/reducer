@@ -5,6 +5,12 @@
 :- ensure_loaded(variable).
 :- use_module(library(error)).
 
+% update_limit
+update_limit(Limit, NewLimit) :-
+    Limit > 0,
+    NewLimit is Limit - 1.
+
+
 % typecheck a list of terms and types.
 typecheck_all(_, _, _, [], []) :-
     !.
@@ -32,65 +38,119 @@ typecheck(Limit, Gamma, Rho, Term, Type) :-
     assertion(is_list(Rho)),
     assertion(ground(Gamma)),
     assertion(ground(Rho)),
-    assertion(ground(Term) -> true ; ground(Type)),
+    assertion(
+        ground(Term) -> true;
+        ground(Type)),
     fail.
 
 % standard case, lookup term,type pair from environment and
 %     determine if some application of the retrieved type
 %     produces the desired type.
 typecheck(Limit, Gamma, Rho, Term, Type) :-
+    update_limit(Limit, _),
     % step 1: get term,type pair from environment.
     member([PTerm|PType], Gamma),
-    % step 2: determine if some application of the
-    %     retrieved type produces the desired type.
-    apply(PType, Rho, Args, Params, Type),
-    % step 3: express the application, determining
-    %     if the retrieved term applied to args
-    %     matches the desired term.
-    express_application(PTerm, Args, Term),
-    % step 4: check if the arguments fulfill
-    %     the parameter types.
-    Limit > 0,
-    NewLimit is Limit - 1,
-    typecheck_all(NewLimit, Gamma, Rho, Args, Params).
+    % step 2: copy the PType to get fresh variables
+    copy_expr([], PType, PTypeCopy),
+    % step 3: determine if the retrieved term,type pair works
+    (
+        % if Term is ground, then check against PTerm
+        ground(Term) ->
+        equivalent(Rho, Term, PTerm),
+        Type = PTypeCopy ;
+        % if Type is ground, then check against PTypeCopy
+        equivalent(Rho, Type, PTypeCopy),
+        Term = PTerm
+    ).
 
-% base cases for typechecking
-% - function types are types (so long as their components are types)
+% function application typecheck
+typecheck(Limit, Gamma, Rho, A@B, Type) :-
+    update_limit(Limit, NewLimit),
+    % step 1: determine mode (typecheck/instance search)
+    (
+        % if A@B is ground, then typecheck A and B
+        ground(A@B) ->
+        typecheck(NewLimit, Gamma, Rho, A, (X::T)~>UnreducedType),
+
+        % might not have to do this, since X is never used...
+        %declarea(...),
+
+        (atom(X) -> true ; next_variable(X)),
+        NewRho = [[X|B]|Rho],
+        typecheck(NewLimit, Gamma, NewRho, B, T),
+
+        reduce(NewRho, UnreducedType, Type)
+        ;
+        % if Type is ground, then do instance search
+        typecheck(NewLimit, Gamma, Rho, Level, level),
+        typecheck(NewLimit, Gamma, Rho, Set, set@Level),
+        typecheck(NewLimit, Gamma, Rho, T, Set),
+        typecheck(NewLimit, Gamma, Rho, B, T),
+
+        next_variable(X),
+        NewRho = [[X|B]|Rho],
+
+        typecheck(NewLimit, Gamma, NewRho, UnreducedA, (X::T)~>Type),
+
+        reduce(NewRho, UnreducedA, A)
+    ).
+
+% pi-type typecheck
 typecheck(Limit, Gamma, Rho, (X::A)~>B, set@MaxLevel) :-
-    % step 1: handle recursion limit
-    Limit > 0,
-    NewLimit is Limit - 1,
-    % step 2: get the left universe level, and instantiate A.
-    %     NOTE: A may be unground, but upon declaration, it will be grounded.
-    typecheck(NewLimit, Gamma, Rho, A, set@ALevel),
-    % step 3: prepend the term,type pair to the env.
-    %     this grounds X,A.
-    declarea(NewLimit, [[X|A]], Gamma, NewGamma),
-    % step 4: get the right universe level.
-    typecheck(NewLimit, NewGamma, Rho, B, set@BLevel),
-    % step 5: the pi-type has the max level of its components.
-    maxlevel(ALevel, BLevel, MaxLevel).
+    update_limit(Limit, NewLimit),
+    % step 1: determine mode (typecheck/instance search)
+    (
+        % if (X::A)~>B is ground, then typecheck A and B
+        ground((X::A)~>B) ->
+        typecheck(NewLimit, Gamma, Rho, A, set@ALevel),
+        declarea(NewLimit, Gamma, Rho, [[X|A]], NewGamma),
+        typecheck(NewLimit, NewGamma, Rho, B, set@BLevel)
+        ;
+        % if Type is ground, then do instance search
+        typecheck(NewLimit, Gamma, Rho, ALevel, level),
+        typecheck(NewLimit, Gamma, Rho, BLevel, level),
+        typecheck(NewLimit, Gamma, Rho, ASet, set@ALevel),
+        typecheck(NewLimit, Gamma, Rho, BSet, set@BLevel),
+        typecheck(NewLimit, Gamma, Rho, A, ASet),
+        declarea(NewLimit, Gamma, Rho,[[X|A]], NewGamma),
+        typecheck(NewLimit, NewGamma, Rho, B, BSet),
 
-% base cases for typechecking
-% - function definitions have function types
-typecheck(Limit, Gamma, Rho, A~>B, (X::AType)~>BType) :-
-    % step 1: handle recursion limit
-    Limit > 0,
-    NewLimit is Limit - 1,
-    % step 2: get the left universe level, and instantiate A.
-    %     NOTE: A may be unground, but upon declaration, it will be grounded.
-    typecheck(NewLimit, Gamma, Rho, AType, set@_),
-    % step 3: make sure A is grounded.
-    (atom(A), !; next_variable(A)),
-    % step 4: make sure X is grounded.
-    (atom(X), !; next_variable(X)),
-    % step 5: prepend the term,type pair to the env.
-    %     this grounds X,A.
-    declarea(NewLimit, [[A|AType]], Gamma, NewGamma),
-    % step 6: get the body type.
-    typecheck(NewLimit, NewGamma, Rho, B, BType),
-    % step 7: the body must not be a type.
-    BType \= set@_.
+        (atom(X) -> true ; next_variable(X))
+    ),
+    % step 3: get the max level of the components.
+    write('>>>>>>>>>>>>>>>>>>>ALevel: '), write(ALevel), nl,
+    write('>>>>>>>>>>>>>>>>>>>BLevel: '), write(BLevel), nl,
+    maxlevel(ALevel, BLevel, MaxLevel),
+    write('>>>>>>>>>>>>>>>>>>>MaxLevel: '), write(MaxLevel), nl.
+
+
+% function definition typecheck
+typecheck(Limit, Gamma, Rho, A~~>B, (A::AType)~>BType) :-
+    update_limit(Limit, NewLimit),
+    % step 1: determine mode (typecheck/instance search)
+    (
+        % if A~~>B is ground, then typecheck A and B
+        ground(A~~>B) ->
+        typecheck(NewLimit, Gamma, Rho, Level, level),
+        typecheck(NewLimit, Gamma, Rho, Set, set@Level),
+        typecheck(NewLimit, Gamma, Rho, AType, Set),
+
+        %next_variable(A), not needed, A is always ground
+        
+        declarea(NewLimit, Gamma, Rho, [[A|AType]], NewGamma),
+
+        typecheck(NewLimit, NewGamma, Rho, B, BType)
+
+        ;
+        % if Type is ground, then do instance search
+        
+        %next_variable(A), not needed, A is always ground
+
+        declarea(NewLimit, Gamma, Rho, [[A|AType]], NewGamma),
+
+        typecheck(NewLimit, NewGamma, Rho, B, BType)
+        
+    ).
 
 
 iterative_deepening_typecheck(Limit, Gamma, Rho, Term, Type) :-

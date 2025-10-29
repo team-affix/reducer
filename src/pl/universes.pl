@@ -8,9 +8,13 @@ level(lsuc@X) :-
 
 
 % define maxlevel/3
-maxlevel(lzero, lzero, lzero).
-maxlevel(lzero, lsuc@X, lsuc@X).
-maxlevel(lsuc@X, lzero, lsuc@X).
+maxlevel(lzero, lzero, lzero) :-
+    !.
+maxlevel(lzero, lsuc@X, lsuc@X) :-
+    !.
+maxlevel(lsuc@X, lzero, lsuc@X) :-
+    !.
 maxlevel(lsuc@X, lsuc@Y, lsuc@Z) :-
+    !,
     maxlevel(X, Y, Z).
 

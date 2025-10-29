@@ -13,20 +13,26 @@
 % NOTE: all terms will be grounded before declaration.
 % NOTE: all types will be grounded before declaration.
 assert_declarable(Limit, Gamma, Rho, Term, Type) :-
+    write('>>>>>>> CHECKING:'), write(Term), write(' : '), write(Type), nl,
+    % wait for user input
+    get_char(_),
     % step 1: make sure the term is an atom
     assertion(atom(Term)),
     % step 2: make sure the type is ground
     assertion(ground(Type)),
     % step 3: make sure the term is not already part of the environment.
     assertion(\+ member([Term|_], Gamma)),
-    % step 4: make sure the type is valid (belongs to a universe).
+    % step 4: the type must be fully reduced
+    assertion(reduce(Rho, Type, Type)),
+    % step 5: make sure the type is valid (belongs to a universe).
     assertion(typecheck(Limit, Gamma, Rho, Type, set@Level)),
-    assertion(level(Level)).
+    assertion(level(Level)),
+    !.
 
 
 % define declarea/5
 % NOTE: prepends a declaration to the environment.
-declarea(_, _, _, [], _) :-
+declarea(_, Gamma, _, [], Gamma) :-
     !.
 declarea(Limit, Gamma, Rho, [[Term|Type]|RestDecls], NewGamma) :-
     assert_declarable(Limit, Gamma, Rho, Term, Type),
@@ -36,7 +42,7 @@ declarea(Limit, Gamma, Rho, [[Term|Type]|RestDecls], NewGamma) :-
 
 % define declarez/5
 % NOTE: appends a declaration to the environment.
-declarez(_, _, _, [], _) :-
+declarez(_, Gamma, _, [], Gamma) :-
     !.
 declarez(Limit, Gamma, Rho, [[Term|Type]|RestDecls], NewGamma) :-
     assert_declarable(Limit, Gamma, Rho, Term, Type),

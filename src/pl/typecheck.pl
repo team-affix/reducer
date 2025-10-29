@@ -26,10 +26,13 @@ typecheck_all(Limit, Gamma, Rho, [X|XT], [Y|YT]) :-
 % NOTE: typechecking must always yield a ground term,type pair.
 
 % early checks
-typecheck(Limit, Gamma, Rho, _, _) :-
+typecheck(Limit, Gamma, Rho, Term, Type) :-
     assertion(number(Limit)),
     assertion(is_list(Gamma)),
     assertion(is_list(Rho)),
+    assertion(ground(Gamma)),
+    assertion(ground(Rho)),
+    assertion(ground(Term) -> true ; ground(Type)),
     fail.
 
 % standard case, lookup term,type pair from environment and

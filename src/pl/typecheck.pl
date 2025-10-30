@@ -74,11 +74,14 @@ typecheck(Limit, Gamma, Rho, (X::A)~>B, set@MaxLevel) :-
         ground((X::A)~>B) ->
         typecheck(NewLimit, Gamma, Rho, A, set@ALevel),
         declarea(NewLimit, Gamma, Rho, [[X|A]], NewGamma),
-        typecheck(NewLimit, NewGamma, Rho, B, set@BLevel)
+        typecheck(NewLimit, NewGamma, Rho, B, set@BLevel),
+        maxlevel(ALevel, BLevel, MaxLevel)
         ;
         % if Type is ground, then do instance search
-        typecheck(NewLimit, Gamma, Rho, ALevel, level),
-        typecheck(NewLimit, Gamma, Rho, BLevel, level),
+
+        % get potential levels for A and B
+        maxlevel(ALevel, BLevel, MaxLevel),
+
         typecheck(NewLimit, Gamma, Rho, A, set@ALevel),
 
         (atom(X) -> true ; next_variable(X)),
@@ -87,9 +90,7 @@ typecheck(Limit, Gamma, Rho, (X::A)~>B, set@MaxLevel) :-
         typecheck(NewLimit, NewGamma, Rho, B, set@BLevel),
 
         (atom(X) -> true ; next_variable(X))
-    ),
-    % step 3: get the max level of the components.
-    maxlevel(ALevel, BLevel, MaxLevel).
+    ).
 
 
 % function definition typecheck

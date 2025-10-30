@@ -13,9 +13,6 @@
 % NOTE: all terms will be grounded before declaration.
 % NOTE: all types will be grounded before declaration.
 assert_declarable(Limit, Gamma, Rho, Term, Type) :-
-    write('>>>>>>> CHECKING:'), write(Term), write(' : '), write(Type), nl,
-    % wait for user input
-    get_char(_),
     % step 1: make sure the term is an atom
     assertion(atom(Term)),
     % step 2: make sure the type is ground
@@ -25,8 +22,8 @@ assert_declarable(Limit, Gamma, Rho, Term, Type) :-
     % step 4: the type must be fully reduced
     assertion(reduce(Rho, Type, Type)),
     % step 5: make sure the type is valid (belongs to a universe).
-    assertion(typecheck(Limit, Gamma, Rho, Type, set@Level)),
-    assertion(level(Level)),
+    typecheck(Limit, Gamma, Rho, Type, set@Level),
+    level(Level),
     !.
 
 

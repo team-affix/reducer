@@ -425,6 +425,72 @@ void test_global_lift()
     }
 }
 
+void test_hole_substitute()
+{
+    // empty captures
+    {
+        lambda::hole l_hole{{}};
+        lambda::hole l_substitute{std::set<size_t>{}};
+        assert_throws(l_hole.substitute(0, l_substitute.clone()),
+                      std::runtime_error);
+    }
+}
+
+void test_local_substitute()
+{
+    // index 0, substitute with a local
+    {
+        lambda::local l_local{0};
+        lambda::local l_substitute{1};
+        auto l_substituted = l_local.substitute(0, l_substitute.clone());
+
+        const lambda::local* l_substituted_local =
+            dynamic_cast<lambda::local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+        assert(l_substituted_local->m_index == 1);
+    }
+
+    // index 2, substitute with a local
+    {
+        lambda::local l_local{2};
+        lambda::local l_substitute{3};
+        auto l_substituted = l_local.substitute(0, l_substitute.clone());
+
+        const lambda::local* l_substituted_local =
+            dynamic_cast<lambda::local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution decrements the lhs local index since the lhs does
+        // not have var(0). var(0) is the only one that ever gets replaced due
+        // to beta-reduction always first removing the outermost binder, and we
+        // are using debruijn levels, which the outermost binder associates with
+        // var(0). If the lhs has local vars with greater indices, then they
+        // must have been defined inside the redex, so they are now 1 level
+        // shallower.
+        assert(l_substituted_local->m_index == 1);
+    }
+
+    // index 1, substitute with a local
+    {
+        lambda::local l_local{1};
+        lambda::local l_substitute{3};
+        auto l_substituted = l_local.substitute(0, l_substitute.clone());
+
+        const lambda::local* l_substituted_local =
+            dynamic_cast<lambda::local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution decrements the lhs local index since the lhs does
+        // not have var(0). var(0) is the only one that ever gets replaced due
+        // to beta-reduction always first removing the outermost binder, and we
+        // are using debruijn levels, which the outermost binder associates with
+        // var(0). If the lhs has local vars with greater indices, then they
+        // must have been defined inside the redex, so they are now 1 level
+        // shallower.
+        assert(l_substituted_local->m_index == 0);
+    }
+}
+
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -439,6 +505,8 @@ void lambda_test_main()
     TEST(test_func_lift);
     TEST(test_app_lift);
     TEST(test_global_lift);
+    TEST(test_hole_substitute);
+    TEST(test_local_substitute);
 }
 
 #endif

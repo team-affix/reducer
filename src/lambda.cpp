@@ -93,7 +93,7 @@ std::unique_ptr<expr> app::reduce(const global_map& a_globals) const
 
     if(!l_beta_redex || dynamic_cast<local*>(m_arg.get()))
         // leave the func in WHNF and the argument alone
-        return std::make_unique<app>(l_reduced_func, m_arg);
+        return std::make_unique<app>(std::move(l_reduced_func), m_arg->clone());
 
     // beta-reduce the app
     std::unique_ptr<expr> l_substituted_body =
@@ -124,6 +124,32 @@ std::unique_ptr<expr> global::reduce(const global_map& a_globals) const
 std::unique_ptr<expr> expr::clone() const
 {
     return lift(0);
+}
+
+// CONSTRUCTORS
+expr::expr()
+{
+}
+
+hole::hole(const std::set<size_t>& a_captures) : expr(), m_captures(a_captures)
+{
+}
+
+func::func(std::unique_ptr<expr>&& a_body) : expr(), m_body(std::move(a_body))
+{
+}
+
+app::app(std::unique_ptr<expr>&& a_func, std::unique_ptr<expr>&& a_arg)
+    : expr(), m_func(std::move(a_func)), m_arg(std::move(a_arg))
+{
+}
+
+local::local(size_t a_index) : expr(), m_index(a_index)
+{
+}
+
+global::global(size_t a_index) : expr(), m_index(a_index)
+{
 }
 
 } // namespace lambda

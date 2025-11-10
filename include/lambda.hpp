@@ -19,6 +19,7 @@ struct expr
                const std::unique_ptr<expr>& a_arg) const = 0;
     virtual std::unique_ptr<expr> reduce(const global_map& a_globals) const = 0;
     std::unique_ptr<expr> clone() const;
+    expr();
     expr(const expr& other) = delete;
     expr& operator=(const expr& other) = delete;
 };
@@ -43,7 +44,7 @@ struct func : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    func(const std::unique_ptr<expr>& a_body);
+    func(std::unique_ptr<expr>&& a_body);
     std::unique_ptr<expr> m_body;
 };
 
@@ -55,8 +56,7 @@ struct app : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    app(const std::unique_ptr<expr>& a_func,
-        const std::unique_ptr<expr>& a_arg);
+    app(std::unique_ptr<expr>&& a_func, std::unique_ptr<expr>&& a_arg);
     std::unique_ptr<expr> m_func;
     std::unique_ptr<expr> m_arg;
 };

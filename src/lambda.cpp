@@ -69,24 +69,24 @@ std::unique_ptr<expr>
 global::substitute(size_t a_new_depth, const std::unique_ptr<expr>& a_arg) const
 {
     // doing a local substitution on a global variable is a no-op
-    return lift(0);
+    return clone();
 }
 
 // REDUCE METHODS
-std::unique_ptr<expr> hole::reduce() const
+std::unique_ptr<expr> hole::reduce(const global_map& a_globals) const
 {
     throw std::runtime_error("Error: cannot reduce a hole.");
 }
 
-std::unique_ptr<expr> func::reduce() const
+std::unique_ptr<expr> func::reduce(const global_map& a_globals) const
 {
-    return lift(0);
+    return clone();
 }
 
-std::unique_ptr<expr> app::reduce() const
+std::unique_ptr<expr> app::reduce(const global_map& a_globals) const
 {
     // reduce the function to WHNF
-    auto l_reduced_func = m_func->reduce();
+    auto l_reduced_func = m_func->reduce(a_globals);
 
     // check if the lhs is a beta-redex
     const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
@@ -99,17 +99,31 @@ std::unique_ptr<expr> app::reduce() const
     std::unique_ptr<expr> l_substituted_body =
         l_beta_redex->m_body->substitute(0, m_arg);
 
-    return l_substituted_body->reduce();
+    // reduce the result
+    return l_substituted_body->reduce(a_globals);
 }
 
-std::unique_ptr<expr> local::reduce() const
+std::unique_ptr<expr> local::reduce(const global_map& a_globals) const
+{
+    return clone();
+}
+
+std::unique_ptr<expr> global::reduce(const global_map& a_globals) const
+{
+    // look up the definition of the global variable
+    const auto l_definition_it = a_globals.find(m_index);
+
+    // get the definition
+    const auto l_definition = l_definition_it->second->clone();
+
+    // reduce the result
+    return l_definition->reduce(a_globals);
+}
+
+// EXPR CLONE METHOD
+std::unique_ptr<expr> expr::clone() const
 {
     return lift(0);
-}
-
-std::unique_ptr<expr> global::reduce() const
-{
-    // return the reduction of a delta reduction
 }
 
 } // namespace lambda

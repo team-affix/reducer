@@ -219,6 +219,212 @@ void test_app_constructor()
     }
 }
 
+void test_local_constructor()
+{
+    // index 0
+    {
+        lambda::local l_local{0};
+        assert(l_local.m_index == 0);
+    }
+
+    // index 1
+    {
+        lambda::local l_local{1};
+        assert(l_local.m_index == 1);
+    }
+}
+
+void test_global_constructor()
+{
+    // index 0
+    {
+        lambda::global l_global{0};
+        assert(l_global.m_index == 0);
+    }
+
+    // index 1
+    {
+        lambda::global l_global{1};
+        assert(l_global.m_index == 1);
+    }
+}
+
+void test_hole_lift()
+{
+    // empty captures
+    {
+        lambda::hole l_hole{{}};
+        auto l_lifted = l_hole.lift(1);
+
+        const lambda::hole* l_lifted_hole =
+            dynamic_cast<lambda::hole*>(l_lifted.get());
+
+        assert(l_lifted_hole != nullptr);
+        assert(l_lifted_hole->m_captures.empty());
+    }
+
+    // non-empty captures
+    {
+        std::set<size_t> l_captures{1, 2, 3};
+        lambda::hole l_hole{l_captures};
+        auto l_lifted = l_hole.lift(1);
+
+        const lambda::hole* l_lifted_hole =
+            dynamic_cast<lambda::hole*>(l_lifted.get());
+
+        assert(l_lifted_hole != nullptr);
+        assert(l_lifted_hole->m_captures == l_captures);
+    }
+}
+
+void test_local_lift()
+{
+    // index 0, lift 1 level
+    {
+        lambda::local l_local{0};
+        auto l_lifted = l_local.lift(1);
+        const lambda::local* l_lifted_local =
+            dynamic_cast<lambda::local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 1);
+    }
+
+    // index 1, lift 1 level
+    {
+        lambda::local l_local{1};
+        auto l_lifted = l_local.lift(1);
+        const lambda::local* l_lifted_local =
+            dynamic_cast<lambda::local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 2);
+    }
+
+    // index 1, lift 0 levels
+    {
+        lambda::local l_local{1};
+        auto l_lifted = l_local.lift(0);
+        const lambda::local* l_lifted_local =
+            dynamic_cast<lambda::local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 1);
+    }
+}
+
+void test_func_lift()
+{
+    // local body, lift 1 level
+    {
+        lambda::local l_local{0};
+        lambda::func l_func{l_local.clone()};
+        auto l_lifted = l_func.lift(1);
+        const lambda::func* l_lifted_func =
+            dynamic_cast<lambda::func*>(l_lifted.get());
+        assert(l_lifted_func != nullptr);
+        const lambda::local* l_lifted_local =
+            dynamic_cast<lambda::local*>(l_lifted_func->m_body.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 1);
+    }
+
+    // local body, lift 2 levels
+    {
+        lambda::local l_local{1};
+        lambda::func l_func{l_local.clone()};
+        auto l_lifted = l_func.lift(2);
+        const lambda::func* l_lifted_func =
+            dynamic_cast<lambda::func*>(l_lifted.get());
+        assert(l_lifted_func != nullptr);
+        const lambda::local* l_lifted_local =
+            dynamic_cast<lambda::local*>(l_lifted_func->m_body.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 3);
+    }
+}
+
+void test_app_lift()
+{
+    // local lhs, local rhs, lift 1 level
+    {
+        lambda::local l_lhs_local{1};
+        lambda::local l_rhs_local{2};
+        lambda::app l_app{l_lhs_local.clone(), l_rhs_local.clone()};
+        auto l_lifted = l_app.lift(1);
+
+        // get the lifted app (still an app)
+        const lambda::app* l_lifted_app =
+            dynamic_cast<lambda::app*>(l_lifted.get());
+        assert(l_lifted_app != nullptr);
+
+        // get the lifted lhs
+        const auto& l_lifted_lhs = l_lifted_app->m_func;
+        const lambda::local* l_lifted_lhs_local =
+            dynamic_cast<lambda::local*>(l_lifted_lhs.get());
+        assert(l_lifted_lhs_local != nullptr);
+        assert(l_lifted_lhs_local->m_index == 2);
+
+        // get the lifted rhs
+        const auto& l_lifted_rhs = l_lifted_app->m_arg;
+        const lambda::local* l_lifted_rhs_local =
+            dynamic_cast<lambda::local*>(l_lifted_rhs.get());
+        assert(l_lifted_rhs_local != nullptr);
+        assert(l_lifted_rhs_local->m_index == 3);
+    }
+
+    // local lhs, local rhs, lift 2 levels
+    {
+        lambda::local l_lhs_local{1};
+        lambda::local l_rhs_local{2};
+        lambda::app l_app{l_lhs_local.clone(), l_rhs_local.clone()};
+        auto l_lifted = l_app.lift(2);
+
+        // get the lifted app (still an app)
+        const lambda::app* l_lifted_app =
+            dynamic_cast<lambda::app*>(l_lifted.get());
+        assert(l_lifted_app != nullptr);
+
+        // get the lifted lhs
+        const auto& l_lifted_lhs = l_lifted_app->m_func;
+        const lambda::local* l_lifted_lhs_local =
+            dynamic_cast<lambda::local*>(l_lifted_lhs.get());
+        assert(l_lifted_lhs_local != nullptr);
+        assert(l_lifted_lhs_local->m_index == 3);
+
+        // get the lifted rhs
+        const auto& l_lifted_rhs = l_lifted_app->m_arg;
+        const lambda::local* l_lifted_rhs_local =
+            dynamic_cast<lambda::local*>(l_lifted_rhs.get());
+        assert(l_lifted_rhs_local != nullptr);
+        assert(l_lifted_rhs_local->m_index == 4);
+    }
+}
+
+void test_global_lift()
+{
+    // index 0, lift 1 level
+    {
+        lambda::global l_global{0};
+        auto l_lifted = l_global.lift(1);
+        const lambda::global* l_lifted_global =
+            dynamic_cast<lambda::global*>(l_lifted.get());
+        assert(l_lifted_global != nullptr);
+
+        // globals are left unchanged by lifting
+        assert(l_lifted_global->m_index == 0);
+    }
+
+    // index 3, lift 2 levels
+    {
+        lambda::global l_global{3};
+        auto l_lifted = l_global.lift(2);
+        const lambda::global* l_lifted_global =
+            dynamic_cast<lambda::global*>(l_lifted.get());
+        assert(l_lifted_global != nullptr);
+
+        // globals are left unchanged by lifting
+        assert(l_lifted_global->m_index == 3);
+    }
+}
+
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -226,6 +432,13 @@ void lambda_test_main()
     TEST(test_hole_constructor);
     TEST(test_func_constructor);
     TEST(test_app_constructor);
+    TEST(test_local_constructor);
+    TEST(test_global_constructor);
+    TEST(test_hole_lift);
+    TEST(test_local_lift);
+    TEST(test_func_lift);
+    TEST(test_app_lift);
+    TEST(test_global_lift);
 }
 
 #endif

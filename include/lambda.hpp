@@ -44,7 +44,7 @@ struct func : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    func(std::unique_ptr<expr>&& a_body);
+    func(const std::unique_ptr<expr>& a_body);
     std::unique_ptr<expr> m_body;
 };
 
@@ -56,7 +56,8 @@ struct app : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    app(std::unique_ptr<expr>&& a_func, std::unique_ptr<expr>&& a_arg);
+    app(const std::unique_ptr<expr>& a_func,
+        const std::unique_ptr<expr>& a_arg);
     std::unique_ptr<expr> m_func;
     std::unique_ptr<expr> m_arg;
 };

@@ -93,7 +93,7 @@ std::unique_ptr<expr> app::reduce(const global_map& a_globals) const
 
     if(!l_beta_redex || dynamic_cast<local*>(m_arg.get()))
         // leave the func in WHNF and the argument alone
-        return std::make_unique<app>(std::move(l_reduced_func), m_arg->clone());
+        return std::make_unique<app>(l_reduced_func, m_arg);
 
     // beta-reduce the app
     std::unique_ptr<expr> l_substituted_body =
@@ -135,12 +135,14 @@ hole::hole(const std::set<size_t>& a_captures) : expr(), m_captures(a_captures)
 {
 }
 
-func::func(std::unique_ptr<expr>&& a_body) : expr(), m_body(std::move(a_body))
+func::func(const std::unique_ptr<expr>& a_body)
+    : expr(), m_body(a_body->clone())
 {
 }
 
-app::app(std::unique_ptr<expr>&& a_func, std::unique_ptr<expr>&& a_arg)
-    : expr(), m_func(std::move(a_func)), m_arg(std::move(a_arg))
+app::app(const std::unique_ptr<expr>& a_func,
+         const std::unique_ptr<expr>& a_arg)
+    : expr(), m_func(a_func->clone()), m_arg(a_arg->clone())
 {
 }
 

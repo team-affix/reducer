@@ -6,7 +6,7 @@ namespace lambda
 // LIFT METHODS
 std::unique_ptr<expr> hole::lift(size_t a_new_depth) const
 {
-    throw std::runtime_error("Error: cannot lift a hole.");
+    return std::make_unique<hole>(m_captures);
 }
 
 std::unique_ptr<expr> func::lift(size_t a_new_depth) const
@@ -155,3 +155,77 @@ global::global(size_t a_index) : expr(), m_index(a_index)
 }
 
 } // namespace lambda
+
+#ifdef UNIT_TEST
+
+#include "test_utils.hpp"
+
+void test_hole_constructor()
+{
+    // empty captures
+    {
+        lambda::hole l_hole{{}};
+        assert(l_hole.m_captures.empty());
+    }
+
+    // non-empty captures
+    {
+        std::set<size_t> l_captures{1, 2, 3};
+        lambda::hole l_hole{l_captures};
+        assert(l_hole.m_captures == l_captures);
+    }
+}
+
+void test_func_constructor()
+{
+    // hole body
+    {
+        std::set<size_t> l_captures{1, 2, 3};
+        lambda::func l_func{std::make_unique<lambda::hole>(l_captures)};
+        // get body
+        const auto& l_body = l_func.m_body;
+        // check if the body is a hole
+        const lambda::hole* l_hole = dynamic_cast<lambda::hole*>(l_body.get());
+        assert(l_hole != nullptr);
+        // check if the captures are correct
+        assert(l_hole->m_captures == l_captures);
+    }
+}
+
+void test_app_constructor()
+{
+    // hole application
+    {
+        std::set<size_t> l_lhs_captures{1, 2, 3};
+        std::set<size_t> l_rhs_captures{4, 5, 6};
+        lambda::app l_app{std::make_unique<lambda::hole>(l_lhs_captures),
+                          std::make_unique<lambda::hole>(l_rhs_captures)};
+        // get the lhs
+        const auto& l_lhs = l_app.m_func;
+        // get the rhs
+        const auto& l_rhs = l_app.m_arg;
+
+        // make sure they both are holes
+        const lambda::hole* l_lhs_hole =
+            dynamic_cast<lambda::hole*>(l_lhs.get());
+        const lambda::hole* l_rhs_hole =
+            dynamic_cast<lambda::hole*>(l_rhs.get());
+        assert(l_lhs_hole != nullptr);
+        assert(l_rhs_hole != nullptr);
+
+        // make sure the captures are correct
+        assert(l_lhs_hole->m_captures == l_lhs_captures);
+        assert(l_rhs_hole->m_captures == l_rhs_captures);
+    }
+}
+
+void lambda_test_main()
+{
+    constexpr bool ENABLE_DEBUG_LOGS = true;
+
+    TEST(test_hole_constructor);
+    TEST(test_func_constructor);
+    TEST(test_app_constructor);
+}
+
+#endif

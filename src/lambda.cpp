@@ -438,7 +438,7 @@ void test_hole_substitute()
 
 void test_local_substitute()
 {
-    // index 0, substitute with a local
+    // index 0, occurrance depth 0, substitute with a local
     {
         lambda::local l_local{0};
         lambda::local l_substitute{1};
@@ -449,8 +449,21 @@ void test_local_substitute()
         assert(l_substituted_local != nullptr);
         assert(l_substituted_local->m_index == 1);
     }
+    // index 0, occurrance depth 10, substitute with a local
+    {
+        lambda::local l_local{0};
+        lambda::local l_substitute{1};
+        auto l_substituted = l_local.substitute(10, l_substitute.clone());
 
-    // index 2, substitute with a local
+        const lambda::local* l_substituted_local =
+            dynamic_cast<lambda::local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+        // it would be 1 if occurrance depth == 0, but since 10,
+        //     l_substitute had to be lifted.
+        assert(l_substituted_local->m_index == 11);
+    }
+
+    // index 2, occurrance depth 0, substitute with a local
     {
         lambda::local l_local{2};
         lambda::local l_substitute{3};
@@ -470,7 +483,7 @@ void test_local_substitute()
         assert(l_substituted_local->m_index == 1);
     }
 
-    // index 1, substitute with a local
+    // index 1, occurrance depth 0, substitute with a local
     {
         lambda::local l_local{1};
         lambda::local l_substitute{3};
@@ -488,6 +501,91 @@ void test_local_substitute()
         // must have been defined inside the redex, so they are now 1 level
         // shallower.
         assert(l_substituted_local->m_index == 0);
+    }
+
+    // index 2, occurrance depth 10, substitute with a local
+    {
+        lambda::local l_local{2};
+        lambda::local l_substitute{3};
+        auto l_substituted = l_local.substitute(10, l_substitute.clone());
+
+        const lambda::local* l_substituted_local =
+            dynamic_cast<lambda::local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution decrements the lhs local index since the lhs does
+        // not have var(0). var(0) is the only one that ever gets replaced due
+        // to beta-reduction always first removing the outermost binder, and we
+        // are using debruijn levels, which the outermost binder associates with
+        // var(0). If the lhs has local vars with greater indices, then they
+        // must have been defined inside the redex, so they are now 1 level
+        // shallower.
+        assert(l_substituted_local->m_index == 1);
+    }
+
+    // index 1, occurrance depth 10, substitute with a local
+    {
+        lambda::local l_local{1};
+        lambda::local l_substitute{3};
+        auto l_substituted = l_local.substitute(10, l_substitute.clone());
+
+        const lambda::local* l_substituted_local =
+            dynamic_cast<lambda::local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution decrements the lhs local index since the lhs does
+        // not have var(0). var(0) is the only one that ever gets replaced due
+        // to beta-reduction always first removing the outermost binder, and we
+        // are using debruijn levels, which the outermost binder associates with
+        // var(0). If the lhs has local vars with greater indices, then they
+        // must have been defined inside the redex, so they are now 1 level
+        // shallower.
+        assert(l_substituted_local->m_index == 0);
+    }
+}
+
+void test_global_substitute()
+{
+    // index 0, depth 0, substitute with a local
+    {
+        lambda::global l_global{0};
+        lambda::local l_local{1};
+        const auto l_substituted = l_global.substitute(0, l_local.clone());
+
+        // should be global still
+        const lambda::global* l_subbed_global =
+            dynamic_cast<lambda::global*>(l_substituted.get());
+        assert(l_subbed_global != nullptr);
+        // globals are unaffected by substitution.
+        assert(l_subbed_global->m_index == 0);
+    }
+
+    // index 0, depth 10, substitute with a local
+    {
+        lambda::global l_global{0};
+        lambda::local l_local{1};
+        const auto l_substituted = l_global.substitute(10, l_local.clone());
+
+        // should be global still
+        const lambda::global* l_subbed_global =
+            dynamic_cast<lambda::global*>(l_substituted.get());
+        assert(l_subbed_global != nullptr);
+        // globals are unaffected by substitution.
+        assert(l_subbed_global->m_index == 0);
+    }
+
+    // index 10, depth 10, substitute with a local
+    {
+        lambda::global l_global{10};
+        lambda::local l_local{1};
+        const auto l_substituted = l_global.substitute(10, l_local.clone());
+
+        // should be global still
+        const lambda::global* l_subbed_global =
+            dynamic_cast<lambda::global*>(l_substituted.get());
+        assert(l_subbed_global != nullptr);
+        // globals are unaffected by substitution.
+        assert(l_subbed_global->m_index == 10);
     }
 }
 
@@ -507,6 +605,7 @@ void lambda_test_main()
     TEST(test_global_lift);
     TEST(test_hole_substitute);
     TEST(test_local_substitute);
+    TEST(test_global_substitute);
 }
 
 #endif

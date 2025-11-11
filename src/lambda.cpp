@@ -55,6 +55,41 @@ bool hole::equals(const std::unique_ptr<expr>& a_other) const
     return m_captures == l_casted->m_captures;
 }
 
+// PRINT METHODS
+
+void local::print(std::ostream& a_ostream) const
+{
+    a_ostream << m_index;
+}
+
+void global::print(std::ostream& a_ostream) const
+{
+    a_ostream << "G" << m_index;
+}
+
+void func::print(std::ostream& a_ostream) const
+{
+    a_ostream << "λ.";
+    m_body->print(a_ostream);
+}
+
+void app::print(std::ostream& a_ostream) const
+{
+    a_ostream << "(";
+    m_func->print(a_ostream);
+    a_ostream << " ";
+    m_arg->print(a_ostream);
+    a_ostream << ")";
+}
+
+void hole::print(std::ostream& a_ostream) const
+{
+    a_ostream << "?{";
+    for(const auto& l_capture : m_captures)
+        a_ostream << l_capture << ",";
+    a_ostream << "}";
+}
+
 // LIFT METHODS
 
 std::unique_ptr<expr> local::lift(size_t a_new_depth) const
@@ -211,6 +246,7 @@ hole::hole(const std::set<size_t>& a_captures) : expr(), m_captures(a_captures)
 #ifdef UNIT_TEST
 
 #include "test_utils.hpp"
+#include <iostream>
 
 void test_local_constructor()
 {
@@ -1652,6 +1688,58 @@ void test_app_reduce()
         // then, the func should beta-reduce, consuming the arg.
         // No replacements, only decrementing.
         assert(l_reduced->equals(lambda::local{0}.clone()));
+    }
+
+    // app with lhs (global that indirectly reduces to func with occurrances,
+    // but needs lifting) and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(
+            lambda::func{lambda::func{lambda::local{0}.clone()}.clone()}
+                .clone());
+        l_globals.emplace_back(lambda::global{0}.clone());
+
+        lambda::global l_lhs{1};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // firstly, a delta cascade occurs, reducing the global to a func.
+        // then, the func should beta-reduce, consuming the arg.
+        // A replacement occurred, and a lifting of 1 level occurred.
+        assert(l_reduced->equals(
+            lambda::func{lambda::func{lambda::local{6}.clone()}.clone()}
+                .clone()));
+    }
+
+    // app with lhs (global that reduces to app which reduces to func) and rhs
+    // func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(
+            lambda::func{lambda::func{lambda::local{1}.clone()}.clone()}
+                .clone());
+        l_globals.emplace_back(
+            lambda::app{lambda::global{0}.clone(), lambda::global{10}.clone()}
+                .clone());
+
+        lambda::global l_lhs{1};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // firstly, a delta cascade occurs, reducing the global to a func.
+        // then, a beta-reduction occurs, consuming the arg defined in global1
+        // def. then, the returned func should beta-reduce, consuming the arg.
+        // A replacement occurred, and no lifting occurred.
+        assert(
+            l_reduced->equals(lambda::func{lambda::local{5}.clone()}.clone()));
     }
 }
 

@@ -2,16 +2,16 @@
 #define LAMBDA_HPP
 
 #include <cstddef>
-#include <map>
 #include <memory>
 #include <set>
+#include <vector>
 
 namespace lambda
 {
 
 struct expr
 {
-    using global_map = std::map<size_t, std::unique_ptr<expr>>;
+    using global_map = std::vector<std::unique_ptr<expr>>;
     virtual ~expr() = default;
     virtual std::unique_ptr<expr> lift(size_t a_new_depth) const = 0;
     virtual std::unique_ptr<expr>

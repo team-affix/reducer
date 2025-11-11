@@ -84,10 +84,7 @@ std::unique_ptr<expr> local::reduce(const global_map& a_globals) const
 std::unique_ptr<expr> global::reduce(const global_map& a_globals) const
 {
     // look up the definition of the global variable
-    const auto l_definition_it = a_globals.find(m_index);
-
-    // get the definition
-    const auto l_definition = l_definition_it->second->clone();
+    const auto& l_definition = a_globals[m_index];
 
     // reduce the result
     return l_definition->reduce(a_globals);
@@ -868,6 +865,64 @@ void test_hole_substitute()
     }
 }
 
+void test_local_reduce()
+{
+    // local with var 0
+    {
+        lambda::local l_expr{0};
+        const auto l_reduced = l_expr.reduce({});
+
+        // cast the pointer
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_reduced.get());
+        assert(l_local != nullptr);
+
+        // make sure it has the same index
+        assert(l_local->m_index == 0);
+    }
+
+    // local with var 1
+    {
+        lambda::local l_expr{1};
+        const auto l_reduced = l_expr.reduce({});
+
+        // cast the pointer
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_reduced.get());
+        assert(l_local != nullptr);
+
+        // make sure it has the same index
+        assert(l_local->m_index == 1);
+    }
+}
+
+void test_global_reduce()
+{
+    // global with index 0
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        // set up reduction
+        lambda::global l_expr{0};
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // cast the pointer
+        const lambda::func* l_casted =
+            dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_casted != nullptr);
+
+        // get body
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_casted->m_body.get());
+        assert(l_local != nullptr);
+
+        // make sure it has the same index
+        assert(l_local->m_index == 0);
+    }
+}
+
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -887,6 +942,8 @@ void lambda_test_main()
     TEST(test_hole_substitute);
     TEST(test_func_substitute);
     TEST(test_app_substitute);
+    TEST(test_local_reduce);
+    TEST(test_global_reduce);
 }
 
 #endif

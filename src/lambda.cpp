@@ -3,6 +3,58 @@
 namespace lambda
 {
 
+// EQUALS METHODS
+
+bool local::equals(const std::unique_ptr<expr>& a_other) const
+{
+    const local* l_casted = dynamic_cast<const local*>(a_other.get());
+
+    if(!l_casted)
+        return false;
+
+    return m_index == l_casted->m_index;
+}
+
+bool global::equals(const std::unique_ptr<expr>& a_other) const
+{
+    const global* l_casted = dynamic_cast<const global*>(a_other.get());
+
+    if(!l_casted)
+        return false;
+
+    return m_index == l_casted->m_index;
+}
+
+bool func::equals(const std::unique_ptr<expr>& a_other) const
+{
+    const func* l_casted = dynamic_cast<const func*>(a_other.get());
+
+    if(!l_casted)
+        return false;
+
+    return m_body->equals(l_casted->m_body);
+}
+
+bool app::equals(const std::unique_ptr<expr>& a_other) const
+{
+    const app* l_casted = dynamic_cast<const app*>(a_other.get());
+
+    if(!l_casted)
+        return false;
+
+    return m_func->equals(l_casted->m_func) && m_arg->equals(l_casted->m_arg);
+}
+
+bool hole::equals(const std::unique_ptr<expr>& a_other) const
+{
+    const hole* l_casted = dynamic_cast<const hole*>(a_other.get());
+
+    if(!l_casted)
+        return false;
+
+    return m_captures == l_casted->m_captures;
+}
+
 // LIFT METHODS
 
 std::unique_ptr<expr> local::lift(size_t a_new_depth) const
@@ -246,6 +298,60 @@ void test_hole_constructor()
         std::set<size_t> l_captures{1, 2, 3};
         lambda::hole l_hole{l_captures};
         assert(l_hole.m_captures == l_captures);
+    }
+}
+
+void test_local_equals()
+{
+    // index 0, equals index 0
+    {
+        lambda::local l_local{0};
+        lambda::local l_local_other{0};
+        assert(l_local.equals(l_local_other.clone()));
+    }
+
+    // index 0, equals index 1
+    {
+        lambda::local l_local{0};
+        lambda::local l_local_other{1};
+        assert(!l_local.equals(l_local_other.clone()));
+    }
+
+    // index 1, equals index 1
+    {
+        lambda::local l_local{1};
+        lambda::local l_local_other{1};
+        assert(l_local.equals(l_local_other.clone()));
+    }
+
+    // local equals global
+    {
+        lambda::local l_local{0};
+        lambda::global l_global{0};
+        assert(!l_local.equals(l_global.clone()));
+    }
+
+    // local equals func
+    {
+        lambda::local l_local{0};
+        lambda::func l_func{std::make_unique<lambda::local>(0)};
+        assert(!l_local.equals(l_func.clone()));
+    }
+
+    // local equals app
+    {
+        lambda::local l_local{0};
+        lambda::app l_app{std::make_unique<lambda::local>(0),
+                          std::make_unique<lambda::local>(0)};
+        assert(!l_local.equals(l_app.clone()));
+    }
+
+    // local equals hole
+    {
+        lambda::local l_local{0};
+        std::set<size_t> l_captures{1, 2, 3};
+        lambda::hole l_hole{l_captures};
+        assert(!l_local.equals(l_hole.clone()));
     }
 }
 
@@ -1064,6 +1170,77 @@ void test_func_reduce()
     }
 }
 
+void test_app_reduce()
+{
+    // app with lhs and rhs both locals
+    {
+        lambda::local l_lhs{0};
+        lambda::local l_rhs{1};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce({});
+
+        const lambda::app* l_app = dynamic_cast<lambda::app*>(l_reduced.get());
+        assert(l_app != nullptr);
+
+        // lhs should be local
+        const lambda::local* l_reduced_lhs =
+            dynamic_cast<lambda::local*>(l_app->m_func.get());
+        assert(l_reduced_lhs != nullptr);
+
+        // rhs should be local
+        const lambda::local* l_reduced_rhs =
+            dynamic_cast<lambda::local*>(l_app->m_arg.get());
+        assert(l_reduced_rhs != nullptr);
+
+        // same on both (no reduction occurred)
+        assert(l_reduced_lhs->m_index == 0);
+        assert(l_reduced_rhs->m_index == 1);
+    }
+
+    // // app with lhs global and rhs local
+    // {
+    //     // create global definitions
+    //     lambda::expr::global_map l_globals{};
+    //     l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+    //     lambda::global l_lhs{0};
+    //     lambda::local l_rhs{1};
+    //     lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+    //     // reduce the app
+    //     const auto l_reduced = l_expr.reduce({});
+
+    //     const lambda::app* l_app =
+    //     dynamic_cast<lambda::app*>(l_reduced.get()); assert(l_app !=
+    //     nullptr);
+
+    //     // lhs should be local
+    //     const lambda::local* l_reduced_lhs =
+    //         dynamic_cast<lambda::local*>(l_app->m_func.get());
+    //     assert(l_reduced_lhs != nullptr);
+
+    //     // rhs should be local
+    //     const lambda::local* l_reduced_rhs =
+    //         dynamic_cast<lambda::local*>(l_app->m_arg.get());
+    //     assert(l_reduced_rhs != nullptr);
+
+    //     // same on both (no reduction occurred)
+    //     assert(l_reduced_lhs->m_index == 0);
+    //     assert(l_reduced_rhs->m_index == 1);
+    // }
+}
+
+void test_hole_reduce()
+{
+    // reduction of a hole should throw error
+    {
+        lambda::hole l_expr{{}};
+        assert_throws(l_expr.reduce({}), std::runtime_error);
+    }
+}
+
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1073,6 +1250,9 @@ void lambda_test_main()
     TEST(test_func_constructor);
     TEST(test_app_constructor);
     TEST(test_hole_constructor);
+
+    TEST(test_local_equals);
+
     TEST(test_local_lift);
     TEST(test_global_lift);
     TEST(test_func_lift);
@@ -1086,6 +1266,8 @@ void lambda_test_main()
     TEST(test_local_reduce);
     TEST(test_global_reduce);
     TEST(test_func_reduce);
+    TEST(test_app_reduce);
+    TEST(test_hole_reduce);
 }
 
 #endif

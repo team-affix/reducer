@@ -69,17 +69,16 @@ void global::print(std::ostream& a_ostream) const
 
 void func::print(std::ostream& a_ostream) const
 {
-    a_ostream << "λ.";
+    a_ostream << "λ.(";
     m_body->print(a_ostream);
+    a_ostream << ")";
 }
 
 void app::print(std::ostream& a_ostream) const
 {
-    a_ostream << "(";
     m_func->print(a_ostream);
     a_ostream << " ";
     m_arg->print(a_ostream);
-    a_ostream << ")";
 }
 
 void hole::print(std::ostream& a_ostream) const
@@ -1785,6 +1784,29 @@ void lambda_test_main()
     TEST(test_func_reduce);
     TEST(test_app_reduce);
     TEST(test_hole_reduce);
+
+    // having fun now:
+
+    const auto l_true =
+        lambda::func{lambda::func{lambda::local{0}.clone()}.clone()}.clone();
+
+    const auto l_false =
+        lambda::func{lambda::func{lambda::local{1}.clone()}.clone()}.clone();
+
+    const auto l_expr_0 =
+        std::make_unique<lambda::func>(lambda::local{10}.clone());
+    const auto l_expr_1 =
+        std::make_unique<lambda::func>(lambda::local{11}.clone());
+
+    const auto l_final =
+        lambda::app{lambda::app{l_false->clone(), l_expr_0->clone()}.clone(),
+                    l_expr_1->clone()}
+            .clone();
+
+    const auto l_reduced = l_final->reduce({});
+
+    l_reduced->print(std::cout);
+    std::cout << std::endl;
 }
 
 #endif

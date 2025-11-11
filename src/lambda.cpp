@@ -1334,37 +1334,96 @@ void test_app_reduce()
         assert(l_reduced_rhs->m_index == 1);
     }
 
-    // // app with lhs global and rhs local
-    // {
-    //     // create global definitions
-    //     lambda::expr::global_map l_globals{};
-    //     l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+    // app with lhs global and rhs local
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
 
-    //     lambda::global l_lhs{0};
-    //     lambda::local l_rhs{1};
-    //     lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+        lambda::global l_lhs{0};
+        lambda::local l_rhs{1};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
 
-    //     // reduce the app
-    //     const auto l_reduced = l_expr.reduce({});
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
 
-    //     const lambda::app* l_app =
-    //     dynamic_cast<lambda::app*>(l_reduced.get()); assert(l_app !=
-    //     nullptr);
+        // make sure beta reduction did not occur, but lhs was WHNF reduced
+        assert(l_reduced->equals(
+            lambda::app{l_globals[0]->clone(), l_rhs.clone()}.clone()));
+    }
 
-    //     // lhs should be local
-    //     const lambda::local* l_reduced_lhs =
-    //         dynamic_cast<lambda::local*>(l_app->m_func.get());
-    //     assert(l_reduced_lhs != nullptr);
+    // app with lhs func and rhs local
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
 
-    //     // rhs should be local
-    //     const lambda::local* l_reduced_rhs =
-    //         dynamic_cast<lambda::local*>(l_app->m_arg.get());
-    //     assert(l_reduced_rhs != nullptr);
+        lambda::func l_lhs{lambda::local{0}.clone()};
+        lambda::local l_rhs{1};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
 
-    //     // same on both (no reduction occurred)
-    //     assert(l_reduced_lhs->m_index == 0);
-    //     assert(l_reduced_rhs->m_index == 1);
-    // }
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // make sure nothing changed
+        // (beta reduction did not occur since rhs is local)
+        assert(l_reduced->equals(l_expr.clone()));
+    }
+
+    // app with lhs func and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::func l_lhs{lambda::local{0}.clone()};
+        lambda::func l_rhs{lambda::local{1}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // make sure beta-reduction occurred, with no lifting of indices
+        assert(l_reduced->equals(l_rhs.clone()));
+    }
+
+    // app with lhs func (without occurrences of var 0) and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::func l_lhs{lambda::local{3}.clone()};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // make sure beta-reduction occurred, but no replacements.
+        // other vars decremented by 1.
+        assert(l_reduced->equals(lambda::local{2}.clone()));
+    }
+
+    // app with lhs (nested func with occurrences of var 0) and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::func l_lhs{lambda::func{lambda::local{0}.clone()}.clone()};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // make sure beta-reduction occurred, with replacement,
+        // and a lifting of 1 level
+        assert(l_reduced->equals(
+            lambda::func{lambda::func{lambda::local{6}.clone()}.clone()}
+                .clone()));
+    }
 }
 
 void test_hole_reduce()
@@ -1397,11 +1456,13 @@ void lambda_test_main()
     TEST(test_func_lift);
     TEST(test_app_lift);
     TEST(test_hole_lift);
+
     TEST(test_local_substitute);
     TEST(test_global_substitute);
     TEST(test_hole_substitute);
     TEST(test_func_substitute);
     TEST(test_app_substitute);
+
     TEST(test_local_reduce);
     TEST(test_global_reduce);
     TEST(test_func_reduce);

@@ -1568,10 +1568,10 @@ void generic_use_case_test()
 
     // true
     l_globals.emplace_back(f(f(l(0))));
-    const size_t TRUE = 0;
+    const auto TRUE = g(0);
     // false
     l_globals.emplace_back(f(f(l(1))));
-    const size_t FALSE = 1;
+    const auto FALSE = g(1);
 
     // test the church bools
     {
@@ -1583,11 +1583,11 @@ void generic_use_case_test()
 
         // test the true case
         const auto l_true_case_app =
-            a(a(g(TRUE), l_true_case), l_false_case)->reduce(l_globals);
+            a(a(TRUE, l_true_case), l_false_case)->reduce(l_globals);
 
         // test the false case
         const auto l_false_case_app =
-            a(a(g(FALSE), l_true_case), l_false_case)->reduce(l_globals);
+            a(a(FALSE, l_true_case), l_false_case)->reduce(l_globals);
 
         std::cout << "true case app: ";
         l_true_case_app->print(std::cout);
@@ -1601,6 +1601,16 @@ void generic_use_case_test()
         assert(l_true_case_app->equals(l_true_case->clone()));
         assert(l_false_case_app->equals(l_false_case->clone()));
     }
+
+    // add church numerals
+
+    // 0
+    l_globals.emplace_back(f(f(l(1))));
+    const auto ZERO = g(2);
+
+    // succ
+    l_globals.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
+    const auto SUCC = g(3);
 }
 
 void lambda_test_main()

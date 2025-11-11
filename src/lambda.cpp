@@ -903,6 +903,7 @@ void test_global_reduce()
         // create global definitions
         lambda::expr::global_map l_globals{};
         l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+        l_globals.emplace_back(lambda::func{lambda::local{13}.clone()}.clone());
 
         // set up reduction
         lambda::global l_expr{0};
@@ -920,6 +921,31 @@ void test_global_reduce()
 
         // make sure it has the same index
         assert(l_local->m_index == 0);
+    }
+
+    // global with index 1
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+        l_globals.emplace_back(lambda::func{lambda::local{13}.clone()}.clone());
+
+        // set up reduction
+        lambda::global l_expr{1};
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // cast the pointer
+        const lambda::func* l_casted =
+            dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_casted != nullptr);
+
+        // get body
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_casted->m_body.get());
+        assert(l_local != nullptr);
+
+        // make sure it has the same index
+        assert(l_local->m_index == 13);
     }
 }
 

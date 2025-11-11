@@ -581,6 +581,282 @@ void test_global_substitute()
     }
 }
 
+void test_func_substitute()
+{
+    // single composition lambda, outer depth 0, occurrance found
+    {
+        // it should be noted:
+        // when saying here that l_func has a body local of index 0,
+        // that the local does NOT reference the binder introduced by
+        // l_func. This is because, when subbing, it is implied that
+        // there USED to be an even more outer binder (which 0 would
+        // have been bound to, hence the substitution DOES take place)
+
+        lambda::func l_func{lambda::local{0}.clone()};
+        lambda::local l_local{11};
+
+        const auto l_subbed = l_func.substitute(0, l_local.clone());
+
+        const lambda::func* l_subbed_func =
+            dynamic_cast<lambda::func*>(l_subbed.get());
+
+        // make sure still a function
+        assert(l_subbed_func != nullptr);
+
+        // get body
+        const lambda::local* l_subbed_local =
+            dynamic_cast<lambda::local*>(l_subbed_func->m_body.get());
+
+        // make sure the substitution took place
+        assert(l_subbed_local != nullptr);
+
+        // the index of the substitute is lifted by 1 (one binder)
+        assert(l_subbed_local->m_index == 12);
+    }
+    // doublle composition lambda, outer depth 0, occurrance found
+    {
+        // it should be noted:
+        // when saying here that l_func has a body local of index 0,
+        // that the local does NOT reference the binder introduced by
+        // l_func. This is because, when subbing, it is implied that
+        // there USED to be an even more outer binder (which 0 would
+        // have been bound to, hence the substitution DOES take place)
+
+        lambda::func l_func{lambda::func{lambda::local{0}.clone()}.clone()};
+        lambda::local l_local{11};
+
+        const auto l_subbed = l_func.substitute(0, l_local.clone());
+
+        const lambda::func* l_subbed_func =
+            dynamic_cast<lambda::func*>(l_subbed.get());
+
+        // make sure still a function
+        assert(l_subbed_func != nullptr);
+
+        const lambda::func* l_subbed_func_2 =
+            dynamic_cast<lambda::func*>(l_subbed_func->m_body.get());
+
+        // get body
+        const lambda::local* l_subbed_local =
+            dynamic_cast<lambda::local*>(l_subbed_func_2->m_body.get());
+
+        // make sure the substitution took place
+        assert(l_subbed_local != nullptr);
+
+        // the index of the substitute is lifted by 2 (two binders)
+        assert(l_subbed_local->m_index == 13);
+    }
+
+    // single composition lambda, outer depth 0, occurrance not found
+    {
+        lambda::func l_func{lambda::local{1}.clone()};
+        lambda::global l_global{11};
+
+        const auto l_subbed = l_func.substitute(0, l_global.clone());
+
+        const lambda::func* l_subbed_func =
+            dynamic_cast<lambda::func*>(l_subbed.get());
+
+        // make sure still a function
+        assert(l_subbed_func != nullptr);
+
+        // get body
+        const lambda::local* l_subbed_local =
+            dynamic_cast<lambda::local*>(l_subbed_func->m_body.get());
+
+        // make sure the substitution took place
+        assert(l_subbed_local != nullptr);
+
+        // the local got decremented since it was not the thing to replace.
+        assert(l_subbed_local->m_index == 0);
+    }
+}
+
+void test_app_substitute()
+{
+    // app of locals, both are occurrances
+    {
+        lambda::local l_lhs{0};
+        lambda::local l_rhs{0};
+        lambda::app l_app{l_lhs.clone(), l_rhs.clone()};
+        lambda::local l_sub{11};
+        const auto l_subbed = l_app.substitute(0, l_sub.clone());
+
+        // get the outer app
+        const lambda::app* l_subbed_app =
+            dynamic_cast<lambda::app*>(l_subbed.get());
+
+        // make sure outer binder is an app
+        assert(l_subbed_app != nullptr);
+
+        // get lhs
+        const lambda::local* l_subbed_lhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_func.get());
+
+        // make sure lhs is a local
+        assert(l_subbed_lhs != nullptr);
+
+        // get rhs
+        const lambda::local* l_subbed_rhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_arg.get());
+
+        // make sure rhs is a local
+        assert(l_subbed_rhs != nullptr);
+
+        // make sure they have correct indices
+        assert(l_subbed_lhs->m_index == 11);
+        assert(l_subbed_rhs->m_index == 11);
+    }
+
+    // app of locals, lhs is an occurrance
+    {
+        lambda::local l_lhs{0};
+        lambda::local l_rhs{1};
+        lambda::app l_app{l_lhs.clone(), l_rhs.clone()};
+        lambda::local l_sub{11};
+        const auto l_subbed = l_app.substitute(0, l_sub.clone());
+
+        // get the outer app
+        const lambda::app* l_subbed_app =
+            dynamic_cast<lambda::app*>(l_subbed.get());
+
+        // make sure outer binder is an app
+        assert(l_subbed_app != nullptr);
+
+        // get lhs
+        const lambda::local* l_subbed_lhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_func.get());
+
+        // make sure lhs is a local
+        assert(l_subbed_lhs != nullptr);
+
+        // get rhs
+        const lambda::local* l_subbed_rhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_arg.get());
+
+        // make sure rhs is a local
+        assert(l_subbed_rhs != nullptr);
+
+        // make sure they have correct indices
+        assert(l_subbed_lhs->m_index == 11);
+        assert(l_subbed_rhs->m_index == 0);
+    }
+
+    // app of locals, rhs is an occurrance
+    {
+        lambda::local l_lhs{1};
+        lambda::local l_rhs{0};
+        lambda::app l_app{l_lhs.clone(), l_rhs.clone()};
+        lambda::local l_sub{11};
+        const auto l_subbed = l_app.substitute(0, l_sub.clone());
+
+        // get the outer app
+        const lambda::app* l_subbed_app =
+            dynamic_cast<lambda::app*>(l_subbed.get());
+
+        // make sure outer binder is an app
+        assert(l_subbed_app != nullptr);
+
+        // get lhs
+        const lambda::local* l_subbed_lhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_func.get());
+
+        // make sure lhs is a local
+        assert(l_subbed_lhs != nullptr);
+
+        // get rhs
+        const lambda::local* l_subbed_rhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_arg.get());
+
+        // make sure rhs is a local
+        assert(l_subbed_rhs != nullptr);
+
+        // make sure they have correct indices
+        assert(l_subbed_lhs->m_index == 0);
+        assert(l_subbed_rhs->m_index == 11);
+    }
+
+    // app of locals, neither are occurrances
+    {
+        lambda::local l_lhs{1};
+        lambda::local l_rhs{1};
+        lambda::app l_app{l_lhs.clone(), l_rhs.clone()};
+        lambda::local l_sub{11};
+        const auto l_subbed = l_app.substitute(0, l_sub.clone());
+
+        // get the outer app
+        const lambda::app* l_subbed_app =
+            dynamic_cast<lambda::app*>(l_subbed.get());
+
+        // make sure outer binder is an app
+        assert(l_subbed_app != nullptr);
+
+        // get lhs
+        const lambda::local* l_subbed_lhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_func.get());
+
+        // make sure lhs is a local
+        assert(l_subbed_lhs != nullptr);
+
+        // get rhs
+        const lambda::local* l_subbed_rhs =
+            dynamic_cast<lambda::local*>(l_subbed_app->m_arg.get());
+
+        // make sure rhs is a local
+        assert(l_subbed_rhs != nullptr);
+
+        // make sure they have correct indices
+        assert(l_subbed_lhs->m_index == 0);
+        assert(l_subbed_rhs->m_index == 0);
+    }
+
+    // app of funcs, both with occurrances
+    {
+        lambda::func l_lhs{lambda::local{0}.clone()};
+        lambda::func l_rhs{lambda::local{0}.clone()};
+        lambda::app l_app{l_lhs.clone(), l_rhs.clone()};
+        lambda::local l_sub{11};
+        const auto l_subbed = l_app.substitute(0, l_sub.clone());
+
+        // get the outer app
+        const lambda::app* l_subbed_app =
+            dynamic_cast<lambda::app*>(l_subbed.get());
+
+        // make sure outer binder is an app
+        assert(l_subbed_app != nullptr);
+
+        // get lhs
+        const lambda::func* l_subbed_lhs =
+            dynamic_cast<lambda::func*>(l_subbed_app->m_func.get());
+
+        // make sure lhs is a func
+        assert(l_subbed_lhs != nullptr);
+
+        // get rhs
+        const lambda::func* l_subbed_rhs =
+            dynamic_cast<lambda::func*>(l_subbed_app->m_arg.get());
+
+        // make sure rhs is a func
+        assert(l_subbed_rhs != nullptr);
+
+        const lambda::local* l_lhs_local =
+            dynamic_cast<lambda::local*>(l_subbed_lhs->m_body.get());
+
+        // make sure body of lhs is a local
+        assert(l_lhs_local != nullptr);
+
+        const lambda::local* l_rhs_local =
+            dynamic_cast<lambda::local*>(l_subbed_rhs->m_body.get());
+
+        // make sure body of rhs is a local
+        assert(l_rhs_local != nullptr);
+
+        // make sure they have correct indices (lifted by 1 due to binders)
+        assert(l_lhs_local->m_index == 12);
+        assert(l_rhs_local->m_index == 12);
+    }
+}
+
 void test_hole_substitute()
 {
     // empty captures
@@ -609,6 +885,8 @@ void lambda_test_main()
     TEST(test_local_substitute);
     TEST(test_global_substitute);
     TEST(test_hole_substitute);
+    TEST(test_func_substitute);
+    TEST(test_app_substitute);
 }
 
 #endif

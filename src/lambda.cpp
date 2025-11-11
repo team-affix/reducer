@@ -1424,6 +1424,174 @@ void test_app_reduce()
             lambda::func{lambda::func{lambda::local{6}.clone()}.clone()}
                 .clone()));
     }
+
+    // app with lhs (nested func without occurrences of var 0) and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::func l_lhs{lambda::func{lambda::local{3}.clone()}.clone()};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // make sure beta-reduction occurred, no replacements.
+        // other vars decremented by 1.
+        assert(
+            l_reduced->equals(lambda::func{lambda::local{2}.clone()}.clone()));
+    }
+
+    // app with lhs (app that doesnt reduce to func) and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::app l_lhs{lambda::local{3}.clone(), lambda::local{4}.clone()};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // make sure nothing changed
+        assert(l_reduced->equals(l_expr.clone()));
+    }
+
+    // app with lhs (app with lhs (func without occurrances), rhs local)
+    // and rhs func
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::app l_lhs{lambda::func{lambda::local{3}.clone()}.clone(),
+                          lambda::local{4}.clone()};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // should not beta-reduce, since rhs of lhs is a local
+        assert(l_reduced->equals(l_expr.clone()));
+    }
+
+    // app with lhs (app with lhs (func without occurrances), rhs func)
+    // and rhs func, where there are too many arguments supplied
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::app l_lhs{lambda::func{lambda::local{3}.clone()}.clone(),
+                          lambda::func{lambda::local{4}.clone()}.clone()};
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // lhs of app should beta-reduce, but lhs is not capable of consuming 2
+        // args. Thus WHNF is an application with LHS beta-reduced once.
+        assert(l_reduced->equals(
+            lambda::app{lambda::local{2}.clone(),
+                        lambda::func{lambda::local{5}.clone()}.clone()}
+                .clone()));
+    }
+
+    // app with lhs (app with lhs (func without occurrances), rhs func)
+    // and rhs func, where there are correct number of args supplied.
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::app l_lhs{
+
+            lambda::func{
+                lambda::func{
+                    lambda::local{3}.clone(),
+                }
+                    .clone(),
+            }
+                .clone(),
+            lambda::func{lambda::local{4}.clone()}.clone(),
+        };
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // should beta-reduce twice, consuming all args. No replacements, only
+        // decrementing twice.
+        assert(l_reduced->equals(lambda::local{1}.clone()));
+    }
+
+    // app with lhs (app with lhs (func WITH occurrances), rhs func)
+    // and rhs func, where there are correct number of args supplied.
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::app l_lhs{
+
+            lambda::func{
+                lambda::func{
+                    lambda::local{0}.clone(), // becomes first arg
+                }
+                    .clone(),
+            }
+                .clone(),
+            lambda::func{lambda::local{4}.clone()}.clone(),
+        };
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // should beta-reduce twice, consuming all args.
+        // becomes first arg, without lifting. (lifting occurred but was undone
+        // by second arg)
+        assert(
+            l_reduced->equals(lambda::func{lambda::local{4}.clone()}.clone()));
+    }
+
+    // app with lhs (app with lhs (func WITH occurrances), rhs func)
+    // and rhs func, where there are correct number of args supplied.
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+
+        lambda::app l_lhs{
+
+            lambda::func{
+                lambda::func{
+                    lambda::local{1}.clone(), // becomes second arg
+                }
+                    .clone(),
+            }
+                .clone(),
+            lambda::func{lambda::local{4}.clone()}.clone(),
+        };
+        lambda::func l_rhs{lambda::local{5}.clone()};
+        lambda::app l_expr{l_lhs.clone(), l_rhs.clone()};
+
+        // reduce the app
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // should beta-reduce twice, consuming all args.
+        // becomes second arg, without lifting. (lifting occurred but was undone
+        // by second arg)
+        assert(l_reduced->equals(l_rhs.clone()));
+    }
 }
 
 void test_hole_reduce()

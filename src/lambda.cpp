@@ -947,6 +947,83 @@ void test_global_reduce()
         // make sure it has the same index
         assert(l_local->m_index == 13);
     }
+
+    // 1 cascading global reduction
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+        l_globals.emplace_back(lambda::global{0}.clone());
+
+        // set up reduction
+        lambda::global l_expr{1};
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // cast the pointer
+        const lambda::func* l_casted =
+            dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_casted != nullptr);
+
+        // get body
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_casted->m_body.get());
+        assert(l_local != nullptr);
+
+        // make sure it has the same index
+        assert(l_local->m_index == 0);
+    }
+
+    // 2 cascading global reductions
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+        l_globals.emplace_back(lambda::global{0}.clone());
+        l_globals.emplace_back(lambda::global{1}.clone());
+
+        // set up reduction
+        lambda::global l_expr{2};
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // cast the pointer
+        const lambda::func* l_casted =
+            dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_casted != nullptr);
+
+        // get body
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_casted->m_body.get());
+        assert(l_local != nullptr);
+
+        // make sure it has the same index
+        assert(l_local->m_index == 0);
+    }
+
+    // 2 cascading global reductions
+    {
+        // create global definitions
+        lambda::expr::global_map l_globals{};
+        l_globals.emplace_back(lambda::func{lambda::local{0}.clone()}.clone());
+        l_globals.emplace_back(lambda::func{lambda::global{0}.clone()}.clone());
+
+        // set up reduction
+        lambda::global l_expr{1};
+        const auto l_reduced = l_expr.reduce(l_globals);
+
+        // cast the pointer
+        const lambda::func* l_casted =
+            dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_casted != nullptr);
+
+        // get body (should still be global since WHNF does not reduce the body
+        // of a lambda)
+        const lambda::global* l_global =
+            dynamic_cast<lambda::global*>(l_casted->m_body.get());
+        assert(l_global != nullptr);
+
+        // make sure it has the same index
+        assert(l_global->m_index == 0);
+    }
 }
 
 void lambda_test_main()

@@ -1,6 +1,7 @@
 #ifndef LAMBDA_HPP
 #define LAMBDA_HPP
 
+#include <any>
 #include <cstddef>
 #include <memory>
 #include <ostream>
@@ -83,20 +84,6 @@ struct app : expr
         const std::unique_ptr<expr>& a_arg);
     std::unique_ptr<expr> m_func;
     std::unique_ptr<expr> m_arg;
-};
-
-struct hole : expr
-{
-    virtual ~hole() = default;
-    bool equals(const std::unique_ptr<expr>&) const override;
-    void print(std::ostream& a_ostream) const override;
-    std::unique_ptr<expr> lift(size_t a_new_depth) const override;
-    std::unique_ptr<expr>
-    substitute(size_t a_new_depth,
-               const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    hole(const std::set<size_t>& a_captures);
-    std::set<size_t> m_captures;
 };
 
 } // namespace lambda

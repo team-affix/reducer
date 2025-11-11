@@ -45,16 +45,6 @@ bool app::equals(const std::unique_ptr<expr>& a_other) const
     return m_func->equals(l_casted->m_func) && m_arg->equals(l_casted->m_arg);
 }
 
-bool hole::equals(const std::unique_ptr<expr>& a_other) const
-{
-    const hole* l_casted = dynamic_cast<const hole*>(a_other.get());
-
-    if(!l_casted)
-        return false;
-
-    return m_captures == l_casted->m_captures;
-}
-
 // PRINT METHODS
 
 void local::print(std::ostream& a_ostream) const
@@ -81,14 +71,6 @@ void app::print(std::ostream& a_ostream) const
     m_arg->print(a_ostream);
 }
 
-void hole::print(std::ostream& a_ostream) const
-{
-    a_ostream << "?{";
-    for(const auto& l_capture : m_captures)
-        a_ostream << l_capture << ",";
-    a_ostream << "}";
-}
-
 // LIFT METHODS
 
 std::unique_ptr<expr> local::lift(size_t a_new_depth) const
@@ -110,11 +92,6 @@ std::unique_ptr<expr> app::lift(size_t a_new_depth) const
 {
     return std::make_unique<app>(m_func->lift(a_new_depth),
                                  m_arg->lift(a_new_depth));
-}
-
-std::unique_ptr<expr> hole::lift(size_t a_new_depth) const
-{
-    return std::make_unique<hole>(m_captures);
 }
 
 // SUBSTITUTE METHODS
@@ -151,13 +128,6 @@ std::unique_ptr<expr> app::substitute(size_t a_new_depth,
     // just substitute the function and argument
     return std::make_unique<app>(m_func->substitute(a_new_depth, a_arg),
                                  m_arg->substitute(a_new_depth, a_arg));
-}
-
-std::unique_ptr<expr> hole::substitute(size_t a_new_depth,
-                                       const std::unique_ptr<expr>& a_arg) const
-{
-    // throw an error if we are beta-reducing a hole
-    throw std::runtime_error("Error: cannot substitute into a hole.");
 }
 
 // REDUCE METHODS
@@ -201,11 +171,6 @@ std::unique_ptr<expr> app::reduce(const global_map& a_globals) const
     return l_substituted_body->reduce(a_globals);
 }
 
-std::unique_ptr<expr> hole::reduce(const global_map& a_globals) const
-{
-    throw std::runtime_error("Error: cannot reduce a hole.");
-}
-
 // EXPR CLONE METHOD
 std::unique_ptr<expr> expr::clone() const
 {
@@ -233,10 +198,6 @@ func::func(const std::unique_ptr<expr>& a_body)
 app::app(const std::unique_ptr<expr>& a_func,
          const std::unique_ptr<expr>& a_arg)
     : expr(), m_func(a_func->clone()), m_arg(a_arg->clone())
-{
-}
-
-hole::hole(const std::set<size_t>& a_captures) : expr(), m_captures(a_captures)
 {
 }
 
@@ -279,60 +240,42 @@ void test_global_constructor()
 
 void test_func_constructor()
 {
-    // hole body
+    // local body
     {
-        std::set<size_t> l_captures{1, 2, 3};
-        lambda::func l_func{std::make_unique<lambda::hole>(l_captures)};
+        lambda::func l_func{std::make_unique<lambda::local>(0)};
         // get body
         const auto& l_body = l_func.m_body;
-        // check if the body is a hole
-        const lambda::hole* l_hole = dynamic_cast<lambda::hole*>(l_body.get());
-        assert(l_hole != nullptr);
-        // check if the captures are correct
-        assert(l_hole->m_captures == l_captures);
+        // check if the body is a local
+        const lambda::local* l_local =
+            dynamic_cast<lambda::local*>(l_body.get());
+        assert(l_local != nullptr);
+        // check if the index is correct
+        assert(l_local->m_index == 0);
     }
 }
 
 void test_app_constructor()
 {
-    // hole application
+    // local application
     {
-        std::set<size_t> l_lhs_captures{1, 2, 3};
-        std::set<size_t> l_rhs_captures{4, 5, 6};
-        lambda::app l_app{std::make_unique<lambda::hole>(l_lhs_captures),
-                          std::make_unique<lambda::hole>(l_rhs_captures)};
+        lambda::app l_app{std::make_unique<lambda::local>(0),
+                          std::make_unique<lambda::local>(1)};
         // get the lhs
         const auto& l_lhs = l_app.m_func;
         // get the rhs
         const auto& l_rhs = l_app.m_arg;
 
-        // make sure they both are holes
-        const lambda::hole* l_lhs_hole =
-            dynamic_cast<lambda::hole*>(l_lhs.get());
-        const lambda::hole* l_rhs_hole =
-            dynamic_cast<lambda::hole*>(l_rhs.get());
-        assert(l_lhs_hole != nullptr);
-        assert(l_rhs_hole != nullptr);
+        // make sure they both are locals
+        const lambda::local* l_lhs_local =
+            dynamic_cast<lambda::local*>(l_lhs.get());
+        const lambda::local* l_rhs_local =
+            dynamic_cast<lambda::local*>(l_rhs.get());
+        assert(l_lhs_local != nullptr);
+        assert(l_rhs_local != nullptr);
 
-        // make sure the captures are correct
-        assert(l_lhs_hole->m_captures == l_lhs_captures);
-        assert(l_rhs_hole->m_captures == l_rhs_captures);
-    }
-}
-
-void test_hole_constructor()
-{
-    // empty captures
-    {
-        lambda::hole l_hole{{}};
-        assert(l_hole.m_captures.empty());
-    }
-
-    // non-empty captures
-    {
-        std::set<size_t> l_captures{1, 2, 3};
-        lambda::hole l_hole{l_captures};
-        assert(l_hole.m_captures == l_captures);
+        // make sure the indices are correct
+        assert(l_lhs_local->m_index == 0);
+        assert(l_rhs_local->m_index == 1);
     }
 }
 
@@ -379,14 +322,6 @@ void test_local_equals()
         lambda::app l_app{std::make_unique<lambda::local>(0),
                           std::make_unique<lambda::local>(0)};
         assert(!l_local.equals(l_app.clone()));
-    }
-
-    // local equals hole
-    {
-        lambda::local l_local{0};
-        std::set<size_t> l_captures{1, 2, 3};
-        lambda::hole l_hole{l_captures};
-        assert(!l_local.equals(l_hole.clone()));
     }
 }
 
@@ -489,39 +424,6 @@ void test_app_equals()
         lambda::app l_app_other{l_second_lhs_global.clone(),
                                 l_second_rhs_local.clone()};
         assert(!l_app.equals(l_app_other.clone()));
-    }
-}
-
-void test_hole_equals()
-{
-    // empty captures, equals empty captures
-    {
-        lambda::hole l_hole{{}};
-        lambda::hole l_hole_other{{}};
-        assert(l_hole.equals(l_hole_other.clone()));
-    }
-
-    // non-empty captures, equals non-empty captures
-    {
-        std::set<size_t> l_captures{1, 2, 3};
-        lambda::hole l_hole{l_captures};
-        lambda::hole l_hole_other{l_captures};
-        assert(l_hole.equals(l_hole_other.clone()));
-    }
-
-    // non-empty captures, equals empty captures
-    {
-        std::set<size_t> l_captures{1, 2, 3};
-        lambda::hole l_hole{l_captures};
-        lambda::hole l_hole_other{{}};
-        assert(!l_hole.equals(l_hole_other.clone()));
-    }
-
-    // hole equals local
-    {
-        lambda::hole l_hole{{}};
-        lambda::local l_local{0};
-        assert(!l_hole.equals(l_local.clone()));
     }
 }
 
@@ -670,34 +572,6 @@ void test_app_lift()
             dynamic_cast<lambda::local*>(l_lifted_rhs.get());
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 4);
-    }
-}
-
-void test_hole_lift()
-{
-    // empty captures
-    {
-        lambda::hole l_hole{{}};
-        auto l_lifted = l_hole.lift(1);
-
-        const lambda::hole* l_lifted_hole =
-            dynamic_cast<lambda::hole*>(l_lifted.get());
-
-        assert(l_lifted_hole != nullptr);
-        assert(l_lifted_hole->m_captures.empty());
-    }
-
-    // non-empty captures
-    {
-        std::set<size_t> l_captures{1, 2, 3};
-        lambda::hole l_hole{l_captures};
-        auto l_lifted = l_hole.lift(1);
-
-        const lambda::hole* l_lifted_hole =
-            dynamic_cast<lambda::hole*>(l_lifted.get());
-
-        assert(l_lifted_hole != nullptr);
-        assert(l_lifted_hole->m_captures == l_captures);
     }
 }
 
@@ -1127,17 +1001,6 @@ void test_app_substitute()
         // make sure they have correct indices (lifted by 1 due to binders)
         assert(l_lhs_local->m_index == 12);
         assert(l_rhs_local->m_index == 12);
-    }
-}
-
-void test_hole_substitute()
-{
-    // empty captures
-    {
-        lambda::hole l_hole{{}};
-        lambda::hole l_substitute{std::set<size_t>{}};
-        assert_throws(l_hole.substitute(0, l_substitute.clone()),
-                      std::runtime_error);
     }
 }
 
@@ -1742,15 +1605,6 @@ void test_app_reduce()
     }
 }
 
-void test_hole_reduce()
-{
-    // reduction of a hole should throw error
-    {
-        lambda::hole l_expr{{}};
-        assert_throws(l_expr.reduce({}), std::runtime_error);
-    }
-}
-
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1759,23 +1613,19 @@ void lambda_test_main()
     TEST(test_global_constructor);
     TEST(test_func_constructor);
     TEST(test_app_constructor);
-    TEST(test_hole_constructor);
 
     TEST(test_local_equals);
     TEST(test_global_equals);
     TEST(test_func_equals);
     TEST(test_app_equals);
-    TEST(test_hole_equals);
 
     TEST(test_local_lift);
     TEST(test_global_lift);
     TEST(test_func_lift);
     TEST(test_app_lift);
-    TEST(test_hole_lift);
 
     TEST(test_local_substitute);
     TEST(test_global_substitute);
-    TEST(test_hole_substitute);
     TEST(test_func_substitute);
     TEST(test_app_substitute);
 
@@ -1783,7 +1633,6 @@ void lambda_test_main()
     TEST(test_global_reduce);
     TEST(test_func_reduce);
     TEST(test_app_reduce);
-    TEST(test_hole_reduce);
 
     // having fun now:
 

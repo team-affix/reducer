@@ -1,11 +1,9 @@
 #ifndef LAMBDA_HPP
 #define LAMBDA_HPP
 
-#include <any>
 #include <cstddef>
 #include <memory>
 #include <ostream>
-#include <set>
 #include <vector>
 
 namespace lambda
@@ -38,8 +36,11 @@ struct local : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    local(size_t a_index);
     size_t m_index;
+
+  private:
+    local(size_t a_index);
+    friend std::unique_ptr<local> l(size_t a_index);
 };
 
 struct global : expr
@@ -52,8 +53,11 @@ struct global : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    global(size_t a_index);
     size_t m_index;
+
+  private:
+    global(size_t a_index);
+    friend std::unique_ptr<global> g(size_t a_index);
 };
 
 struct func : expr
@@ -66,8 +70,11 @@ struct func : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    func(const std::unique_ptr<expr>& a_body);
     std::unique_ptr<expr> m_body;
+
+  private:
+    func(const std::unique_ptr<expr>& a_body);
+    friend std::unique_ptr<func> f(const std::unique_ptr<expr>& a_body);
 };
 
 struct app : expr
@@ -80,11 +87,22 @@ struct app : expr
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    app(const std::unique_ptr<expr>& a_func,
-        const std::unique_ptr<expr>& a_arg);
     std::unique_ptr<expr> m_func;
     std::unique_ptr<expr> m_arg;
+
+  private:
+    app(const std::unique_ptr<expr>& a_func,
+        const std::unique_ptr<expr>& a_arg);
+    friend std::unique_ptr<app> a(const std::unique_ptr<expr>& a_func,
+                                  const std::unique_ptr<expr>& a_arg);
 };
+
+// factory functions
+std::unique_ptr<local> l(size_t a_index);
+std::unique_ptr<global> g(size_t a_index);
+std::unique_ptr<func> f(const std::unique_ptr<expr>& a_body);
+std::unique_ptr<app> a(const std::unique_ptr<expr>& a_func,
+                       const std::unique_ptr<expr>& a_arg);
 
 } // namespace lambda
 

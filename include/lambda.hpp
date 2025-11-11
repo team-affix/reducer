@@ -40,7 +40,7 @@ struct local : expr
 
   private:
     local(size_t a_index);
-    friend std::unique_ptr<local> l(size_t a_index);
+    friend std::unique_ptr<expr> l(size_t a_index);
 };
 
 struct global : expr
@@ -57,7 +57,7 @@ struct global : expr
 
   private:
     global(size_t a_index);
-    friend std::unique_ptr<global> g(size_t a_index);
+    friend std::unique_ptr<expr> g(size_t a_index);
 };
 
 struct func : expr
@@ -74,7 +74,7 @@ struct func : expr
 
   private:
     func(const std::unique_ptr<expr>& a_body);
-    friend std::unique_ptr<func> f(const std::unique_ptr<expr>& a_body);
+    friend std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body);
 };
 
 struct app : expr
@@ -93,16 +93,16 @@ struct app : expr
   private:
     app(const std::unique_ptr<expr>& a_func,
         const std::unique_ptr<expr>& a_arg);
-    friend std::unique_ptr<app> a(const std::unique_ptr<expr>& a_func,
-                                  const std::unique_ptr<expr>& a_arg);
+    friend std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
+                                   const std::unique_ptr<expr>& a_arg);
 };
 
 // factory functions
-std::unique_ptr<local> l(size_t a_index);
-std::unique_ptr<global> g(size_t a_index);
-std::unique_ptr<func> f(const std::unique_ptr<expr>& a_body);
-std::unique_ptr<app> a(const std::unique_ptr<expr>& a_func,
-                       const std::unique_ptr<expr>& a_arg);
+std::unique_ptr<expr> l(size_t a_index);
+std::unique_ptr<expr> g(size_t a_index);
+std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body);
+std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
+                        const std::unique_ptr<expr>& a_arg);
 
 } // namespace lambda
 

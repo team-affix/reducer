@@ -202,25 +202,25 @@ app::app(const std::unique_ptr<expr>& a_func,
 
 // FACTORY FUNCTIONS
 
-std::unique_ptr<local> l(size_t a_index)
+std::unique_ptr<expr> l(size_t a_index)
 {
-    return std::unique_ptr<local>(new local(a_index));
+    return std::unique_ptr<expr>(new local(a_index));
 }
 
-std::unique_ptr<global> g(size_t a_index)
+std::unique_ptr<expr> g(size_t a_index)
 {
-    return std::unique_ptr<global>(new global(a_index));
+    return std::unique_ptr<expr>(new global(a_index));
 }
 
-std::unique_ptr<func> f(const std::unique_ptr<expr>& a_body)
+std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body)
 {
-    return std::unique_ptr<func>(new func(a_body->clone()));
+    return std::unique_ptr<expr>(new func(a_body->clone()));
 }
 
-std::unique_ptr<app> a(const std::unique_ptr<expr>& a_func,
-                       const std::unique_ptr<expr>& a_arg)
+std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
+                        const std::unique_ptr<expr>& a_arg)
 {
-    return std::unique_ptr<app>(new app(a_func->clone(), a_arg->clone()));
+    return std::unique_ptr<expr>(new app(a_func->clone(), a_arg->clone()));
 }
 
 } // namespace lambda
@@ -237,13 +237,17 @@ void test_local_constructor()
     // index 0
     {
         auto l_local = l(0);
-        assert(l_local->m_index == 0);
+        const local* l_local_casted = dynamic_cast<local*>(l_local.get());
+        assert(l_local_casted != nullptr);
+        assert(l_local_casted->m_index == 0);
     }
 
     // index 1
     {
         auto l_local = l(1);
-        assert(l_local->m_index == 1);
+        const local* l_local_casted = dynamic_cast<local*>(l_local.get());
+        assert(l_local_casted != nullptr);
+        assert(l_local_casted->m_index == 1);
     }
 }
 
@@ -252,13 +256,17 @@ void test_global_constructor()
     // index 0
     {
         auto l_global = g(0);
-        assert(l_global->m_index == 0);
+        const global* l_global_casted = dynamic_cast<global*>(l_global.get());
+        assert(l_global_casted != nullptr);
+        assert(l_global_casted->m_index == 0);
     }
 
     // index 1
     {
         auto l_global = g(1);
-        assert(l_global->m_index == 1);
+        const global* l_global_casted = dynamic_cast<global*>(l_global.get());
+        assert(l_global_casted != nullptr);
+        assert(l_global_casted->m_index == 1);
     }
 }
 
@@ -268,7 +276,9 @@ void test_func_constructor()
     {
         auto l_func = f(l(0));
         // get body
-        const auto& l_body = l_func->m_body;
+        const func* l_func_casted = dynamic_cast<func*>(l_func.get());
+        assert(l_func_casted != nullptr);
+        const auto& l_body = l_func_casted->m_body;
         // check if the body is a local
         const local* l_local = dynamic_cast<local*>(l_body.get());
         assert(l_local != nullptr);
@@ -283,9 +293,11 @@ void test_app_constructor()
     {
         auto l_app = a(l(0), l(1));
         // get the lhs
-        const auto& l_lhs = l_app->m_func;
+        const app* l_app_casted = dynamic_cast<app*>(l_app.get());
+        assert(l_app_casted != nullptr);
+        const auto& l_lhs = l_app_casted->m_func;
         // get the rhs
-        const auto& l_rhs = l_app->m_arg;
+        const auto& l_rhs = l_app_casted->m_arg;
 
         // make sure they both are locals
         const local* l_lhs_local = dynamic_cast<local*>(l_lhs.get());
@@ -1547,35 +1559,49 @@ void test_app_reduce()
     }
 }
 
-// void generic_use_case_test()
-// {
-//     using namespace lambda;
-//     expr::global_map l_globals{};
+void generic_use_case_test()
+{
+    using namespace lambda;
+    expr::global_map l_globals{};
 
-//     // church booleans
+    // church booleans
 
-//     // true
-//     l_globals.emplace_back(std::make_unique<func>(
-//         std::make_unique<func>(std::make_unique<local>(0))));
-//     const size_t TRUE = 0;
-//     // false
-//     l_globals.emplace_back(std::make_unique<func>(
-//         std::make_unique<func>(std::make_unique<local>(1))));
-//     const size_t FALSE = 1;
+    // true
+    l_globals.emplace_back(f(f(l(0))));
+    const size_t TRUE = 0;
+    // false
+    l_globals.emplace_back(f(f(l(1))));
+    const size_t FALSE = 1;
 
-//     // test the church bools
-//     {
-//         // true case
-//         const auto l_true_case = std::make_unique<local>(10);
+    // test the church bools
+    {
+        // true case
+        const auto l_true_case = f(l(10));
 
-//         // false case
-//         const auto l_false_case = std::make_unique<local>(11);
+        // false case
+        const auto l_false_case = f(l(11));
 
-//         // test the true case
-//         const auto l_true_case_app = std::make_unique<app>(
-//             std::make_unique<global>(TRUE), l_true_case->clone());
-//     }
-// }
+        // test the true case
+        const auto l_true_case_app =
+            a(a(g(TRUE), l_true_case), l_false_case)->reduce(l_globals);
+
+        // test the false case
+        const auto l_false_case_app =
+            a(a(g(FALSE), l_true_case), l_false_case)->reduce(l_globals);
+
+        std::cout << "true case app: ";
+        l_true_case_app->print(std::cout);
+        std::cout << std::endl;
+
+        std::cout << "false case app: ";
+        l_false_case_app->print(std::cout);
+        std::cout << std::endl;
+
+        // test the true case
+        assert(l_true_case_app->equals(l_true_case->clone()));
+        assert(l_false_case_app->equals(l_false_case->clone()));
+    }
+}
 
 void lambda_test_main()
 {
@@ -1605,7 +1631,7 @@ void lambda_test_main()
     TEST(test_global_reduce);
     TEST(test_func_reduce);
     TEST(test_app_reduce);
-    // TEST(generic_use_case_test);
+    TEST(generic_use_case_test);
 }
 
 #endif

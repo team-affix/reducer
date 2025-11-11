@@ -1026,6 +1026,44 @@ void test_global_reduce()
     }
 }
 
+void test_func_reduce()
+{
+    // func with body of a local
+    {
+        lambda::func l_expr{lambda::local{0}.clone()};
+        const auto l_reduced = l_expr.reduce({});
+
+        // make sure still a func
+        const auto* l_func = dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_func != nullptr);
+
+        // get body
+        const auto* l_body = dynamic_cast<lambda::local*>(l_func->m_body.get());
+        assert(l_body != nullptr);
+
+        // make sure body is still same thing
+        assert(l_body->m_index == 0);
+    }
+
+    // func with body of a global
+    {
+        lambda::func l_expr{lambda::global{13}.clone()};
+        const auto l_reduced = l_expr.reduce({});
+
+        // make sure still a func
+        const auto* l_func = dynamic_cast<lambda::func*>(l_reduced.get());
+        assert(l_func != nullptr);
+
+        // get body
+        const auto* l_body =
+            dynamic_cast<lambda::global*>(l_func->m_body.get());
+        assert(l_body != nullptr);
+
+        // make sure body is still same thing
+        assert(l_body->m_index == 13);
+    }
+}
+
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1047,6 +1085,7 @@ void lambda_test_main()
     TEST(test_app_substitute);
     TEST(test_local_reduce);
     TEST(test_global_reduce);
+    TEST(test_func_reduce);
 }
 
 #endif

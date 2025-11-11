@@ -355,6 +355,141 @@ void test_local_equals()
     }
 }
 
+void test_global_equals()
+{
+    // index 0, equals index 0
+    {
+        lambda::global l_global{0};
+        lambda::global l_global_other{0};
+        assert(l_global.equals(l_global_other.clone()));
+    }
+
+    // index 0, equals index 1
+    {
+        lambda::global l_global{0};
+        lambda::global l_global_other{1};
+        assert(!l_global.equals(l_global_other.clone()));
+    }
+
+    // global equals local
+    {
+        lambda::global l_global{0};
+        lambda::local l_local{0};
+        assert(!l_global.equals(l_local.clone()));
+    }
+}
+
+void test_func_equals()
+{
+    // local body, equals local body
+    {
+        lambda::local l_local{0};
+        lambda::func l_func{l_local.clone()};
+        lambda::func l_func_other{l_local.clone()};
+        assert(l_func.equals(l_func_other.clone()));
+    }
+
+    // global body, equals global body
+    {
+        lambda::global l_global{0};
+        lambda::func l_func{l_global.clone()};
+        lambda::func l_func_other{l_global.clone()};
+        assert(l_func.equals(l_func_other.clone()));
+    }
+
+    // func equals local
+    {
+        lambda::func l_func{std::make_unique<lambda::local>(0)};
+        lambda::local l_local{0};
+        assert(!l_func.equals(l_local.clone()));
+    }
+
+    // func equals global
+    {
+        lambda::func l_func{std::make_unique<lambda::global>(0)};
+        lambda::global l_global{0};
+        assert(!l_func.equals(l_global.clone()));
+    }
+
+    // func with different bodies
+    {
+        lambda::local l_local{0};
+        lambda::local l_local_other{1};
+        lambda::func l_func{l_local.clone()};
+        lambda::func l_func_other{l_local_other.clone()};
+        assert(!l_func.equals(l_func_other.clone()));
+    }
+}
+
+void test_app_equals()
+{
+    // local lhs, local rhs, equals local lhs, local rhs
+    {
+        lambda::local l_lhs_local{0};
+        lambda::local l_rhs_local{0};
+        lambda::app l_app{l_lhs_local.clone(), l_rhs_local.clone()};
+        lambda::app l_app_other{l_lhs_local.clone(), l_rhs_local.clone()};
+        assert(l_app.equals(l_app_other.clone()));
+    }
+
+    // local lhs, local rhs, equals global lhs, local rhs
+    {
+        lambda::local l_first_lhs_local{0};
+        lambda::local l_first_rhs_local{0};
+        lambda::global l_second_lhs_global{0};
+        lambda::local l_second_rhs_local{0};
+        lambda::app l_app{l_first_lhs_local.clone(), l_first_rhs_local.clone()};
+        lambda::app l_app_other{l_second_lhs_global.clone(),
+                                l_second_rhs_local.clone()};
+        assert(!l_app.equals(l_app_other.clone()));
+    }
+
+    // local lhs, local rhs, equals global lhs, local rhs
+    {
+        lambda::local l_first_lhs_local{0};
+        lambda::local l_first_rhs_local{0};
+        lambda::global l_second_lhs_global{0};
+        lambda::local l_second_rhs_local{0};
+        lambda::app l_app{l_first_lhs_local.clone(), l_first_rhs_local.clone()};
+        lambda::app l_app_other{l_second_lhs_global.clone(),
+                                l_second_rhs_local.clone()};
+        assert(!l_app.equals(l_app_other.clone()));
+    }
+}
+
+void test_hole_equals()
+{
+    // empty captures, equals empty captures
+    {
+        lambda::hole l_hole{{}};
+        lambda::hole l_hole_other{{}};
+        assert(l_hole.equals(l_hole_other.clone()));
+    }
+
+    // non-empty captures, equals non-empty captures
+    {
+        std::set<size_t> l_captures{1, 2, 3};
+        lambda::hole l_hole{l_captures};
+        lambda::hole l_hole_other{l_captures};
+        assert(l_hole.equals(l_hole_other.clone()));
+    }
+
+    // non-empty captures, equals empty captures
+    {
+        std::set<size_t> l_captures{1, 2, 3};
+        lambda::hole l_hole{l_captures};
+        lambda::hole l_hole_other{{}};
+        assert(!l_hole.equals(l_hole_other.clone()));
+    }
+
+    // hole equals local
+    {
+        lambda::hole l_hole{{}};
+        lambda::local l_local{0};
+        assert(!l_hole.equals(l_local.clone()));
+    }
+}
+
 void test_local_lift()
 {
     // index 0, lift 1 level
@@ -1252,6 +1387,10 @@ void lambda_test_main()
     TEST(test_hole_constructor);
 
     TEST(test_local_equals);
+    TEST(test_global_equals);
+    TEST(test_func_equals);
+    TEST(test_app_equals);
+    TEST(test_hole_equals);
 
     TEST(test_local_lift);
     TEST(test_global_lift);

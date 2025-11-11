@@ -24,16 +24,28 @@ struct expr
     expr& operator=(const expr& other) = delete;
 };
 
-struct hole : expr
+struct local : expr
 {
-    virtual ~hole() = default;
+    virtual ~local() = default;
     std::unique_ptr<expr> lift(size_t a_new_depth) const override;
     std::unique_ptr<expr>
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    hole(const std::set<size_t>& a_captures);
-    std::set<size_t> m_captures;
+    local(size_t a_index);
+    size_t m_index;
+};
+
+struct global : expr
+{
+    virtual ~global() = default;
+    std::unique_ptr<expr> lift(size_t a_new_depth) const override;
+    std::unique_ptr<expr>
+    substitute(size_t a_new_depth,
+               const std::unique_ptr<expr>& a_arg) const override;
+    std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
+    global(size_t a_index);
+    size_t m_index;
 };
 
 struct func : expr
@@ -62,28 +74,16 @@ struct app : expr
     std::unique_ptr<expr> m_arg;
 };
 
-struct local : expr
+struct hole : expr
 {
-    virtual ~local() = default;
+    virtual ~hole() = default;
     std::unique_ptr<expr> lift(size_t a_new_depth) const override;
     std::unique_ptr<expr>
     substitute(size_t a_new_depth,
                const std::unique_ptr<expr>& a_arg) const override;
     std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    local(size_t a_index);
-    size_t m_index;
-};
-
-struct global : expr
-{
-    virtual ~global() = default;
-    std::unique_ptr<expr> lift(size_t a_new_depth) const override;
-    std::unique_ptr<expr>
-    substitute(size_t a_new_depth,
-               const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(const global_map& a_globals) const override;
-    global(size_t a_index);
-    size_t m_index;
+    hole(const std::set<size_t>& a_captures);
+    std::set<size_t> m_captures;
 };
 
 } // namespace lambda

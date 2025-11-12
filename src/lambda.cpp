@@ -1,5 +1,22 @@
 #include "../include/lambda.hpp"
 
+#define VERBOSE_LOGS 1
+#if VERBOSE_LOGS
+
+#include <iostream>
+
+#define LOG_EXPR(a_depth, a_expr)                                              \
+    std::cout << "DEPTH: " << a_depth << " -> ";                               \
+    a_expr->print(std::cout);                                                  \
+    std::cout << std::endl;
+
+#else
+
+// no-op
+#define LOG_EXPR(a_depth, a_expr)
+
+#endif
+
 namespace lambda
 {
 
@@ -98,78 +115,124 @@ std::unique_ptr<expr> app::lift(size_t a_new_depth) const
 // SUBSTITUTE METHODS
 
 std::unique_ptr<expr>
-local::substitute(size_t a_new_depth, const std::unique_ptr<expr>& a_arg) const
+local::substitute(size_t a_lift_amount, size_t a_var_index,
+                  const std::unique_ptr<expr>& a_arg) const
 {
-    if(m_index > 0)
+    if(m_index > a_var_index)
         // this var is defined inside the redex, so it is
         //     now 1 level shallower.
         return l(m_index - 1);
 
+    if(m_index < a_var_index)
+        // leave the var alone, it was declared outside the redex
+        return clone();
+
     // this var is the one we are substituting, so we must substitute it
-    return a_arg->lift(a_new_depth);
+    return a_arg->lift(a_lift_amount);
 }
 
 std::unique_ptr<expr>
-global::substitute(size_t a_new_depth, const std::unique_ptr<expr>& a_arg) const
+global::substitute(size_t a_lift_amount, size_t a_var_index,
+                   const std::unique_ptr<expr>& a_arg) const
 {
     // doing a local substitution on a global variable is a no-op
     return clone();
 }
 
-std::unique_ptr<expr> func::substitute(size_t a_new_depth,
+std::unique_ptr<expr> func::substitute(size_t a_lift_amount, size_t a_var_index,
                                        const std::unique_ptr<expr>& a_arg) const
 {
     // increment the binder depth
-    return f(m_body->substitute(a_new_depth + 1, a_arg));
+    return f(m_body->substitute(a_lift_amount + 1, a_var_index, a_arg));
 }
 
-std::unique_ptr<expr> app::substitute(size_t a_new_depth,
+std::unique_ptr<expr> app::substitute(size_t a_lift_amount, size_t a_var_index,
                                       const std::unique_ptr<expr>& a_arg) const
 {
     // just substitute the function and argument
-    return a(m_func->substitute(a_new_depth, a_arg),
-             m_arg->substitute(a_new_depth, a_arg));
+    return a(m_func->substitute(a_lift_amount, a_var_index, a_arg),
+             m_arg->substitute(a_lift_amount, a_var_index, a_arg));
 }
 
 // REDUCE METHODS
 
-std::unique_ptr<expr> local::reduce(const global_map& a_globals) const
+std::unique_ptr<expr> local::reduce(size_t a_depth,
+                                    const global_map& a_globals) const
 {
-    return clone();
+    // log the current expr
+    LOG_EXPR(a_depth, this);
+
+    auto l_result = clone();
+
+    // log the result
+    LOG_EXPR(a_depth, l_result);
+
+    return l_result;
 }
 
-std::unique_ptr<expr> global::reduce(const global_map& a_globals) const
+std::unique_ptr<expr> global::reduce(size_t a_depth,
+                                     const global_map& a_globals) const
 {
+    // log the current expr
+    LOG_EXPR(a_depth, this);
+
     // look up the definition of the global variable
     const auto& l_definition = a_globals[m_index];
 
-    // reduce the result
-    return l_definition->reduce(a_globals);
+    // lift the definition
+    auto l_lifted_def = l_definition->lift(a_depth);
+
+    // reduce the lifted definition
+    auto l_result = l_lifted_def->reduce(a_depth, a_globals);
+
+    // log the result
+    LOG_EXPR(a_depth, l_result);
+
+    return l_result;
 }
 
-std::unique_ptr<expr> func::reduce(const global_map& a_globals) const
+std::unique_ptr<expr> func::reduce(size_t a_depth,
+                                   const global_map& a_globals) const
 {
-    return clone();
+    // log the current expr
+    LOG_EXPR(a_depth, this);
+
+    // reduce the body, incrementing the depth
+    auto l_result = f(m_body->reduce(a_depth + 1, a_globals));
+
+    // log the result
+    LOG_EXPR(a_depth, l_result);
+
+    return l_result;
 }
 
-std::unique_ptr<expr> app::reduce(const global_map& a_globals) const
+std::unique_ptr<expr> app::reduce(size_t a_depth,
+                                  const global_map& a_globals) const
 {
-    // reduce the function to WHNF
-    auto l_reduced_func = m_func->reduce(a_globals);
+    // log the current expr
+    LOG_EXPR(a_depth, this);
+
+    // reduce the function to NF
+    auto l_reduced_func = m_func->reduce(a_depth, a_globals);
 
     // check if the lhs is a beta-redex
     const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
 
-    if(!l_beta_redex || dynamic_cast<local*>(m_arg.get()))
-        // leave the func in WHNF and the argument alone
-        return a(l_reduced_func, m_arg);
+    if(!l_beta_redex)
+        // leave the lhs in NF and reduce the rhs to NF
+        return a(l_reduced_func, m_arg->reduce(a_depth, a_globals));
 
-    // beta-reduce the app
+    // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
     std::unique_ptr<expr> l_substituted_body =
-        l_beta_redex->m_body->substitute(0, m_arg);
+        l_beta_redex->m_body->substitute(0, a_depth, m_arg);
 
-    // reduce the result
-    return l_substituted_body->reduce(a_globals);
+    // reduce the reduced contracted body
+    auto l_result = l_substituted_body->reduce(a_depth, a_globals);
+
+    // log the result
+    LOG_EXPR(a_depth, l_result);
+
+    return l_result;
 }
 
 // EXPR CLONE METHOD
@@ -605,7 +668,7 @@ void test_local_substitute()
     {
         auto l_local = l(0);
         auto l_substitute = l(1);
-        auto l_substituted = l_local->substitute(0, l_substitute->clone());
+        auto l_substituted = l_local->substitute(0, 0, l_substitute->clone());
 
         const local* l_substituted_local =
             dynamic_cast<local*>(l_substituted.get());
@@ -616,7 +679,7 @@ void test_local_substitute()
     {
         auto l_local = l(0);
         auto l_substitute = l(1);
-        auto l_substituted = l_local->substitute(10, l_substitute->clone());
+        auto l_substituted = l_local->substitute(10, 0, l_substitute->clone());
 
         const local* l_substituted_local =
             dynamic_cast<local*>(l_substituted.get());
@@ -630,7 +693,7 @@ void test_local_substitute()
     {
         auto l_local = l(2);
         auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(0, l_substitute->clone());
+        auto l_substituted = l_local->substitute(0, 0, l_substitute->clone());
 
         const local* l_substituted_local =
             dynamic_cast<local*>(l_substituted.get());
@@ -650,7 +713,7 @@ void test_local_substitute()
     {
         auto l_local = l(1);
         auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(0, l_substitute->clone());
+        auto l_substituted = l_local->substitute(0, 0, l_substitute->clone());
 
         const local* l_substituted_local =
             dynamic_cast<local*>(l_substituted.get());
@@ -670,7 +733,7 @@ void test_local_substitute()
     {
         auto l_local = l(2);
         auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(10, l_substitute->clone());
+        auto l_substituted = l_local->substitute(10, 0, l_substitute->clone());
 
         const local* l_substituted_local =
             dynamic_cast<local*>(l_substituted.get());
@@ -690,7 +753,7 @@ void test_local_substitute()
     {
         auto l_local = l(1);
         auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(10, l_substitute->clone());
+        auto l_substituted = l_local->substitute(10, 0, l_substitute->clone());
 
         const local* l_substituted_local =
             dynamic_cast<local*>(l_substituted.get());
@@ -713,7 +776,7 @@ void test_global_substitute()
     {
         auto l_global = g(0);
         auto l_local = l(1);
-        const auto l_substituted = l_global->substitute(0, l_local->clone());
+        const auto l_substituted = l_global->substitute(0, 0, l_local->clone());
 
         // should be global still
         const global* l_subbed_global =
@@ -727,7 +790,8 @@ void test_global_substitute()
     {
         auto l_global = g(0);
         auto l_local = l(1);
-        const auto l_substituted = l_global->substitute(10, l_local->clone());
+        const auto l_substituted =
+            l_global->substitute(10, 0, l_local->clone());
 
         // should be global still
         const global* l_subbed_global =
@@ -741,7 +805,8 @@ void test_global_substitute()
     {
         auto l_global = g(10);
         auto l_local = l(1);
-        const auto l_substituted = l_global->substitute(10, l_local->clone());
+        const auto l_substituted =
+            l_global->substitute(10, 0, l_local->clone());
 
         // should be global still
         const global* l_subbed_global =
@@ -766,7 +831,7 @@ void test_func_substitute()
         auto l_func = f(l(0)->clone());
         auto l_local = l(11);
 
-        const auto l_subbed = l_func->substitute(0, l_local->clone());
+        const auto l_subbed = l_func->substitute(0, 0, l_local->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -795,7 +860,7 @@ void test_func_substitute()
         auto l_func = f(f(l(0)->clone())->clone());
         auto l_local = l(11);
 
-        const auto l_subbed = l_func->substitute(0, l_local->clone());
+        const auto l_subbed = l_func->substitute(0, 0, l_local->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -821,7 +886,7 @@ void test_func_substitute()
         auto l_func = f(l(1)->clone());
         auto l_global = g(11);
 
-        const auto l_subbed = l_func->substitute(0, l_global->clone());
+        const auto l_subbed = l_func->substitute(0, 0, l_global->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -848,7 +913,7 @@ void test_app_substitute()
         auto l_rhs = l(0);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
         auto l_sub = l(11);
-        const auto l_subbed = l_app->substitute(0, l_sub->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
         const app* l_subbed_app = dynamic_cast<app*>(l_subbed.get());
@@ -881,7 +946,7 @@ void test_app_substitute()
         auto l_rhs = l(1);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
         auto l_sub = l(11);
-        const auto l_subbed = l_app->substitute(0, l_sub->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
         const app* l_subbed_app = dynamic_cast<app*>(l_subbed.get());
@@ -914,7 +979,7 @@ void test_app_substitute()
         auto l_rhs = l(0);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
         auto l_sub = l(11);
-        const auto l_subbed = l_app->substitute(0, l_sub->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
         const app* l_subbed_app = dynamic_cast<app*>(l_subbed.get());
@@ -947,7 +1012,7 @@ void test_app_substitute()
         auto l_rhs = l(1);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
         auto l_sub = l(11);
-        const auto l_subbed = l_app->substitute(0, l_sub->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
         const app* l_subbed_app = dynamic_cast<app*>(l_subbed.get());
@@ -980,7 +1045,7 @@ void test_app_substitute()
         auto l_rhs = f(l(0)->clone());
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
         auto l_sub = l(11);
-        const auto l_subbed = l_app->substitute(0, l_sub->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
         const app* l_subbed_app = dynamic_cast<app*>(l_subbed.get());
@@ -1025,7 +1090,7 @@ void test_local_reduce()
     // local with var 0
     {
         auto l_expr = l(0);
-        const auto l_reduced = l_expr->reduce({});
+        const auto l_reduced = l_expr->reduce(0, {});
 
         // cast the pointer
         const local* l_local = dynamic_cast<local*>(l_reduced.get());
@@ -1038,7 +1103,7 @@ void test_local_reduce()
     // local with var 1
     {
         auto l_expr = l(1);
-        const auto l_reduced = l_expr->reduce({});
+        const auto l_reduced = l_expr->reduce(0, {});
 
         // cast the pointer
         const local* l_local = dynamic_cast<local*>(l_reduced.get());
@@ -1060,7 +1125,7 @@ void test_global_reduce()
 
         // set up reduction
         auto l_expr = g(0);
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // cast the pointer
         const func* l_casted = dynamic_cast<func*>(l_reduced.get());
@@ -1083,7 +1148,7 @@ void test_global_reduce()
 
         // set up reduction
         auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // cast the pointer
         const func* l_casted = dynamic_cast<func*>(l_reduced.get());
@@ -1106,7 +1171,7 @@ void test_global_reduce()
 
         // set up reduction
         auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // cast the pointer
         const func* l_casted = dynamic_cast<func*>(l_reduced.get());
@@ -1130,7 +1195,7 @@ void test_global_reduce()
 
         // set up reduction
         auto l_expr = g(2);
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // cast the pointer
         const func* l_casted = dynamic_cast<func*>(l_reduced.get());
@@ -1153,19 +1218,9 @@ void test_global_reduce()
 
         // set up reduction
         auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
-        // cast the pointer
-        const func* l_casted = dynamic_cast<func*>(l_reduced.get());
-        assert(l_casted != nullptr);
-
-        // get body (should still be global since WHNF does not reduce the body
-        // of a lambda)
-        const global* l_global = dynamic_cast<global*>(l_casted->m_body.get());
-        assert(l_global != nullptr);
-
-        // make sure it has the same index
-        assert(l_global->m_index == 0);
+        assert(l_reduced->equals(f(f(l(1)))));
     }
 }
 
@@ -1174,7 +1229,7 @@ void test_func_reduce()
     // func with body of a local
     {
         auto l_expr = f(l(0)->clone());
-        const auto l_reduced = l_expr->reduce({});
+        const auto l_reduced = l_expr->reduce(0, {});
 
         // make sure still a func
         const auto* l_func = dynamic_cast<func*>(l_reduced.get());
@@ -1190,19 +1245,15 @@ void test_func_reduce()
 
     // func with body of a global
     {
-        auto l_expr = f(g(13)->clone());
-        const auto l_reduced = l_expr->reduce({});
+        // define globals
+        expr::global_map l_globals{};
+        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(l(13)->clone())->clone());
 
-        // make sure still a func
-        const auto* l_func = dynamic_cast<func*>(l_reduced.get());
-        assert(l_func != nullptr);
+        auto l_expr = f(g(1)->clone());
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
-        // get body
-        const auto* l_body = dynamic_cast<global*>(l_func->m_body.get());
-        assert(l_body != nullptr);
-
-        // make sure body is still same thing
-        assert(l_body->m_index == 13);
+        assert(l_reduced->equals(f(f(l(14)))));
     }
 }
 
@@ -1215,7 +1266,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce({});
+        const auto l_reduced = l_expr->reduce(0, {});
 
         const app* l_app = dynamic_cast<app*>(l_reduced.get());
         assert(l_app != nullptr);
@@ -1244,11 +1295,10 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
-        // make sure beta reduction did not occur, but lhs was WHNF reduced
-        assert(l_reduced->equals(
-            a(l_globals[0]->clone(), l_rhs->clone())->clone()));
+        // make sure beta reduction did occurred
+        assert(l_reduced->equals(l(1)));
     }
 
     // app with lhs func and rhs local
@@ -1262,11 +1312,11 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // make sure nothing changed
         // (beta reduction did not occur since rhs is local)
-        assert(l_reduced->equals(l_expr->clone()));
+        assert(l_reduced->equals(l(1)));
     }
 
     // app with lhs func and rhs func
@@ -1280,7 +1330,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // make sure beta-reduction occurred, with no lifting of indices
         assert(l_reduced->equals(l_rhs->clone()));
@@ -1297,7 +1347,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // make sure beta-reduction occurred, but no replacements.
         // other vars decremented by 1.
@@ -1315,7 +1365,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // make sure beta-reduction occurred, with replacement,
         // and a lifting of 1 level
@@ -1333,7 +1383,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // make sure beta-reduction occurred, no replacements.
         // other vars decremented by 1.
@@ -1351,9 +1401,10 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // make sure nothing changed
+        // (both lhs and rhs were fully reduced already)
         assert(l_reduced->equals(l_expr->clone()));
     }
 
@@ -1369,10 +1420,10 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
-        // should not beta-reduce, since rhs of lhs is a local
-        assert(l_reduced->equals(l_expr->clone()));
+        // lhs should have beta-reduced, but cannot consume rhs of app
+        assert(l_reduced->equals(a(l(2), f(l(5)))));
     }
 
     // app with lhs (app with lhs (func without occurrances), rhs func)
@@ -1387,10 +1438,10 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // lhs of app should beta-reduce, but lhs is not capable of consuming 2
-        // args. Thus WHNF is an application with LHS beta-reduced once.
+        // args. Thus NF is an application with LHS beta-reduced once.
         assert(l_reduced->equals(a(l(2)->clone(), f(l(5)->clone()))->clone()));
     }
 
@@ -1407,7 +1458,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // should beta-reduce twice, consuming all args. No replacements, only
         // decrementing twice.
@@ -1427,7 +1478,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // should beta-reduce twice, consuming all args.
         // becomes first arg, without lifting. (lifting occurred but was undone
@@ -1448,7 +1499,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // should beta-reduce twice, consuming all args.
         // becomes second arg, without lifting. (lifting occurred but was undone
@@ -1468,7 +1519,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // should beta-reduce, consuming the arg.
         // A replacement occurred, and no lifting occurred.
@@ -1488,7 +1539,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // firstly, a delta cascade occurs, reducing the global to a func.
         // then, the func should beta-reduce, consuming the arg.
@@ -1509,7 +1560,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // firstly, a delta cascade occurs, reducing the global to a func.
         // then, the func should beta-reduce, consuming the arg.
@@ -1530,7 +1581,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // firstly, a delta cascade occurs, reducing the global to a func.
         // then, the func should beta-reduce, consuming the arg.
@@ -1551,7 +1602,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(l_globals);
+        const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // firstly, a delta cascade occurs, reducing the global to a func.
         // then, a beta-reduction occurs, consuming the arg defined in global1
@@ -1585,11 +1636,11 @@ void generic_use_case_test()
 
         // test the true case
         const auto l_true_case_app =
-            a(a(TRUE, l_true_case), l_false_case)->reduce(l_globals);
+            a(a(TRUE, l_true_case), l_false_case)->reduce(0, l_globals);
 
         // test the false case
         const auto l_false_case_app =
-            a(a(FALSE, l_true_case), l_false_case)->reduce(l_globals);
+            a(a(FALSE, l_true_case), l_false_case)->reduce(0, l_globals);
 
         std::cout << "true case app: ";
         l_true_case_app->print(std::cout);
@@ -1621,20 +1672,7 @@ void generic_use_case_test()
 
     // test add church numerals
     {
-        // reduce zero
-        const auto ZERO_REDUCED = ZERO->reduce(l_globals);
-        // define one
-        const auto ONE = a(SUCC, ZERO)->reduce(l_globals);
-        // define two
-        const auto TWO = a(SUCC, ONE)->reduce(l_globals);
-        // define three
-        const auto THREE = a(SUCC, TWO)->reduce(l_globals);
-        // // define four
-        // const auto FOUR = a(SUCC, THREE)->reduce(l_globals);
-        // // define five
-        // const auto FIVE = a(SUCC, FOUR)->reduce(l_globals);
 
-        // print all
         std::cout << "zero: ";
         ZERO->print(std::cout);
         std::cout << std::endl;
@@ -1647,18 +1685,39 @@ void generic_use_case_test()
         std::cout << "G3: ";
         l_globals.at(3)->print(std::cout);
         std::cout << std::endl;
+
+        // reduce zero
+        const auto ZERO_REDUCED = ZERO->reduce(0, l_globals);
         std::cout << "zero reduced: ";
         ZERO_REDUCED->print(std::cout);
         std::cout << std::endl;
+
+        // define one
+        const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
         std::cout << "one: ";
         ONE->print(std::cout);
         std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        // define two
+        const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
         std::cout << "two: ";
         TWO->print(std::cout);
         std::cout << std::endl;
+
+        // define three
+        const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
         std::cout << "three: ";
         THREE->print(std::cout);
         std::cout << std::endl;
+
+        // // define four
+        // const auto FOUR = a(SUCC, THREE)->reduce(l_globals);
+        // // define five
+        // const auto FIVE = a(SUCC, FOUR)->reduce(l_globals);
+
         // std::cout << "four: ";
         // FOUR->print(std::cout);
         // std::cout << std::endl;

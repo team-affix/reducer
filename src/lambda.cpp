@@ -1570,6 +1570,17 @@ void test_app_substitute()
             a(a(l(8)->clone(), l(0)->clone()), a(l(1)->clone(), l(8)->clone()));
         assert(l_subbed->equals(l_expected));
     }
+
+    // Test 11: substitute higher var with lower vars present
+    // (0 2) with var 2 -> l(9) should give (0 9)
+    // l(0) stays unchanged (< 2), l(2) gets replaced
+    {
+        auto l_app = a(l(0)->clone(), l(2)->clone());
+        auto l_sub = l(9);
+        const auto l_subbed = l_app->substitute(0, 2, l_sub->clone());
+        auto l_expected = a(l(0)->clone(), l(9)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
 }
 
 void test_local_reduce()

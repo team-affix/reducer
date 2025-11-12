@@ -559,6 +559,33 @@ void test_local_lift()
         assert(l_lifted_local != nullptr);
         assert(l_lifted_local->m_index == 1);
     }
+
+    // index 0, lift 1 level, cutoff 1
+    {
+        auto l_local = l(0);
+        auto l_lifted = l_local->lift(1, 1);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 0);
+    }
+
+    // index 1, lift 2 levels, cutoff 1
+    {
+        auto l_local = l(1);
+        auto l_lifted = l_local->lift(2, 1);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 3);
+    }
+
+    // index 1, lift 2 levels, cutoff 2
+    {
+        auto l_local = l(1);
+        auto l_lifted = l_local->lift(2, 2);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 1);
+    }
 }
 
 void test_global_lift()
@@ -578,6 +605,28 @@ void test_global_lift()
     {
         auto l_global = g(3);
         auto l_lifted = l_global->lift(2, 0);
+        const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
+        assert(l_lifted_global != nullptr);
+
+        // globals are left unchanged by lifting
+        assert(l_lifted_global->m_index == 3);
+    }
+
+    // index 0, lift 1 level, cutoff 1
+    {
+        auto l_global = g(0);
+        auto l_lifted = l_global->lift(1, 1);
+        const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
+        assert(l_lifted_global != nullptr);
+
+        // globals are left unchanged by lifting
+        assert(l_lifted_global->m_index == 0);
+    }
+
+    // index 3, lift 2 levels, cutoff 1
+    {
+        auto l_global = g(3);
+        auto l_lifted = l_global->lift(2, 1);
         const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
         assert(l_lifted_global != nullptr);
 
@@ -612,6 +661,32 @@ void test_func_lift()
             dynamic_cast<local*>(l_lifted_func->m_body.get());
         assert(l_lifted_local != nullptr);
         assert(l_lifted_local->m_index == 3);
+    }
+
+    // local body, lift 1 level, cutoff 1
+    {
+        auto l_local = l(0);
+        auto l_func = f(l_local->clone());
+        auto l_lifted = l_func->lift(1, 1);
+        const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
+        assert(l_lifted_func != nullptr);
+        const local* l_lifted_local =
+            dynamic_cast<local*>(l_lifted_func->m_body.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 0);
+    }
+
+    // local body, lift 2 levels, cutoff 2
+    {
+        auto l_local = l(2);
+        auto l_func = f(l_local->clone());
+        auto l_lifted = l_func->lift(2, 2);
+        const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
+        assert(l_lifted_func != nullptr);
+        const local* l_lifted_local =
+            dynamic_cast<local*>(l_lifted_func->m_body.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 4);
     }
 }
 
@@ -668,6 +743,58 @@ void test_app_lift()
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 4);
     }
+
+    // local lhs, local rhs, lift 1 level, cutoff 1
+    {
+        auto l_lhs_local = l(1);
+        auto l_rhs_local = l(2);
+        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lifted = l_app->lift(1, 1);
+
+        // get the lifted app (still an app)
+        const app* l_lifted_app = dynamic_cast<app*>(l_lifted.get());
+        assert(l_lifted_app != nullptr);
+
+        // get the lifted lhs
+        const auto& l_lifted_lhs = l_lifted_app->m_func;
+        const local* l_lifted_lhs_local =
+            dynamic_cast<local*>(l_lifted_lhs.get());
+        assert(l_lifted_lhs_local != nullptr);
+        assert(l_lifted_lhs_local->m_index == 2);
+
+        // get the lifted rhs
+        const auto& l_lifted_rhs = l_lifted_app->m_arg;
+        const local* l_lifted_rhs_local =
+            dynamic_cast<local*>(l_lifted_rhs.get());
+        assert(l_lifted_rhs_local != nullptr);
+        assert(l_lifted_rhs_local->m_index == 3);
+    }
+
+    // local lhs, local rhs, lift 2 levels, cutoff 2
+    {
+        auto l_lhs_local = l(1);
+        auto l_rhs_local = l(2);
+        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lifted = l_app->lift(2, 2);
+
+        // get the lifted app (still an app)
+        const app* l_lifted_app = dynamic_cast<app*>(l_lifted.get());
+        assert(l_lifted_app != nullptr);
+
+        // get the lifted lhs
+        const auto& l_lifted_lhs = l_lifted_app->m_func;
+        const local* l_lifted_lhs_local =
+            dynamic_cast<local*>(l_lifted_lhs.get());
+        assert(l_lifted_lhs_local != nullptr);
+        assert(l_lifted_lhs_local->m_index == 1);
+
+        // get the lifted rhs
+        const auto& l_lifted_rhs = l_lifted_app->m_arg;
+        const local* l_lifted_rhs_local =
+            dynamic_cast<local*>(l_lifted_rhs.get());
+        assert(l_lifted_rhs_local != nullptr);
+        assert(l_lifted_rhs_local->m_index == 4);
+    }
 }
 
 void test_local_substitute()
@@ -683,6 +810,7 @@ void test_local_substitute()
         assert(l_substituted_local != nullptr);
         assert(l_substituted_local->m_index == 1);
     }
+
     // index 0, occurrance depth 10, substitute with a local
     {
         auto l_local = l(0);
@@ -776,6 +904,95 @@ void test_local_substitute()
         // shallower.
         assert(l_substituted_local->m_index == 0);
     }
+
+    // index 0, occurrance depth 0, substitute with a local, a_var_index 1
+    {
+        auto l_local = l(0);
+        auto l_substitute = l(1);
+        auto l_substituted = l_local->substitute(0, 1, l_substitute->clone());
+
+        const local* l_substituted_local =
+            dynamic_cast<local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+        assert(l_substituted_local->m_index == 0);
+    }
+
+    // index 0, occurrance depth 10, substitute with a local, a_var_index 1
+    {
+        auto l_local = l(0);
+        auto l_substitute = l(1);
+        auto l_substituted = l_local->substitute(10, 1, l_substitute->clone());
+
+        const local* l_substituted_local =
+            dynamic_cast<local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+        // it would be 10 if a_var_index == 0, but since 1,
+        //     not only were there no occurrances, but the
+        //     var(0) was bound before cutoff (a_var_index == 1)
+        //     so no lifting occurred.
+        assert(l_substituted_local->m_index == 0);
+    }
+
+    // index 2, occurrance depth 0, substitute with a local, a_var_index 2
+    {
+        auto l_local = l(2);
+        auto l_substitute = l(3);
+        auto l_substituted = l_local->substitute(0, 2, l_substitute->clone());
+
+        const local* l_substituted_local =
+            dynamic_cast<local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution trivially finds var(2) and substitutes with var(3),
+        // without lifting as the redex body has no binders.
+        assert(l_substituted_local->m_index == 3);
+    }
+
+    // index 1, occurrance depth 0, substitute with a local, a_var_index 2
+    {
+        auto l_local = l(1);
+        auto l_substitute = l(3);
+        auto l_substituted = l_local->substitute(0, 2, l_substitute->clone());
+
+        const local* l_substituted_local =
+            dynamic_cast<local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution does not find var(2),
+        // but var(1) is left alone since it was bound before cutoff
+        // (a_var_index == 2)
+        assert(l_substituted_local->m_index == 1);
+    }
+
+    // index 2, occurrance depth 10, substitute with a local, a_var_index 2
+    {
+        auto l_local = l(2);
+        auto l_substitute = l(3);
+        auto l_substituted = l_local->substitute(10, 2, l_substitute->clone());
+
+        const local* l_substituted_local =
+            dynamic_cast<local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // this substitution finds var(2) and substitutes with var(3),
+        // and lifts by 10 levels since the redex body has 10 binders.
+        assert(l_substituted_local->m_index == 13);
+    }
+
+    // index 1, occurrance depth 10, substitute with a local, a_var_index 2
+    {
+        auto l_local = l(1);
+        auto l_substitute = l(3);
+        auto l_substituted = l_local->substitute(10, 2, l_substitute->clone());
+
+        const local* l_substituted_local =
+            dynamic_cast<local*>(l_substituted.get());
+        assert(l_substituted_local != nullptr);
+
+        // no var(2) was found, so var(1) is left alone since it was bound
+        // before cutoff (a_var_index == 2)
+        assert(l_substituted_local->m_index == 1);
+    }
 }
 
 void test_global_substitute()
@@ -815,6 +1032,50 @@ void test_global_substitute()
         auto l_local = l(1);
         const auto l_substituted =
             l_global->substitute(10, 0, l_local->clone());
+
+        // should be global still
+        const global* l_subbed_global =
+            dynamic_cast<global*>(l_substituted.get());
+        assert(l_subbed_global != nullptr);
+        // globals are unaffected by substitution.
+        assert(l_subbed_global->m_index == 10);
+    }
+
+    // index 0, depth 0, substitute with a local, a_var_index 1
+    {
+        auto l_global = g(0);
+        auto l_local = l(1);
+        const auto l_substituted = l_global->substitute(0, 1, l_local->clone());
+
+        // should be global still
+        const global* l_subbed_global =
+            dynamic_cast<global*>(l_substituted.get());
+        assert(l_subbed_global != nullptr);
+        // globals are unaffected by substitution.
+        assert(l_subbed_global->m_index == 0);
+    }
+
+    // index 0, depth 10, substitute with a local, a_var_index 1
+    {
+        auto l_global = g(0);
+        auto l_local = l(1);
+        const auto l_substituted =
+            l_global->substitute(10, 1, l_local->clone());
+
+        // should be global still
+        const global* l_subbed_global =
+            dynamic_cast<global*>(l_substituted.get());
+        assert(l_subbed_global != nullptr);
+        // globals are unaffected by substitution.
+        assert(l_subbed_global->m_index == 0);
+    }
+
+    // index 10, depth 10, substitute with a local, a_var_index 1
+    {
+        auto l_global = g(10);
+        auto l_local = l(1);
+        const auto l_substituted =
+            l_global->substitute(10, 1, l_local->clone());
 
         // should be global still
         const global* l_subbed_global =
@@ -910,6 +1171,117 @@ void test_func_substitute()
 
         // the local got decremented since it was not the thing to replace.
         assert(l_subbed_local->m_index == 0);
+    }
+
+    // single composition lambda, outer depth 0, occurrance NOT found,
+    // a_var_index 1
+    {
+        // it should be noted:
+        // when saying here that l_func has a body local of index 0,
+        // that the local does NOT reference the binder introduced by
+        // l_func. This is because, when subbing, it is implied that
+        // there USED to be an even more outer binder (which 0 would
+        // have been bound to, hence the substitution DOES take place)
+
+        auto l_func = f(l(0)->clone());
+        auto l_local = l(11);
+
+        const auto l_subbed = l_func->substitute(0, 1, l_local->clone());
+
+        const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
+
+        // make sure still a function
+        assert(l_subbed_func != nullptr);
+
+        // get body
+        const local* l_subbed_local =
+            dynamic_cast<local*>(l_subbed_func->m_body.get());
+
+        // make sure the substitution took place
+        assert(l_subbed_local != nullptr);
+
+        // the local is unchanged as it was not replaced and it was bound before
+        // cutoff (a_var_index == 1) so no lifting occurred.
+        assert(l_subbed_local->m_index == 0);
+    }
+
+    // doublle composition lambda, outer depth 0, occurrance not found,
+    // a_var_index 1
+    {
+        // it should be noted:
+        // when saying here that l_func has a body local of index 0,
+        // that the local does NOT reference the binder introduced by
+        // l_func. This is because, when subbing, it is implied that
+        // there USED to be an even more outer binder (which 0 would
+        // have been bound to, hence the substitution DOES take place)
+
+        auto l_func = f(f(l(0)->clone())->clone());
+        auto l_local = l(11);
+
+        const auto l_subbed = l_func->substitute(0, 1, l_local->clone());
+
+        const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
+
+        // make sure still a function
+        assert(l_subbed_func != nullptr);
+
+        const func* l_subbed_func_2 =
+            dynamic_cast<func*>(l_subbed_func->m_body.get());
+
+        // get body
+        const local* l_subbed_local =
+            dynamic_cast<local*>(l_subbed_func_2->m_body.get());
+
+        // make sure the substitution took place
+        assert(l_subbed_local != nullptr);
+
+        // the local is unchanged as it was not replaced and it was bound before
+        // cutoff (a_var_index == 1) so no lifting occurred.
+        assert(l_subbed_local->m_index == 0);
+    }
+
+    // single composition lambda, outer depth 0, occurrance found,
+    // a_var_index 1
+    {
+        auto l_func = f(l(1)->clone());
+        auto l_global = g(11);
+
+        const auto l_subbed = l_func->substitute(0, 1, l_global->clone());
+
+        const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
+
+        // make sure still a function
+        assert(l_subbed_func != nullptr);
+
+        // get body
+        const global* l_subbed_global =
+            dynamic_cast<global*>(l_subbed_func->m_body.get());
+
+        // make sure the substitution took place
+        assert(l_subbed_global != nullptr);
+
+        // the local got decremented since it was not the thing to replace.
+        assert(l_subbed_global->m_index == 11);
+    }
+
+    // func with occurrence in its body, a_lift_amount > 0
+    {
+        // Create a function whose body contains a local with index 2 (is the
+        // occurrence)
+        auto l_func = f(l(2)->clone());
+        auto l_sub = l(7);
+
+        // substitute at depth = 6 (5 + 1), var_index=2, so a_lift_amount=6
+        const auto l_subbed = l_func->substitute(5, 2, l_sub->clone());
+
+        const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
+        assert(l_subbed_func != nullptr);
+
+        // get body, should be a local with index = 7 + 6 = 13
+        const local* l_subbed_local =
+            dynamic_cast<local*>(l_subbed_func->m_body.get());
+        assert(l_subbed_local != nullptr);
+        assert(l_subbed_local->m_index == 13);
     }
 }
 
@@ -1090,6 +1462,113 @@ void test_app_substitute()
         // make sure they have correct indices (lifted by 1 due to binders)
         assert(l_lhs_local->m_index == 12);
         assert(l_rhs_local->m_index == 12);
+    }
+
+    ////////////////////////////////////
+    // Testing substitute with various binder depths
+    ////////////////////////////////////
+
+    // Test 1: substitute at depth 0, var_index 0 - basic substitution
+    // (0 0) with var 0 -> l(5) should give (5 5)
+    {
+        auto l_app = a(l(0)->clone(), l(0)->clone());
+        auto l_sub = l(5);
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
+        auto l_expected = a(l(5)->clone(), l(5)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 2: substitute at depth 0, var_index 1 - substituting higher var
+    // (1 2) with var 1 -> l(7) should give (7 1)
+    {
+        auto l_app = a(l(1)->clone(), l(2)->clone());
+        auto l_sub = l(7);
+        const auto l_subbed = l_app->substitute(0, 1, l_sub->clone());
+        auto l_expected = a(l(7)->clone(), l(1)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 3: substitute at depth 1, var_index 0 - inside a binder context
+    // (λ.0 λ.1) with var 0 at depth 1 -> l(3) should give (λ.5 λ.0)
+    {
+        auto l_app = a(f(l(0)->clone()), f(l(1)->clone()));
+        auto l_sub = l(3);
+        const auto l_subbed = l_app->substitute(1, 0, l_sub->clone());
+        auto l_expected = a(f(l(5)->clone()), f(l(0)->clone()));
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 4: substitute with global - globals should be unaffected
+    // (G0 0) with var 0 -> l(2) should give (G0 2)
+    {
+        auto l_app = a(g(0)->clone(), l(0)->clone());
+        auto l_sub = l(2);
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
+        auto l_expected = a(g(0)->clone(), l(2)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 5: substitute with complex expression (app as substitution)
+    // (0 1) with var 0 -> (2 3) should give ((2 3) 0)
+    {
+        auto l_app = a(l(0)->clone(), l(1)->clone());
+        auto l_sub = a(l(2)->clone(), l(3)->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
+        auto l_expected = a(a(l(2)->clone(), l(3)->clone()), l(0)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 6: substitute with func as substitution
+    // (0 0) with var 0 -> λ.5 should give (λ.5 λ.5)
+    {
+        auto l_app = a(l(0)->clone(), l(0)->clone());
+        auto l_sub = f(l(5)->clone());
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
+        auto l_expected = a(f(l(5)->clone()), f(l(5)->clone()));
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 7: substitute at depth 2, var_index 1 - deeply nested
+    // (λ.λ.1 λ.λ.2) with var 1 at depth 2 -> l(10) should give (λ.λ.14 λ.λ.1)
+    {
+        auto l_app = a(f(f(l(1)->clone())), f(f(l(2)->clone())));
+        auto l_sub = l(10);
+        const auto l_subbed = l_app->substitute(2, 1, l_sub->clone());
+        auto l_expected = a(f(f(l(14)->clone())), f(f(l(1)->clone())));
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 8: no matching variable - all vars higher than target
+    // (2 3) with var 0 -> l(99) should give (1 2)
+    {
+        auto l_app = a(l(2)->clone(), l(3)->clone());
+        auto l_sub = l(99);
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
+        auto l_expected = a(l(1)->clone(), l(2)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 9: no matching variable - all vars lower than target
+    // (0 1) with var 5 -> l(99) should give (0 1)
+    {
+        auto l_app = a(l(0)->clone(), l(1)->clone());
+        auto l_sub = l(99);
+        const auto l_subbed = l_app->substitute(0, 5, l_sub->clone());
+        auto l_expected = a(l(0)->clone(), l(1)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 10: nested app with mixed locals
+    // ((0 1) (2 0)) with var 0 -> l(8) should give ((8 0) (1 8))
+    {
+        auto l_inner1 = a(l(0)->clone(), l(1)->clone());
+        auto l_inner2 = a(l(2)->clone(), l(0)->clone());
+        auto l_app = a(l_inner1->clone(), l_inner2->clone());
+        auto l_sub = l(8);
+        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
+        auto l_expected =
+            a(a(l(8)->clone(), l(0)->clone()), a(l(1)->clone(), l(8)->clone()));
+        assert(l_subbed->equals(l_expected));
     }
 }
 

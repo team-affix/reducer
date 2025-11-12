@@ -1673,12 +1673,7 @@ void generic_use_case_test()
     l_globals.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
     const auto SUCC = g(3);
 
-    // add
-    l_globals.emplace_back(
-        f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
-    const auto ADD = g(4);
-
-    // test add church numerals
+    // test succ church numerals
     {
 
         std::cout << "zero: ";
@@ -1721,18 +1716,29 @@ void generic_use_case_test()
         THREE->print(std::cout);
         std::cout << std::endl;
 
-        // // define four
-        // const auto FOUR = a(SUCC, THREE)->reduce(l_globals);
-        // // define five
-        // const auto FIVE = a(SUCC, FOUR)->reduce(l_globals);
+        // define four
+        const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
+        std::cout << "four: ";
+        FOUR->print(std::cout);
+        std::cout << std::endl;
+        // define five
+        const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
+        std::cout << "five: ";
+        FIVE->print(std::cout);
+        std::cout << std::endl;
 
-        // std::cout << "four: ";
-        // FOUR->print(std::cout);
-        // std::cout << std::endl;
-        // std::cout << "five: ";
-        // FIVE->print(std::cout);
-        // std::cout << std::endl;
+        assert(ONE->equals(f(f(a(l(0), l(1))))));
+        assert(TWO->equals(f(f(a(l(0), a(l(0), l(1)))))));
+        assert(THREE->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
+        assert(FOUR->equals(f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
+        assert(FIVE->equals(
+            f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
     }
+
+    // add
+    l_globals.emplace_back(
+        f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
+    const auto ADD = g(4);
 }
 
 void lambda_test_main()

@@ -1585,7 +1585,7 @@ void test_app_substitute()
 
 void test_local_reduce()
 {
-    // local with var 0
+    // local with var 0 at depth 0
     {
         auto l_expr = l(0);
         const auto l_reduced = l_expr->reduce(0, {});
@@ -1598,7 +1598,7 @@ void test_local_reduce()
         assert(l_local->m_index == 0);
     }
 
-    // local with var 1
+    // local with var 1 at depth 0
     {
         auto l_expr = l(1);
         const auto l_reduced = l_expr->reduce(0, {});
@@ -1609,6 +1609,27 @@ void test_local_reduce()
 
         // make sure it has the same index
         assert(l_local->m_index == 1);
+    }
+
+    // local with var 0 at depth 1 - locals are unaffected by depth
+    {
+        auto l_expr = l(0);
+        const auto l_reduced = l_expr->reduce(1, {});
+        assert(l_reduced->equals(l(0)->clone()));
+    }
+
+    // local with var 5 at depth 2 - locals are unaffected by depth
+    {
+        auto l_expr = l(5);
+        const auto l_reduced = l_expr->reduce(2, {});
+        assert(l_reduced->equals(l(5)->clone()));
+    }
+
+    // local with var 10 at depth 3 - locals are unaffected by depth
+    {
+        auto l_expr = l(10);
+        const auto l_reduced = l_expr->reduce(3, {});
+        assert(l_reduced->equals(l(10)->clone()));
     }
 }
 
@@ -1720,11 +1741,90 @@ void test_global_reduce()
 
         assert(l_reduced->equals(f(f(l(1)))));
     }
+
+    ////////////////////////////////////
+    // Testing global reduction at non-zero depths
+    ////////////////////////////////////
+
+    // global at depth 1 - simple expression
+    {
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(5)->clone());
+
+        auto l_expr = g(0);
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // global expands to l(5), lifted by 1 = l(6)
+        assert(l_reduced->equals(l(6)->clone()));
+    }
+
+    // global at depth 2 - simple expression
+    {
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(3)->clone());
+
+        auto l_expr = g(0);
+        const auto l_reduced = l_expr->reduce(2, l_globals);
+
+        // global expands to l(3), lifted by 2 = l(5)
+        assert(l_reduced->equals(l(5)->clone()));
+    }
+
+    // global at depth 1 - func expression
+    {
+        expr::global_map l_globals{};
+        l_globals.emplace_back(f(l(7)->clone())->clone());
+
+        auto l_expr = g(0);
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // global expands to f(l(7)), lifted by 1 = f(l(8))
+        assert(l_reduced->equals(f(l(8)->clone())));
+    }
+
+    // global at depth 3 - nested func
+    {
+        expr::global_map l_globals{};
+        l_globals.emplace_back(f(f(l(2)->clone()))->clone());
+
+        auto l_expr = g(0);
+        const auto l_reduced = l_expr->reduce(3, l_globals);
+
+        // global expands to f(f(l(2))), lifted by 3 = f(f(l(5)))
+        assert(l_reduced->equals(f(f(l(5)->clone()))->clone()));
+    }
+
+    // cascading global at depth 1
+    {
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(10)->clone());
+        l_globals.emplace_back(g(0)->clone());
+
+        auto l_expr = g(1);
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // g(1) -> g(0) (lifted by 1) but globals don't lift -> g(0)
+        // then g(0) -> l(10) (lifted by 1) = l(11)
+        assert(l_reduced->equals(l(11)->clone()));
+    }
+
+    // cascading global at depth 2
+    {
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(4)->clone());
+        l_globals.emplace_back(g(0)->clone());
+
+        auto l_expr = g(1);
+        const auto l_reduced = l_expr->reduce(2, l_globals);
+
+        // g(1) -> g(0), then g(0) -> l(4) (lifted by 2) = l(6)
+        assert(l_reduced->equals(l(6)->clone()));
+    }
 }
 
 void test_func_reduce()
 {
-    // func with body of a local
+    // func with body of a local at depth 0
     {
         auto l_expr = f(l(0)->clone());
         const auto l_reduced = l_expr->reduce(0, {});
@@ -1741,7 +1841,7 @@ void test_func_reduce()
         assert(l_body->m_index == 0);
     }
 
-    // func with body of a global
+    // func with body of a global at depth 0
     {
         // define globals
         expr::global_map l_globals{};
@@ -1752,6 +1852,64 @@ void test_func_reduce()
         const auto l_reduced = l_expr->reduce(0, l_globals);
 
         assert(l_reduced->equals(f(f(l(14)))));
+    }
+
+    // func with body of a local at depth 1
+    {
+        auto l_expr = f(l(0)->clone());
+        const auto l_reduced = l_expr->reduce(1, {});
+
+        // make sure still a func
+        const auto* l_func = dynamic_cast<func*>(l_reduced.get());
+        assert(l_func != nullptr);
+
+        // get body - should be unchanged
+        const auto* l_body = dynamic_cast<local*>(l_func->m_body.get());
+        assert(l_body != nullptr);
+        assert(l_body->m_index == 0);
+    }
+
+    // func with body of a global at depth 1
+    {
+        // define globals - simple local expressions
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(5)->clone());
+        l_globals.emplace_back(l(7)->clone());
+
+        auto l_expr = f(g(0)->clone());
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // global should be expanded and lifted by depth + func depth
+        // func at depth 1, body at depth 2, so l(5) -> l(7)
+        assert(l_reduced->equals(f(l(7)->clone())));
+    }
+
+    // func with body of a global at depth 2
+    {
+        // define globals
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(3)->clone());
+
+        auto l_expr = f(g(0)->clone());
+        const auto l_reduced = l_expr->reduce(2, l_globals);
+
+        // global should be expanded and lifted by depth + func depth
+        // func at depth 2, body at depth 3, so l(3) -> l(6)
+        assert(l_reduced->equals(f(l(6)->clone())));
+    }
+
+    // func with nested func body containing global at depth 1
+    {
+        // define globals
+        expr::global_map l_globals{};
+        l_globals.emplace_back(l(10)->clone());
+
+        auto l_expr = f(f(g(0)->clone())->clone());
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // global inside should be expanded at depth: 1 (initial) + 1 (outer
+        // func) + 1 (inner func) = 3 so l(10) -> l(13)
+        assert(l_reduced->equals(f(f(l(13)->clone()))->clone()));
     }
 }
 
@@ -2107,6 +2265,129 @@ void test_app_reduce()
         // def. then, the returned func should beta-reduce, consuming the arg.
         // A replacement occurred, and no lifting occurred.
         assert(l_reduced->equals(f(l(5)->clone())));
+    }
+
+    ////////////////////////////////////
+    // Testing reduction at non-zero depths
+    ////////////////////////////////////
+
+    // app with lhs func and rhs func at depth 1
+    {
+        expr::global_map l_globals{};
+        auto l_lhs = f(l(0)->clone());
+        auto l_rhs = f(l(3)->clone());
+        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        // reduce at depth 1
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // beta-reduction occurs, but f(l(0)) at depth 1 is a CONSTANT function
+        // l(0) refers to a variable captured from depth 0, not the parameter
+        // so it ignores its argument and always returns l(0)
+        assert(l_reduced->equals(l(0)->clone()));
+    }
+
+    // app with lhs func (with occurrence) and rhs func at depth 2
+    {
+        expr::global_map l_globals{};
+        auto l_lhs = f(l(0)->clone());
+        auto l_rhs = f(l(5)->clone());
+        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        // reduce at depth 2
+        const auto l_reduced = l_expr->reduce(2, l_globals);
+
+        // beta-reduction occurs, but f(l(0)) at depth 2 is also a CONSTANT
+        // function l(0) refers to a variable captured from depth 0, not the
+        // parameter so it ignores its argument and always returns l(0)
+        assert(l_reduced->equals(l(0)->clone()));
+    }
+
+    // app with lhs global and rhs func at depth 1
+    {
+        // globals with simple expressions
+        expr::global_map l_globals{};
+        l_globals.emplace_back(f(l(0)->clone())->clone());
+
+        auto l_lhs = g(0);
+        auto l_rhs = f(l(7)->clone());
+        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        // reduce at depth 1
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // global expands to f(l(0)), then delta-reduction lifts all locals by
+        // depth so f(l(0)) lifted by 1 becomes f(l(1)) At depth 1, l(1) in a
+        // func body refers to the parameter at depth 1 So f(l(1)) at depth 1 is
+        // the IDENTITY function - returns its argument Beta-reducing with
+        // f(l(7)) returns f(l(7))
+        assert(l_reduced->equals(f(l(7)->clone())));
+    }
+
+    // app with lhs global (expands to nested func) and rhs func at depth 2
+    {
+        // globals with nested func
+        expr::global_map l_globals{};
+        l_globals.emplace_back(f(f(l(0)->clone()))->clone());
+
+        auto l_lhs = g(0);
+        auto l_rhs = f(l(10)->clone());
+        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        // reduce at depth 2
+        const auto l_reduced = l_expr->reduce(2, l_globals);
+
+        // global expands to f(f(l(0))), lifted by 2 becomes f(f(l(2)))
+        // beta-reduces with f(l(10)), replacing var 0 with f(l(10))
+        // result: f(f(l(10)))  because inner l(0) -> f(l(10)) but lifted +1 =
+        // f(l(11)) Wait, let me reconsider: f(f(l(0))) at depth 2 becomes
+        // f(f(l(2))) Then beta-reduce: substitute 0 in f(l(2)) with f(l(10))
+        // f(l(2)) has no var 0, so just decrement: becomes f(l(1))?
+        // No wait, the substitute happens at depth 1 (inside the outer func)
+        // Actually this is getting complex. Let me use a simpler test.
+        // Let's use f(l(1)) instead
+        l_globals.clear();
+        l_globals.emplace_back(f(l(1)->clone())->clone());
+
+        l_lhs = g(0);
+        l_rhs = f(l(10)->clone());
+        l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        const auto l_reduced2 = l_expr->reduce(2, l_globals);
+
+        // global expands to f(l(1)), lifted by 2 becomes f(l(3)))
+        // beta-reduces: l(3) is > 0, so decrements to l(2)
+        assert(l_reduced2->equals(l(2)->clone()));
+    }
+
+    // app with lhs func (no occurrence of var 0) and rhs func at depth 1
+    {
+        expr::global_map l_globals{};
+        auto l_lhs = f(l(3)->clone());
+        auto l_rhs = f(l(5)->clone());
+        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        // reduce at depth 1
+        const auto l_reduced = l_expr->reduce(1, l_globals);
+
+        // beta-reduction: l(3) is > 0, decrements to l(2)
+        assert(l_reduced->equals(l(2)->clone()));
+    }
+
+    // app at depth 3 with beta reduction
+    {
+        expr::global_map l_globals{};
+        auto l_lhs = f(l(0)->clone());
+        auto l_rhs = f(l(8)->clone());
+        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
+
+        // reduce at depth 3
+        const auto l_reduced = l_expr->reduce(3, l_globals);
+
+        // beta-reduction occurs, but f(l(0)) at depth 3 is also a CONSTANT
+        // function l(0) refers to a variable captured from depth 0, not the
+        // parameter so it ignores its argument and always returns l(0)
+        assert(l_reduced->equals(l(0)->clone()));
     }
 }
 

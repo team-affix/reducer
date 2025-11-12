@@ -586,6 +586,46 @@ void test_local_lift()
         assert(l_lifted_local != nullptr);
         assert(l_lifted_local->m_index == 1);
     }
+
+    // Edge case: index equals cutoff, should be lifted (>= cutoff)
+    // index 3, lift 5 levels, cutoff 3
+    {
+        auto l_local = l(3);
+        auto l_lifted = l_local->lift(5, 3);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 8); // 3 + 5
+    }
+
+    // Edge case: index just below cutoff
+    // index 4, lift 3 levels, cutoff 5
+    {
+        auto l_local = l(4);
+        auto l_lifted = l_local->lift(3, 5);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 4); // not lifted
+    }
+
+    // Higher cutoff value test
+    // index 7, lift 10 levels, cutoff 3
+    {
+        auto l_local = l(7);
+        auto l_lifted = l_local->lift(10, 3);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 17); // 7 + 10
+    }
+
+    // Multiple different cutoffs - lower index below cutoff
+    // index 2, lift 4 levels, cutoff 10
+    {
+        auto l_local = l(2);
+        auto l_lifted = l_local->lift(4, 10);
+        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
+        assert(l_lifted_local != nullptr);
+        assert(l_lifted_local->m_index == 2); // not lifted
+    }
 }
 
 void test_global_lift()
@@ -687,6 +727,52 @@ void test_func_lift()
             dynamic_cast<local*>(l_lifted_func->m_body.get());
         assert(l_lifted_local != nullptr);
         assert(l_lifted_local->m_index == 4);
+    }
+
+    // func with app body, mixed locals with various cutoffs
+    // Body: (2 5 8), lift 3, cutoff 5
+    {
+        auto l_body = a(a(l(2)->clone(), l(5)->clone()), l(8)->clone());
+        auto l_func = f(l_body->clone());
+        auto l_lifted = l_func->lift(3, 5);
+
+        const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
+        assert(l_lifted_func != nullptr);
+
+        // Expected: (2 8 11)
+        // l(2) < 5, not lifted
+        // l(5) >= 5, lifted to 8
+        // l(8) >= 5, lifted to 11
+        auto l_expected = f(a(a(l(2)->clone(), l(8)->clone()), l(11)->clone()));
+        assert(l_lifted->equals(l_expected));
+    }
+
+    // func with nested func, testing cutoff propagation
+    // f(f((1 3 6))), lift 2, cutoff 3
+    {
+        auto l_inner_body = a(a(l(1)->clone(), l(3)->clone()), l(6)->clone());
+        auto l_body = f(l_inner_body->clone());
+        auto l_func = f(l_body->clone());
+        auto l_lifted = l_func->lift(2, 3);
+
+        // Expected: f(f((1 5 8)))
+        // l(1) < 3, not lifted
+        // l(3) >= 3, lifted to 5
+        // l(6) >= 3, lifted to 8
+        auto l_expected =
+            f(f(a(a(l(1)->clone(), l(5)->clone()), l(8)->clone())));
+        assert(l_lifted->equals(l_expected));
+    }
+
+    // func with higher cutoff than any local
+    // f(l(2)), lift 5, cutoff 10
+    {
+        auto l_func = f(l(2)->clone());
+        auto l_lifted = l_func->lift(5, 10);
+
+        // l(2) < 10, not lifted
+        auto l_expected = f(l(2)->clone());
+        assert(l_lifted->equals(l_expected));
     }
 }
 
@@ -794,6 +880,78 @@ void test_app_lift()
             dynamic_cast<local*>(l_lifted_rhs.get());
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 4);
+    }
+
+    // app with mixed locals, lift 4, cutoff 3
+    // (1 2 3 4 5) - mix below, at, and above cutoff
+    {
+        auto l_app = a(
+            a(a(a(l(1)->clone(), l(2)->clone()), l(3)->clone()), l(4)->clone()),
+            l(5)->clone());
+        auto l_lifted = l_app->lift(4, 3);
+
+        // Expected: (1 2 7 8 9)
+        // l(1), l(2) < 3, not lifted
+        // l(3), l(4), l(5) >= 3, lifted by 4
+        auto l_expected = a(
+            a(a(a(l(1)->clone(), l(2)->clone()), l(7)->clone()), l(8)->clone()),
+            l(9)->clone());
+        assert(l_lifted->equals(l_expected));
+    }
+
+    // app with nested funcs, cutoff applies throughout
+    // (f(l(2)) f(l(4))), lift 3, cutoff 3
+    {
+        auto l_lhs = f(l(2)->clone());
+        auto l_rhs = f(l(4)->clone());
+        auto l_app = a(l_lhs->clone(), l_rhs->clone());
+        auto l_lifted = l_app->lift(3, 3);
+
+        // Expected: (f(l(2)) f(l(7)))
+        // l(2) < 3, not lifted
+        // l(4) >= 3, lifted to 7
+        auto l_expected = a(f(l(2)->clone()), f(l(7)->clone()));
+        assert(l_lifted->equals(l_expected));
+    }
+
+    // app with complex nested structure, various cutoffs
+    // ((1 6) (f(3) f(8))), lift 2, cutoff 5
+    {
+        auto l_func_left = a(l(1)->clone(), l(6)->clone());
+        auto l_func_right = a(f(l(3)->clone()), f(l(8)->clone()));
+        auto l_app = a(l_func_left->clone(), l_func_right->clone());
+        auto l_lifted = l_app->lift(2, 5);
+
+        // Expected: ((1 8) (f(3) f(10)))
+        // l(1) < 5, not lifted
+        // l(6) >= 5, lifted to 8
+        // l(3) < 5, not lifted
+        // l(8) >= 5, lifted to 10
+        auto l_expected = a(a(l(1)->clone(), l(8)->clone()),
+                            a(f(l(3)->clone()), f(l(10)->clone())));
+        assert(l_lifted->equals(l_expected));
+    }
+
+    // app with high cutoff, nothing gets lifted
+    // (3 4 5), lift 10, cutoff 20
+    {
+        auto l_app = a(a(l(3)->clone(), l(4)->clone()), l(5)->clone());
+        auto l_lifted = l_app->lift(10, 20);
+
+        // All < 20, none lifted
+        auto l_expected = a(a(l(3)->clone(), l(4)->clone()), l(5)->clone());
+        assert(l_lifted->equals(l_expected));
+    }
+
+    // app with cutoff 0, everything gets lifted
+    // (0 1 2), lift 5, cutoff 0
+    {
+        auto l_app = a(a(l(0)->clone(), l(1)->clone()), l(2)->clone());
+        auto l_lifted = l_app->lift(5, 0);
+
+        // All >= 0, all lifted by 5
+        auto l_expected = a(a(l(5)->clone(), l(6)->clone()), l(7)->clone());
+        assert(l_lifted->equals(l_expected));
     }
 }
 
@@ -1283,6 +1441,55 @@ void test_func_substitute()
         assert(l_subbed_local != nullptr);
         assert(l_subbed_local->m_index == 13);
     }
+
+    // func with app body containing mixed locals, var_index=3
+    // Tests that locals < var_index are left alone
+    {
+        // Body: (0 1 2 3 4) - mix of locals below, at, and above var_index=3
+        auto l_body = a(
+            a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()), l(3)->clone()),
+            l(4)->clone());
+        auto l_func = f(l_body->clone());
+        auto l_sub = l(99);
+
+        // substitute var_index=3 with l(99) at depth 0
+        const auto l_subbed = l_func->substitute(0, 3, l_sub->clone());
+
+        // Expected: (0 1 2 100 3)
+        // - l(0), l(1), l(2) stay unchanged (< 3)
+        // - l(3) gets replaced with l(99) lifted by 1 (func binder) = l(100)
+        // - l(4) decrements to l(3) (> 3)
+        auto l_expected =
+            f(a(a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()),
+                  l(100)->clone()),
+                l(3)->clone()));
+
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // func with nested func, testing locals < var_index preservation
+    {
+        // Body: λ.(0 2 3) with outer var_index=2
+        // Inner l(0) is bound by inner lambda
+        // Outer l(2) and l(3) are from outer scope
+        auto l_inner_body = a(a(l(0)->clone(), l(2)->clone()), l(3)->clone());
+        auto l_body = f(l_inner_body->clone());
+        auto l_func = f(l_body->clone());
+        auto l_sub = l(88);
+
+        // substitute var_index=2 at depth=0
+        const auto l_subbed = l_func->substitute(0, 2, l_sub->clone());
+
+        // Expected: λ.λ.(0 89 2)
+        // - Inner l(0) unchanged (bound by inner lambda)
+        // - l(2) at depth 2 (due to 2 binders) should match var 2
+        //   and be replaced with l(88) lifted by 2 = l(90)
+        // - l(3) decrements to l(2)
+        auto l_expected =
+            f(f(a(a(l(0)->clone(), l(90)->clone()), l(2)->clone())));
+
+        assert(l_subbed->equals(l_expected));
+    }
 }
 
 void test_app_substitute()
@@ -1579,6 +1786,48 @@ void test_app_substitute()
         auto l_sub = l(9);
         const auto l_subbed = l_app->substitute(0, 2, l_sub->clone());
         auto l_expected = a(l(0)->clone(), l(9)->clone());
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 12: substitute with var_index=4, multiple locals below and above
+    // ((0 1 2 3) (4 5 6)) with var 4 -> l(77) should give ((0 1 2 3) (77 4 5))
+    {
+        auto l_func_app =
+            a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()), l(3)->clone());
+        auto l_arg_app = a(a(l(4)->clone(), l(5)->clone()), l(6)->clone());
+        auto l_app = a(l_func_app->clone(), l_arg_app->clone());
+        auto l_sub = l(77);
+        const auto l_subbed = l_app->substitute(0, 4, l_sub->clone());
+
+        // Expected: ((0 1 2 3) (77 4 5))
+        // l(0), l(1), l(2), l(3) unchanged (< 4)
+        // l(4) replaced with l(77)
+        // l(5), l(6) decremented to l(4), l(5)
+        auto l_expected = a(
+            a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()), l(3)->clone()),
+            a(a(l(77)->clone(), l(4)->clone()), l(5)->clone()));
+        assert(l_subbed->equals(l_expected));
+    }
+
+    // Test 13: nested app with funcs, var_index=2
+    // (λ.(0 1 2) λ.(1 2 3)) with var 2 -> l(55)
+    {
+        auto l_lhs_body = a(a(l(0)->clone(), l(1)->clone()), l(2)->clone());
+        auto l_rhs_body = a(a(l(1)->clone(), l(2)->clone()), l(3)->clone());
+        auto l_app = a(f(l_lhs_body->clone()), f(l_rhs_body->clone()));
+        auto l_sub = l(55);
+        const auto l_subbed = l_app->substitute(0, 2, l_sub->clone());
+
+        // In lhs func: depth becomes 1, so var 2 at that depth
+        // l(0), l(1) unchanged (< 2)
+        // l(2) matches var 2, replaced with l(55) lifted by 1 = l(56)
+        // In rhs func: same logic
+        // l(1) unchanged (< 2)
+        // l(2) matches var 2, replaced with l(55) lifted by 1 = l(56)
+        // l(3) decrements to l(2)
+        auto l_expected =
+            a(f(a(a(l(0)->clone(), l(1)->clone()), l(56)->clone())),
+              f(a(a(l(1)->clone(), l(56)->clone()), l(2)->clone())));
         assert(l_subbed->equals(l_expected));
     }
 }

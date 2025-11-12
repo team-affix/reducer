@@ -66,9 +66,11 @@ void func::print(std::ostream& a_ostream) const
 
 void app::print(std::ostream& a_ostream) const
 {
+    a_ostream << "(";
     m_func->print(a_ostream);
     a_ostream << " ";
     m_arg->print(a_ostream);
+    a_ostream << ")";
 }
 
 // LIFT METHODS
@@ -1611,6 +1613,59 @@ void generic_use_case_test()
     // succ
     l_globals.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
     const auto SUCC = g(3);
+
+    // add
+    l_globals.emplace_back(
+        f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
+    const auto ADD = g(4);
+
+    // test add church numerals
+    {
+        // reduce zero
+        const auto ZERO_REDUCED = ZERO->reduce(l_globals);
+        // define one
+        const auto ONE = a(SUCC, ZERO)->reduce(l_globals);
+        // define two
+        const auto TWO = a(SUCC, ONE)->reduce(l_globals);
+        // define three
+        const auto THREE = a(SUCC, TWO)->reduce(l_globals);
+        // // define four
+        // const auto FOUR = a(SUCC, THREE)->reduce(l_globals);
+        // // define five
+        // const auto FIVE = a(SUCC, FOUR)->reduce(l_globals);
+
+        // print all
+        std::cout << "zero: ";
+        ZERO->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "G2: ";
+        l_globals.at(2)->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "succ: ";
+        SUCC->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "G3: ";
+        l_globals.at(3)->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "zero reduced: ";
+        ZERO_REDUCED->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "one: ";
+        ONE->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "two: ";
+        TWO->print(std::cout);
+        std::cout << std::endl;
+        std::cout << "three: ";
+        THREE->print(std::cout);
+        std::cout << std::endl;
+        // std::cout << "four: ";
+        // FOUR->print(std::cout);
+        // std::cout << std::endl;
+        // std::cout << "five: ";
+        // FIVE->print(std::cout);
+        // std::cout << std::endl;
+    }
 }
 
 void lambda_test_main()

@@ -92,7 +92,7 @@ void app::print(std::ostream& a_ostream) const
 
 // LIFT METHODS
 
-std::unique_ptr<expr> local::lift(size_t a_cutoff, size_t a_lift_amount) const
+std::unique_ptr<expr> local::lift(size_t a_lift_amount, size_t a_cutoff) const
 {
     if(m_index < a_cutoff)
         return l(m_index);
@@ -100,22 +100,22 @@ std::unique_ptr<expr> local::lift(size_t a_cutoff, size_t a_lift_amount) const
     return l(m_index + a_lift_amount);
 }
 
-std::unique_ptr<expr> global::lift(size_t a_cutoff, size_t a_lift_amount) const
+std::unique_ptr<expr> global::lift(size_t a_lift_amount, size_t a_cutoff) const
 {
     return g(m_index);
 }
 
-std::unique_ptr<expr> func::lift(size_t a_cutoff, size_t a_lift_amount) const
+std::unique_ptr<expr> func::lift(size_t a_lift_amount, size_t a_cutoff) const
 {
     // we don't increment here, since the goal is to lift the WHOLE function
     // (all locals inside) by the same amount (provided they are >= cutoff).
-    return f(m_body->lift(a_cutoff, a_lift_amount));
+    return f(m_body->lift(a_lift_amount, a_cutoff));
 }
 
-std::unique_ptr<expr> app::lift(size_t a_cutoff, size_t a_lift_amount) const
+std::unique_ptr<expr> app::lift(size_t a_lift_amount, size_t a_cutoff) const
 {
-    return a(m_func->lift(a_cutoff, a_lift_amount),
-             m_arg->lift(a_cutoff, a_lift_amount));
+    return a(m_func->lift(a_lift_amount, a_cutoff),
+             m_arg->lift(a_lift_amount, a_cutoff));
 }
 
 // SUBSTITUTE METHODS
@@ -134,7 +134,7 @@ local::substitute(size_t a_lift_amount, size_t a_var_index,
         return clone();
 
     // this var is the one we are substituting, so we must substitute it
-    return a_arg->lift(a_var_index, a_lift_amount);
+    return a_arg->lift(a_lift_amount, a_var_index);
 }
 
 std::unique_ptr<expr>
@@ -188,7 +188,7 @@ std::unique_ptr<expr> global::reduce(size_t a_depth,
     // lift the definition (interestingly, here we set cutoff to zero since
     // all vars are defined in another scope, making it so we actually need to
     // lift them all)
-    auto l_lifted_def = l_definition->lift(0, a_depth);
+    auto l_lifted_def = l_definition->lift(a_depth, 0);
 
     // reduce the lifted definition
     auto l_result = l_lifted_def->reduce(a_depth, a_globals);
@@ -536,7 +536,7 @@ void test_local_lift()
     // index 0, lift 1 level
     {
         auto l_local = l(0);
-        auto l_lifted = l_local->lift(0, 1);
+        auto l_lifted = l_local->lift(1, 0);
         const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
         assert(l_lifted_local != nullptr);
         assert(l_lifted_local->m_index == 1);
@@ -545,7 +545,7 @@ void test_local_lift()
     // index 1, lift 1 level
     {
         auto l_local = l(1);
-        auto l_lifted = l_local->lift(0, 1);
+        auto l_lifted = l_local->lift(1, 0);
         const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
         assert(l_lifted_local != nullptr);
         assert(l_lifted_local->m_index == 2);
@@ -566,7 +566,7 @@ void test_global_lift()
     // index 0, lift 1 level
     {
         auto l_global = g(0);
-        auto l_lifted = l_global->lift(0, 1);
+        auto l_lifted = l_global->lift(1, 0);
         const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
         assert(l_lifted_global != nullptr);
 
@@ -577,7 +577,7 @@ void test_global_lift()
     // index 3, lift 2 levels
     {
         auto l_global = g(3);
-        auto l_lifted = l_global->lift(0, 2);
+        auto l_lifted = l_global->lift(2, 0);
         const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
         assert(l_lifted_global != nullptr);
 
@@ -592,7 +592,7 @@ void test_func_lift()
     {
         auto l_local = l(0);
         auto l_func = f(l_local->clone());
-        auto l_lifted = l_func->lift(0, 1);
+        auto l_lifted = l_func->lift(1, 0);
         const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
         assert(l_lifted_func != nullptr);
         const local* l_lifted_local =
@@ -605,7 +605,7 @@ void test_func_lift()
     {
         auto l_local = l(1);
         auto l_func = f(l_local->clone());
-        auto l_lifted = l_func->lift(0, 2);
+        auto l_lifted = l_func->lift(2, 0);
         const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
         assert(l_lifted_func != nullptr);
         const local* l_lifted_local =
@@ -622,7 +622,7 @@ void test_app_lift()
         auto l_lhs_local = l(1);
         auto l_rhs_local = l(2);
         auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
-        auto l_lifted = l_app->lift(0, 1);
+        auto l_lifted = l_app->lift(1, 0);
 
         // get the lifted app (still an app)
         const app* l_lifted_app = dynamic_cast<app*>(l_lifted.get());
@@ -648,7 +648,7 @@ void test_app_lift()
         auto l_lhs_local = l(1);
         auto l_rhs_local = l(2);
         auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
-        auto l_lifted = l_app->lift(0, 2);
+        auto l_lifted = l_app->lift(2, 0);
 
         // get the lifted app (still an app)
         const app* l_lifted_app = dynamic_cast<app*>(l_lifted.get());

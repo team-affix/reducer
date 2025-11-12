@@ -15,8 +15,8 @@ struct expr
     virtual ~expr() = default;
     virtual bool equals(const std::unique_ptr<expr>&) const = 0;
     virtual void print(std::ostream& a_ostream) const = 0;
-    virtual std::unique_ptr<expr> lift(size_t a_cutoff,
-                                       size_t a_lift_amount) const = 0;
+    virtual std::unique_ptr<expr> lift(size_t a_lift_amount,
+                                       size_t a_cutoff) const = 0;
     virtual std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const = 0;
@@ -33,8 +33,8 @@ struct local : expr
     virtual ~local() = default;
     bool equals(const std::unique_ptr<expr>&) const override;
     void print(std::ostream& a_ostream) const override;
-    std::unique_ptr<expr> lift(size_t a_cutoff,
-                               size_t a_lift_amount) const override;
+    std::unique_ptr<expr> lift(size_t a_lift_amount,
+                               size_t a_cutoff) const override;
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
@@ -52,8 +52,8 @@ struct global : expr
     virtual ~global() = default;
     bool equals(const std::unique_ptr<expr>&) const override;
     void print(std::ostream& a_ostream) const override;
-    std::unique_ptr<expr> lift(size_t a_cutoff,
-                               size_t a_lift_amount) const override;
+    std::unique_ptr<expr> lift(size_t a_lift_amount,
+                               size_t a_cutoff) const override;
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
@@ -71,8 +71,8 @@ struct func : expr
     virtual ~func() = default;
     bool equals(const std::unique_ptr<expr>&) const override;
     void print(std::ostream& a_ostream) const override;
-    std::unique_ptr<expr> lift(size_t a_cutoff,
-                               size_t a_lift_amount) const override;
+    std::unique_ptr<expr> lift(size_t a_lift_amount,
+                               size_t a_cutoff) const override;
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
@@ -90,8 +90,8 @@ struct app : expr
     virtual ~app() = default;
     bool equals(const std::unique_ptr<expr>&) const override;
     void print(std::ostream& a_ostream) const override;
-    std::unique_ptr<expr> lift(size_t a_cutoff,
-                               size_t a_lift_amount) const override;
+    std::unique_ptr<expr> lift(size_t a_lift_amount,
+                               size_t a_cutoff) const override;
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;

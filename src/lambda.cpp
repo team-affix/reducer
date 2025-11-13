@@ -5,15 +5,14 @@
 
 #include <iostream>
 
-#define LOG_EXPR(a_depth, a_expr)                                              \
-    std::cout << "DEPTH: " << a_depth << " -> ";                               \
+#define LOG_EXPR(a_expr)                                                       \
     a_expr->print(std::cout);                                                  \
     std::cout << std::endl;
 
 #else
 
 // no-op
-#define LOG_EXPR(a_depth, a_expr)
+#define LOG_EXPR(a_expr)
 
 #endif
 
@@ -135,57 +134,67 @@ std::unique_ptr<expr> app::substitute(size_t a_lift_amount, size_t a_var_index,
 
 std::unique_ptr<expr> var::reduce_one_step(size_t a_depth) const
 {
-    // log the current expr
-    LOG_EXPR(a_depth, this);
-
-    auto l_result = clone();
-
-    // log the result
-    LOG_EXPR(a_depth, l_result);
-
-    return l_result;
+    // variables cannot reduce
+    return nullptr;
 }
 
 std::unique_ptr<expr> func::reduce_one_step(size_t a_depth) const
 {
-    // log the current expr
-    LOG_EXPR(a_depth, this);
+    // check if body can reduce
+    auto l_reduced_body = m_body->reduce_one_step(a_depth + 1);
 
-    // reduce the body, incrementing the depth
-    auto l_result = f(m_body->reduce_one_step(a_depth + 1));
+    if(!l_reduced_body)
+        // body cannot reduce, so this function cannot reduce
+        return nullptr;
 
-    // log the result
-    LOG_EXPR(a_depth, l_result);
-
-    return l_result;
+    // return the new function with the reduced body
+    return f(std::move(l_reduced_body));
 }
 
 std::unique_ptr<expr> app::reduce_one_step(size_t a_depth) const
 {
-    // log the current expr
-    LOG_EXPR(a_depth, this);
+    // // reduce the function to NF
+    // auto l_reduced_func = m_func->reduce_one_step(a_depth);
 
-    // reduce the function to NF
-    auto l_reduced_func = m_func->reduce_one_step(a_depth);
+    // // check if the lhs is a beta-redex
+    // const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
 
-    // check if the lhs is a beta-redex
-    const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
+    // if(!l_beta_redex)
+    //     // leave the lhs in NF and reduce the rhs to NF
+    //     return a(std::move(l_reduced_func), m_arg->reduce_one_step(a_depth));
 
-    if(!l_beta_redex)
-        // leave the lhs in NF and reduce the rhs to NF
-        return a(std::move(l_reduced_func), m_arg->reduce_one_step(a_depth));
+    // // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
+    // std::unique_ptr<expr> l_substituted_body =
+    //     l_beta_redex->m_body->substitute(0, a_depth, m_arg);
 
-    // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
-    std::unique_ptr<expr> l_substituted_body =
-        l_beta_redex->m_body->substitute(0, a_depth, m_arg);
+    // // reduce the contracted body
+    // auto l_result = l_substituted_body->reduce_one_step(a_depth);
 
-    // reduce the contracted body
-    auto l_result = l_substituted_body->reduce_one_step(a_depth);
+    // return l_result;
 
-    // log the result
-    LOG_EXPR(a_depth, l_result);
+    // see if this app is a beta-redex
+    const func* l_lhs_func = dynamic_cast<const func*>(m_func.get());
 
-    return l_result;
+    // if the lhs is a function, beta-contract the body
+    if(l_lhs_func)
+        return l_lhs_func->m_body->substitute(0, a_depth, m_arg);
+
+    // try to reduce lhs
+    auto l_reduced_lhs = m_func->reduce_one_step(a_depth);
+
+    // if lhs can reduce, leave rhs alone and return
+    if(l_reduced_lhs)
+        return a(std::move(l_reduced_lhs), m_arg->clone());
+
+    // try to reduce rhs
+    auto l_reduced_rhs = m_arg->reduce_one_step(a_depth);
+
+    // if rhs can reduce, leave lhs alone and return
+    if(l_reduced_rhs)
+        return a(m_func->clone(), std::move(l_reduced_rhs));
+
+    // otherwise, return nullptr
+    return nullptr;
 }
 
 // EXPR CLONE METHOD
@@ -197,7 +206,31 @@ std::unique_ptr<expr> expr::clone() const
 // EXPR NORMALIZE METHOD
 std::unique_ptr<expr> expr::normalize() const
 {
-    return reduce_one_step(0);
+    // start with the original expression
+    std::unique_ptr<expr> l_result = clone();
+
+    // log the original expression
+    LOG_EXPR(l_result);
+
+    // reduce the expression until it cannot reduce anymore
+    while(true)
+    {
+        // try to reduce the expression by one step
+        auto l_reduced = l_result->reduce_one_step(0);
+
+        // if the expression cannot reduce, break
+        if(!l_reduced)
+            break;
+
+        // set the result to the reduced expression and continue
+        l_result = std::move(l_reduced);
+
+        // log the reduction
+        LOG_EXPR(l_result);
+    }
+
+    // return the normalized expression
+    return l_result;
 }
 
 // CONSTRUCTORS

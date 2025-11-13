@@ -133,7 +133,7 @@ std::unique_ptr<expr> app::substitute(size_t a_lift_amount, size_t a_var_index,
 
 // REDUCE METHODS
 
-std::unique_ptr<expr> var::reduce(size_t a_depth) const
+std::unique_ptr<expr> var::reduce_one_step(size_t a_depth) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
@@ -146,13 +146,13 @@ std::unique_ptr<expr> var::reduce(size_t a_depth) const
     return l_result;
 }
 
-std::unique_ptr<expr> func::reduce(size_t a_depth) const
+std::unique_ptr<expr> func::reduce_one_step(size_t a_depth) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
 
     // reduce the body, incrementing the depth
-    auto l_result = f(m_body->reduce(a_depth + 1));
+    auto l_result = f(m_body->reduce_one_step(a_depth + 1));
 
     // log the result
     LOG_EXPR(a_depth, l_result);
@@ -160,27 +160,27 @@ std::unique_ptr<expr> func::reduce(size_t a_depth) const
     return l_result;
 }
 
-std::unique_ptr<expr> app::reduce(size_t a_depth) const
+std::unique_ptr<expr> app::reduce_one_step(size_t a_depth) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
 
     // reduce the function to NF
-    auto l_reduced_func = m_func->reduce(a_depth);
+    auto l_reduced_func = m_func->reduce_one_step(a_depth);
 
     // check if the lhs is a beta-redex
     const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
 
     if(!l_beta_redex)
         // leave the lhs in NF and reduce the rhs to NF
-        return a(std::move(l_reduced_func), m_arg->reduce(a_depth));
+        return a(std::move(l_reduced_func), m_arg->reduce_one_step(a_depth));
 
     // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
     std::unique_ptr<expr> l_substituted_body =
         l_beta_redex->m_body->substitute(0, a_depth, m_arg);
 
     // reduce the contracted body
-    auto l_result = l_substituted_body->reduce(a_depth);
+    auto l_result = l_substituted_body->reduce_one_step(a_depth);
 
     // log the result
     LOG_EXPR(a_depth, l_result);
@@ -192,6 +192,12 @@ std::unique_ptr<expr> app::reduce(size_t a_depth) const
 std::unique_ptr<expr> expr::clone() const
 {
     return lift(0, 0);
+}
+
+// EXPR NORMALIZE METHOD
+std::unique_ptr<expr> expr::normalize() const
+{
+    return reduce_one_step(0);
 }
 
 // CONSTRUCTORS
@@ -1475,12 +1481,12 @@ void test_app_substitute()
     }
 }
 
-void test_var_reduce()
+void test_var_normalize()
 {
-    // local with var 0 at depth 0
+    // local with var 0
     {
         auto l_expr = v(0);
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // cast the pointer
         const var* l_var = dynamic_cast<var*>(l_reduced.get());
@@ -1490,10 +1496,10 @@ void test_var_reduce()
         assert(l_var->m_index == 0);
     }
 
-    // local with var 1 at depth 0
+    // local with var 1
     {
         auto l_expr = v(1);
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // cast the pointer
         const var* l_var = dynamic_cast<var*>(l_reduced.get());
@@ -1502,35 +1508,14 @@ void test_var_reduce()
         // make sure it has the same index
         assert(l_var->m_index == 1);
     }
-
-    // local with var 0 at depth 1 - locals are unaffected by depth
-    {
-        auto l_expr = v(0);
-        const auto l_reduced = l_expr->reduce(1);
-        assert(l_reduced->equals(v(0)->clone()));
-    }
-
-    // local with var 5 at depth 2 - locals are unaffected by depth
-    {
-        auto l_expr = v(5);
-        const auto l_reduced = l_expr->reduce(2);
-        assert(l_reduced->equals(v(5)->clone()));
-    }
-
-    // local with var 10 at depth 3 - locals are unaffected by depth
-    {
-        auto l_expr = v(10);
-        const auto l_reduced = l_expr->reduce(3);
-        assert(l_reduced->equals(v(10)->clone()));
-    }
 }
 
-void test_func_reduce()
+void test_func_normalize()
 {
-    // func with body of a local at depth 0
+    // func with body of a local
     {
         auto l_expr = f(v(0)->clone());
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure still a func
         const auto* l_func = dynamic_cast<func*>(l_reduced.get());
@@ -1543,24 +1528,9 @@ void test_func_reduce()
         // make sure body is still same thing
         assert(l_body->m_index == 0);
     }
-
-    // func with body of a local at depth 1
-    {
-        auto l_expr = f(v(0)->clone());
-        const auto l_reduced = l_expr->reduce(1);
-
-        // make sure still a func
-        const auto* l_func = dynamic_cast<func*>(l_reduced.get());
-        assert(l_func != nullptr);
-
-        // get body - should be unchanged
-        const auto* l_body = dynamic_cast<var*>(l_func->m_body.get());
-        assert(l_body != nullptr);
-        assert(l_body->m_index == 0);
-    }
 }
 
-void test_app_reduce()
+void test_app_normalize()
 {
     // app with lhs and rhs both locals
     {
@@ -1569,7 +1539,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         const app* l_app = dynamic_cast<app*>(l_reduced.get());
         assert(l_app != nullptr);
@@ -1594,7 +1564,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure nothing changed
         // (beta reduction did not occur since rhs is local)
@@ -1608,7 +1578,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure beta-reduction occurred, with no lifting of indices
         assert(l_reduced->equals(l_rhs->clone()));
@@ -1621,7 +1591,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure beta-reduction occurred, but no replacements.
         // other vars decremented by 1.
@@ -1635,7 +1605,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure beta-reduction occurred, with replacement,
         // and a lifting of 1 level
@@ -1649,7 +1619,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure beta-reduction occurred, no replacements.
         // other vars decremented by 1.
@@ -1663,7 +1633,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // make sure nothing changed
         // (both lhs and rhs were fully reduced already)
@@ -1678,7 +1648,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // lhs should have beta-reduced, but cannot consume rhs of app
         assert(l_reduced->equals(a(v(2), f(v(5)))));
@@ -1692,7 +1662,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // lhs of app should beta-reduce, but lhs is not capable of consuming 2
         // args. Thus NF is an application with LHS beta-reduced once.
@@ -1708,7 +1678,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // should beta-reduce twice, consuming all args. No replacements, only
         // decrementing twice.
@@ -1724,7 +1694,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // should beta-reduce twice, consuming all args.
         // becomes first arg, without lifting. (lifting occurred but was undone
@@ -1741,74 +1711,12 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0);
+        const auto l_reduced = l_expr->normalize();
 
         // should beta-reduce twice, consuming all args.
         // becomes second arg, without lifting. (lifting occurred but was undone
         // by second arg)
         assert(l_reduced->equals(l_rhs->clone()));
-    }
-
-    ////////////////////////////////////
-    // Testing reduction at non-zero depths
-    ////////////////////////////////////
-
-    // app with lhs func and rhs func at depth 1
-    {
-        auto l_lhs = f(v(0)->clone());
-        auto l_rhs = f(v(3)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce at depth 1
-        const auto l_reduced = l_expr->reduce(1);
-
-        // beta-reduction occurs, but f(l(0)) at depth 1 is a CONSTANT function
-        // l(0) refers to a variable captured from depth 0, not the parameter
-        // so it ignores its argument and always returns l(0)
-        assert(l_reduced->equals(v(0)->clone()));
-    }
-
-    // app with lhs func (with occurrence) and rhs func at depth 2
-    {
-        auto l_lhs = f(v(0)->clone());
-        auto l_rhs = f(v(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce at depth 2
-        const auto l_reduced = l_expr->reduce(2);
-
-        // beta-reduction occurs, but f(l(0)) at depth 2 is also a CONSTANT
-        // function l(0) refers to a variable captured from depth 0, not the
-        // parameter so it ignores its argument and always returns l(0)
-        assert(l_reduced->equals(v(0)->clone()));
-    }
-
-    // app with lhs func (no occurrence of var 0) and rhs func at depth 1
-    {
-        auto l_lhs = f(v(3)->clone());
-        auto l_rhs = f(v(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce at depth 1
-        const auto l_reduced = l_expr->reduce(1);
-
-        // beta-reduction: l(3) is > 0, decrements to l(2)
-        assert(l_reduced->equals(v(2)->clone()));
-    }
-
-    // app at depth 3 with beta reduction
-    {
-        auto l_lhs = f(v(0)->clone());
-        auto l_rhs = f(v(8)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce at depth 3
-        const auto l_reduced = l_expr->reduce(3);
-
-        // beta-reduction occurs, but f(l(0)) at depth 3 is also a CONSTANT
-        // function l(0) refers to a variable captured from depth 0, not the
-        // parameter so it ignores its argument and always returns l(0)
-        assert(l_reduced->equals(v(0)->clone()));
     }
 }
 
@@ -1872,8 +1780,8 @@ void generic_use_case_test()
             l_helpers.begin(), l_helpers.end(), l_false_case_main);
 
         // reduce the programs
-        const auto l_true_reduced = l_true_program->reduce(0);
-        const auto l_false_reduced = l_false_program->reduce(0);
+        const auto l_true_reduced = l_true_program->normalize();
+        const auto l_false_reduced = l_false_program->normalize();
 
         std::cout << "true reduced: ";
         l_true_reduced->print(std::cout);
@@ -1925,36 +1833,36 @@ void generic_use_case_test()
             construct_program(l_helpers.begin(), l_helpers.end(), FIVE);
 
         // reduce zero
-        const auto ZERO_REDUCED = ZERO_PROGRAM->reduce(0);
+        const auto ZERO_REDUCED = ZERO_PROGRAM->normalize();
         std::cout << "zero reduced: ";
         ZERO_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define one
-        const auto ONE_REDUCED = ONE_PROGRAM->reduce(0);
+        const auto ONE_REDUCED = ONE_PROGRAM->normalize();
         std::cout << "one reduced: ";
         ONE_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define two
-        const auto TWO_REDUCED = TWO_PROGRAM->reduce(0);
+        const auto TWO_REDUCED = TWO_PROGRAM->normalize();
         std::cout << "two reduced: ";
         TWO_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define three
-        const auto THREE_REDUCED = THREE_PROGRAM->reduce(0);
+        const auto THREE_REDUCED = THREE_PROGRAM->normalize();
         std::cout << "three reduced: ";
         THREE_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define four
-        const auto FOUR_REDUCED = FOUR_PROGRAM->reduce(0);
+        const auto FOUR_REDUCED = FOUR_PROGRAM->normalize();
         std::cout << "four reduced: ";
         FOUR_REDUCED->print(std::cout);
         std::cout << std::endl;
         // define five
-        const auto FIVE_REDUCED = FIVE_PROGRAM->reduce(0);
+        const auto FIVE_REDUCED = FIVE_PROGRAM->normalize();
         std::cout << "five reduced: ";
         FIVE_REDUCED->print(std::cout);
         std::cout << std::endl;
@@ -2012,11 +1920,11 @@ void generic_use_case_test()
             l_helpers.begin(), l_helpers.end(), ADD_FIVE_FIVE);
 
         // reduce the programs
-        const auto ADD_ONE_ONE_REDUCED = ADD_ONE_ONE_PROGRAM->reduce(0);
-        const auto ADD_ONE_TWO_REDUCED = ADD_ONE_TWO_PROGRAM->reduce(0);
-        const auto ADD_TWO_TWO_REDUCED = ADD_TWO_TWO_PROGRAM->reduce(0);
-        const auto ADD_THREE_TWO_REDUCED = ADD_THREE_TWO_PROGRAM->reduce(0);
-        const auto ADD_FIVE_FIVE_REDUCED = ADD_FIVE_FIVE_PROGRAM->reduce(0);
+        const auto ADD_ONE_ONE_REDUCED = ADD_ONE_ONE_PROGRAM->normalize();
+        const auto ADD_ONE_TWO_REDUCED = ADD_ONE_TWO_PROGRAM->normalize();
+        const auto ADD_TWO_TWO_REDUCED = ADD_TWO_TWO_PROGRAM->normalize();
+        const auto ADD_THREE_TWO_REDUCED = ADD_THREE_TWO_PROGRAM->normalize();
+        const auto ADD_FIVE_FIVE_REDUCED = ADD_FIVE_FIVE_PROGRAM->normalize();
 
         std::cout << "add one one: ";
         ADD_ONE_ONE_REDUCED->print(std::cout);
@@ -2076,9 +1984,9 @@ void lambda_test_main()
     TEST(test_func_substitute);
     TEST(test_app_substitute);
 
-    TEST(test_var_reduce);
-    TEST(test_func_reduce);
-    TEST(test_app_reduce);
+    TEST(test_var_normalize);
+    TEST(test_func_normalize);
+    TEST(test_app_normalize);
 
     TEST(generic_use_case_test);
 }

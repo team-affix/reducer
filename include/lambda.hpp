@@ -18,8 +18,9 @@ struct expr
     virtual std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const = 0;
-    virtual std::unique_ptr<expr> reduce(size_t a_depth) const = 0;
+    virtual std::unique_ptr<expr> reduce_one_step(size_t a_depth) const = 0;
     std::unique_ptr<expr> clone() const;
+    std::unique_ptr<expr> normalize() const;
     expr();
     expr(const expr& other) = delete;
     expr& operator=(const expr& other) = delete;
@@ -35,7 +36,7 @@ struct var : expr
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth) const override;
+    std::unique_ptr<expr> reduce_one_step(size_t a_depth) const override;
     size_t m_index;
 
   private:
@@ -53,7 +54,7 @@ struct func : expr
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth) const override;
+    std::unique_ptr<expr> reduce_one_step(size_t a_depth) const override;
     std::unique_ptr<expr> m_body;
 
   private:
@@ -71,7 +72,7 @@ struct app : expr
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth) const override;
+    std::unique_ptr<expr> reduce_one_step(size_t a_depth) const override;
     std::unique_ptr<expr> m_func;
     std::unique_ptr<expr> m_arg;
 

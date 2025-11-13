@@ -11,7 +11,6 @@ namespace lambda
 
 struct expr
 {
-    using global_map = std::vector<std::unique_ptr<expr>>;
     virtual ~expr() = default;
     virtual bool equals(const std::unique_ptr<expr>&) const = 0;
     virtual void print(std::ostream& a_ostream) const = 0;
@@ -20,8 +19,7 @@ struct expr
     virtual std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const = 0;
-    virtual std::unique_ptr<expr> reduce(size_t a_depth,
-                                         const global_map& a_globals) const = 0;
+    virtual std::unique_ptr<expr> reduce(size_t a_depth) const = 0;
     std::unique_ptr<expr> clone() const;
     expr();
     expr(const expr& other) = delete;
@@ -38,8 +36,7 @@ struct var : expr
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth,
-                                 const global_map& a_globals) const override;
+    std::unique_ptr<expr> reduce(size_t a_depth) const override;
     size_t m_index;
 
   private:
@@ -57,8 +54,7 @@ struct func : expr
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth,
-                                 const global_map& a_globals) const override;
+    std::unique_ptr<expr> reduce(size_t a_depth) const override;
     std::unique_ptr<expr> m_body;
 
   private:
@@ -76,8 +72,7 @@ struct app : expr
     std::unique_ptr<expr>
     substitute(size_t a_lift_amount, size_t a_var_index,
                const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth,
-                                 const global_map& a_globals) const override;
+    std::unique_ptr<expr> reduce(size_t a_depth) const override;
     std::unique_ptr<expr> m_func;
     std::unique_ptr<expr> m_arg;
 

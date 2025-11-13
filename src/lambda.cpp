@@ -134,8 +134,7 @@ std::unique_ptr<expr> app::substitute(size_t a_lift_amount, size_t a_var_index,
 
 // REDUCE METHODS
 
-std::unique_ptr<expr> var::reduce(size_t a_depth,
-                                  const expr::global_map& a_globals) const
+std::unique_ptr<expr> var::reduce(size_t a_depth) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
@@ -148,14 +147,13 @@ std::unique_ptr<expr> var::reduce(size_t a_depth,
     return l_result;
 }
 
-std::unique_ptr<expr> func::reduce(size_t a_depth,
-                                   const global_map& a_globals) const
+std::unique_ptr<expr> func::reduce(size_t a_depth) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
 
     // reduce the body, incrementing the depth
-    auto l_result = f(m_body->reduce(a_depth + 1, a_globals));
+    auto l_result = f(m_body->reduce(a_depth + 1));
 
     // log the result
     LOG_EXPR(a_depth, l_result);
@@ -163,28 +161,27 @@ std::unique_ptr<expr> func::reduce(size_t a_depth,
     return l_result;
 }
 
-std::unique_ptr<expr> app::reduce(size_t a_depth,
-                                  const global_map& a_globals) const
+std::unique_ptr<expr> app::reduce(size_t a_depth) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
 
     // reduce the function to NF
-    auto l_reduced_func = m_func->reduce(a_depth, a_globals);
+    auto l_reduced_func = m_func->reduce(a_depth);
 
     // check if the lhs is a beta-redex
     const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
 
     if(!l_beta_redex)
         // leave the lhs in NF and reduce the rhs to NF
-        return a(std::move(l_reduced_func), m_arg->reduce(a_depth, a_globals));
+        return a(std::move(l_reduced_func), m_arg->reduce(a_depth));
 
     // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
     std::unique_ptr<expr> l_substituted_body =
         l_beta_redex->m_body->substitute(0, a_depth, m_arg);
 
-    // reduce the reduced contracted body
-    auto l_result = l_substituted_body->reduce(a_depth, a_globals);
+    // reduce the contracted body
+    auto l_result = l_substituted_body->reduce(a_depth);
 
     // log the result
     LOG_EXPR(a_depth, l_result);
@@ -1484,7 +1481,7 @@ void test_var_reduce()
     // local with var 0 at depth 0
     {
         auto l_expr = v(0);
-        const auto l_reduced = l_expr->reduce(0, {});
+        const auto l_reduced = l_expr->reduce(0);
 
         // cast the pointer
         const var* l_var = dynamic_cast<var*>(l_reduced.get());
@@ -1497,7 +1494,7 @@ void test_var_reduce()
     // local with var 1 at depth 0
     {
         auto l_expr = v(1);
-        const auto l_reduced = l_expr->reduce(0, {});
+        const auto l_reduced = l_expr->reduce(0);
 
         // cast the pointer
         const var* l_var = dynamic_cast<var*>(l_reduced.get());
@@ -1510,21 +1507,21 @@ void test_var_reduce()
     // local with var 0 at depth 1 - locals are unaffected by depth
     {
         auto l_expr = v(0);
-        const auto l_reduced = l_expr->reduce(1, {});
+        const auto l_reduced = l_expr->reduce(1);
         assert(l_reduced->equals(v(0)->clone()));
     }
 
     // local with var 5 at depth 2 - locals are unaffected by depth
     {
         auto l_expr = v(5);
-        const auto l_reduced = l_expr->reduce(2, {});
+        const auto l_reduced = l_expr->reduce(2);
         assert(l_reduced->equals(v(5)->clone()));
     }
 
     // local with var 10 at depth 3 - locals are unaffected by depth
     {
         auto l_expr = v(10);
-        const auto l_reduced = l_expr->reduce(3, {});
+        const auto l_reduced = l_expr->reduce(3);
         assert(l_reduced->equals(v(10)->clone()));
     }
 }
@@ -1534,7 +1531,7 @@ void test_func_reduce()
     // func with body of a local at depth 0
     {
         auto l_expr = f(v(0)->clone());
-        const auto l_reduced = l_expr->reduce(0, {});
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure still a func
         const auto* l_func = dynamic_cast<func*>(l_reduced.get());
@@ -1551,7 +1548,7 @@ void test_func_reduce()
     // func with body of a local at depth 1
     {
         auto l_expr = f(v(0)->clone());
-        const auto l_reduced = l_expr->reduce(1, {});
+        const auto l_reduced = l_expr->reduce(1);
 
         // make sure still a func
         const auto* l_func = dynamic_cast<func*>(l_reduced.get());
@@ -1573,7 +1570,7 @@ void test_app_reduce()
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, {});
+        const auto l_reduced = l_expr->reduce(0);
 
         const app* l_app = dynamic_cast<app*>(l_reduced.get());
         assert(l_app != nullptr);
@@ -1593,16 +1590,12 @@ void test_app_reduce()
 
     // app with lhs func and rhs local
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = f(v(0)->clone());
         auto l_rhs = v(1);
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure nothing changed
         // (beta reduction did not occur since rhs is local)
@@ -1611,16 +1604,12 @@ void test_app_reduce()
 
     // app with lhs func and rhs func
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = f(v(0)->clone());
         auto l_rhs = f(v(1)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure beta-reduction occurred, with no lifting of indices
         assert(l_reduced->equals(l_rhs->clone()));
@@ -1628,16 +1617,12 @@ void test_app_reduce()
 
     // app with lhs func (without occurrences of var 0) and rhs func
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = f(v(3)->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure beta-reduction occurred, but no replacements.
         // other vars decremented by 1.
@@ -1646,16 +1631,12 @@ void test_app_reduce()
 
     // app with lhs (nested func with occurrences of var 0) and rhs func
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = f(f(v(0)->clone())->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure beta-reduction occurred, with replacement,
         // and a lifting of 1 level
@@ -1664,16 +1645,12 @@ void test_app_reduce()
 
     // app with lhs (nested func without occurrences of var 0) and rhs func
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = f(f(v(3)->clone())->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure beta-reduction occurred, no replacements.
         // other vars decremented by 1.
@@ -1682,16 +1659,12 @@ void test_app_reduce()
 
     // app with lhs (app that doesnt reduce to func) and rhs func
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = a(v(3)->clone(), v(4)->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // make sure nothing changed
         // (both lhs and rhs were fully reduced already)
@@ -1701,16 +1674,12 @@ void test_app_reduce()
     // app with lhs (app with lhs (func without occurrances), rhs local)
     // and rhs func
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = a(f(v(3)->clone())->clone(), v(4)->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // lhs should have beta-reduced, but cannot consume rhs of app
         assert(l_reduced->equals(a(v(2), f(v(5)))));
@@ -1719,16 +1688,12 @@ void test_app_reduce()
     // app with lhs (app with lhs (func without occurrances), rhs func)
     // and rhs func, where there are too many arguments supplied
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs = a(f(v(3)->clone())->clone(), f(v(4)->clone())->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // lhs of app should beta-reduce, but lhs is not capable of consuming 2
         // args. Thus NF is an application with LHS beta-reduced once.
@@ -1738,17 +1703,13 @@ void test_app_reduce()
     // app with lhs (app with lhs (func without occurrances), rhs func)
     // and rhs func, where there are correct number of args supplied.
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs =
             a(f(f(v(3)->clone())->clone())->clone(), f(v(4)->clone())->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // should beta-reduce twice, consuming all args. No replacements, only
         // decrementing twice.
@@ -1758,17 +1719,13 @@ void test_app_reduce()
     // app with lhs (app with lhs (func WITH occurrances), rhs func)
     // and rhs func, where there are correct number of args supplied.
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs =
             a(f(f(v(0)->clone())->clone())->clone(), f(v(4)->clone())->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // should beta-reduce twice, consuming all args.
         // becomes first arg, without lifting. (lifting occurred but was undone
@@ -1779,17 +1736,13 @@ void test_app_reduce()
     // app with lhs (app with lhs (func WITH occurrances), rhs func)
     // and rhs func, where there are correct number of args supplied.
     {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(v(0)->clone())->clone());
-
         auto l_lhs =
             a(f(f(v(1)->clone())->clone())->clone(), f(v(4)->clone())->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
+        const auto l_reduced = l_expr->reduce(0);
 
         // should beta-reduce twice, consuming all args.
         // becomes second arg, without lifting. (lifting occurred but was undone
@@ -1803,13 +1756,12 @@ void test_app_reduce()
 
     // app with lhs func and rhs func at depth 1
     {
-        expr::global_map l_globals{};
         auto l_lhs = f(v(0)->clone());
         auto l_rhs = f(v(3)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 1
-        const auto l_reduced = l_expr->reduce(1, l_globals);
+        const auto l_reduced = l_expr->reduce(1);
 
         // beta-reduction occurs, but f(l(0)) at depth 1 is a CONSTANT function
         // l(0) refers to a variable captured from depth 0, not the parameter
@@ -1819,13 +1771,12 @@ void test_app_reduce()
 
     // app with lhs func (with occurrence) and rhs func at depth 2
     {
-        expr::global_map l_globals{};
         auto l_lhs = f(v(0)->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 2
-        const auto l_reduced = l_expr->reduce(2, l_globals);
+        const auto l_reduced = l_expr->reduce(2);
 
         // beta-reduction occurs, but f(l(0)) at depth 2 is also a CONSTANT
         // function l(0) refers to a variable captured from depth 0, not the
@@ -1835,13 +1786,12 @@ void test_app_reduce()
 
     // app with lhs func (no occurrence of var 0) and rhs func at depth 1
     {
-        expr::global_map l_globals{};
         auto l_lhs = f(v(3)->clone());
         auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 1
-        const auto l_reduced = l_expr->reduce(1, l_globals);
+        const auto l_reduced = l_expr->reduce(1);
 
         // beta-reduction: l(3) is > 0, decrements to l(2)
         assert(l_reduced->equals(v(2)->clone()));
@@ -1849,13 +1799,12 @@ void test_app_reduce()
 
     // app at depth 3 with beta reduction
     {
-        expr::global_map l_globals{};
         auto l_lhs = f(v(0)->clone());
         auto l_rhs = f(v(8)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 3
-        const auto l_reduced = l_expr->reduce(3, l_globals);
+        const auto l_reduced = l_expr->reduce(3);
 
         // beta-reduction occurs, but f(l(0)) at depth 3 is also a CONSTANT
         // function l(0) refers to a variable captured from depth 0, not the
@@ -1924,8 +1873,8 @@ void generic_use_case_test()
             l_helpers.begin(), l_helpers.end(), l_false_case_main);
 
         // reduce the programs
-        const auto l_true_reduced = l_true_program->reduce(0, {});
-        const auto l_false_reduced = l_false_program->reduce(0, {});
+        const auto l_true_reduced = l_true_program->reduce(0);
+        const auto l_false_reduced = l_false_program->reduce(0);
 
         std::cout << "true reduced: ";
         l_true_reduced->print(std::cout);
@@ -1977,36 +1926,36 @@ void generic_use_case_test()
             construct_program(l_helpers.begin(), l_helpers.end(), FIVE);
 
         // reduce zero
-        const auto ZERO_REDUCED = ZERO_PROGRAM->reduce(0, {});
+        const auto ZERO_REDUCED = ZERO_PROGRAM->reduce(0);
         std::cout << "zero reduced: ";
         ZERO_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define one
-        const auto ONE_REDUCED = ONE_PROGRAM->reduce(0, {});
+        const auto ONE_REDUCED = ONE_PROGRAM->reduce(0);
         std::cout << "one reduced: ";
         ONE_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define two
-        const auto TWO_REDUCED = TWO_PROGRAM->reduce(0, {});
+        const auto TWO_REDUCED = TWO_PROGRAM->reduce(0);
         std::cout << "two reduced: ";
         TWO_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define three
-        const auto THREE_REDUCED = THREE_PROGRAM->reduce(0, {});
+        const auto THREE_REDUCED = THREE_PROGRAM->reduce(0);
         std::cout << "three reduced: ";
         THREE_REDUCED->print(std::cout);
         std::cout << std::endl;
 
         // define four
-        const auto FOUR_REDUCED = FOUR_PROGRAM->reduce(0, {});
+        const auto FOUR_REDUCED = FOUR_PROGRAM->reduce(0);
         std::cout << "four reduced: ";
         FOUR_REDUCED->print(std::cout);
         std::cout << std::endl;
         // define five
-        const auto FIVE_REDUCED = FIVE_PROGRAM->reduce(0, {});
+        const auto FIVE_REDUCED = FIVE_PROGRAM->reduce(0);
         std::cout << "five reduced: ";
         FIVE_REDUCED->print(std::cout);
         std::cout << std::endl;

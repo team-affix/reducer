@@ -1,5 +1,4 @@
 #include "../include/lambda.hpp"
-#include <cinttypes>
 
 #define VERBOSE_LOGS 1
 #if VERBOSE_LOGS

@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <memory>
 #include <ostream>
-#include <vector>
 
 namespace lambda
 {

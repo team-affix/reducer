@@ -153,25 +153,6 @@ std::unique_ptr<expr> func::reduce_one_step(size_t a_depth) const
 
 std::unique_ptr<expr> app::reduce_one_step(size_t a_depth) const
 {
-    // // reduce the function to NF
-    // auto l_reduced_func = m_func->reduce_one_step(a_depth);
-
-    // // check if the lhs is a beta-redex
-    // const func* l_beta_redex = dynamic_cast<func*>(l_reduced_func.get());
-
-    // if(!l_beta_redex)
-    //     // leave the lhs in NF and reduce the rhs to NF
-    //     return a(std::move(l_reduced_func), m_arg->reduce_one_step(a_depth));
-
-    // // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
-    // std::unique_ptr<expr> l_substituted_body =
-    //     l_beta_redex->m_body->substitute(0, a_depth, m_arg);
-
-    // // reduce the contracted body
-    // auto l_result = l_substituted_body->reduce_one_step(a_depth);
-
-    // return l_result;
-
     // see if this app is a beta-redex
     const func* l_lhs_func = dynamic_cast<const func*>(m_func.get());
 

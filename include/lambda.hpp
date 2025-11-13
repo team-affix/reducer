@@ -62,8 +62,8 @@ struct func : expr
     std::unique_ptr<expr> m_body;
 
   private:
-    func(const std::unique_ptr<expr>& a_body);
-    friend std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body);
+    func(std::unique_ptr<expr>&& a_body);
+    friend std::unique_ptr<expr> f(std::unique_ptr<expr>&& a_body);
 };
 
 struct app : expr
@@ -82,17 +82,16 @@ struct app : expr
     std::unique_ptr<expr> m_arg;
 
   private:
-    app(const std::unique_ptr<expr>& a_func,
-        const std::unique_ptr<expr>& a_arg);
-    friend std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
-                                   const std::unique_ptr<expr>& a_arg);
+    app(std::unique_ptr<expr>&& a_func, std::unique_ptr<expr>&& a_arg);
+    friend std::unique_ptr<expr> a(std::unique_ptr<expr>&& a_func,
+                                   std::unique_ptr<expr>&& a_arg);
 };
 
 // factory functions
 std::unique_ptr<expr> v(size_t a_index);
-std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body);
-std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
-                        const std::unique_ptr<expr>& a_arg);
+std::unique_ptr<expr> f(std::unique_ptr<expr>&& a_body);
+std::unique_ptr<expr> a(std::unique_ptr<expr>&& a_func,
+                        std::unique_ptr<expr>&& a_arg);
 
 } // namespace lambda
 

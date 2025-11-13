@@ -177,7 +177,7 @@ std::unique_ptr<expr> app::reduce(size_t a_depth,
 
     if(!l_beta_redex)
         // leave the lhs in NF and reduce the rhs to NF
-        return a(l_reduced_func, m_arg->reduce(a_depth, a_globals));
+        return a(std::move(l_reduced_func), m_arg->reduce(a_depth, a_globals));
 
     // beta-contract the body (DON'T REDUCE ARG HERE, DUE TO NORMAL ORDER)
     std::unique_ptr<expr> l_substituted_body =
@@ -207,14 +207,12 @@ var::var(size_t a_index) : expr(), m_index(a_index)
 {
 }
 
-func::func(const std::unique_ptr<expr>& a_body)
-    : expr(), m_body(a_body->clone())
+func::func(std::unique_ptr<expr>&& a_body) : expr(), m_body(std::move(a_body))
 {
 }
 
-app::app(const std::unique_ptr<expr>& a_func,
-         const std::unique_ptr<expr>& a_arg)
-    : expr(), m_func(a_func->clone()), m_arg(a_arg->clone())
+app::app(std::unique_ptr<expr>&& a_func, std::unique_ptr<expr>&& a_arg)
+    : expr(), m_func(std::move(a_func)), m_arg(std::move(a_arg))
 {
 }
 
@@ -225,15 +223,15 @@ std::unique_ptr<expr> v(size_t a_index)
     return std::unique_ptr<expr>(new var(a_index));
 }
 
-std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body)
+std::unique_ptr<expr> f(std::unique_ptr<expr>&& a_body)
 {
-    return std::unique_ptr<expr>(new func(a_body->clone()));
+    return std::unique_ptr<expr>(new func(std::move(a_body)));
 }
 
-std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
-                        const std::unique_ptr<expr>& a_arg)
+std::unique_ptr<expr> a(std::unique_ptr<expr>&& a_func,
+                        std::unique_ptr<expr>&& a_arg)
 {
-    return std::unique_ptr<expr>(new app(a_func->clone(), a_arg->clone()));
+    return std::unique_ptr<expr>(new app(std::move(a_func), std::move(a_arg)));
 }
 
 } // namespace lambda
@@ -1879,7 +1877,7 @@ std::unique_ptr<expr> construct_program(
     // construct an abstraction and recur
     return a(f(construct_program(std::next(a_helpers_begin), a_helpers_end,
                                  a_main_fn)),
-             *a_helpers_begin);
+             (*a_helpers_begin)->clone());
 }
 
 void generic_use_case_test()
@@ -1910,10 +1908,12 @@ void generic_use_case_test()
         const auto l_false_case = f(l(11));
 
         // test the true case
-        const auto l_true_case_main = a(a(TRUE, l_true_case), l_false_case);
+        const auto l_true_case_main =
+            a(a(TRUE->clone(), l_true_case->clone()), l_false_case->clone());
 
         // test the false case
-        const auto l_false_case_main = a(a(FALSE, l_true_case), l_false_case);
+        const auto l_false_case_main =
+            a(a(FALSE->clone(), l_true_case->clone()), l_false_case->clone());
 
         // construct the program
         const auto l_true_program = construct_program(
@@ -1956,11 +1956,11 @@ void generic_use_case_test()
     {
         // construct 1 - 5
 
-        const auto ONE = a(SUCC, ZERO);
-        const auto TWO = a(SUCC, ONE);
-        const auto THREE = a(SUCC, TWO);
-        const auto FOUR = a(SUCC, THREE);
-        const auto FIVE = a(SUCC, FOUR);
+        const auto ONE = a(SUCC->clone(), ZERO->clone());
+        const auto TWO = a(SUCC->clone(), ONE->clone());
+        const auto THREE = a(SUCC->clone(), TWO->clone());
+        const auto FOUR = a(SUCC->clone(), THREE->clone());
+        const auto FIVE = a(SUCC->clone(), FOUR->clone());
 
         // construct the programs
         const auto ZERO_PROGRAM =

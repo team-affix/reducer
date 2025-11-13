@@ -1969,77 +1969,92 @@ void generic_use_case_test()
             f(f(a(g(0), a(g(0), a(g(0), a(g(0), a(g(0), g(1))))))))));
     }
 
-    // // add
-    // l_globals.emplace_back(
-    //     f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
-    // const auto ADD = g(4);
+    // add
+    const auto ADD = g(l_helpers.size());
+    l_helpers.emplace_back(
+        f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
 
-    // // test add church numerals
-    // {
-    //     // define one
-    //     const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
-    //     // define two
-    //     const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
-    //     // define three
-    //     const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
-    //     // define four
-    //     const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
-    //     // define five
-    //     const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
+    // test add church numerals
+    {
+        // construct 1 - 5
 
-    //     // add one and one
-    //     const auto ADD_ONE_ONE = a(a(ADD, ONE), ONE)->reduce(0, l_globals);
+        const auto ONE = a(SUCC->clone(), ZERO->clone());
+        const auto TWO = a(SUCC->clone(), ONE->clone());
+        const auto THREE = a(SUCC->clone(), TWO->clone());
+        const auto FOUR = a(SUCC->clone(), THREE->clone());
+        const auto FIVE = a(SUCC->clone(), FOUR->clone());
 
-    //     std::cout << "add one one: ";
-    //     ADD_ONE_ONE->print(std::cout);
-    //     std::cout << std::endl;
+        // add one and one
+        const auto ADD_ONE_ONE = a(a(ADD->clone(), ONE->clone()), ONE->clone());
 
-    //     // add one and two
-    //     const auto ADD_ONE_TWO = a(a(ADD, ONE), TWO)->reduce(0, l_globals);
+        // add one and two
+        const auto ADD_ONE_TWO = a(a(ADD->clone(), ONE->clone()), TWO->clone());
 
-    //     std::cout << "add one two: ";
-    //     ADD_ONE_TWO->print(std::cout);
-    //     std::cout << std::endl;
+        // add two and two
+        const auto ADD_TWO_TWO = a(a(ADD->clone(), TWO->clone()), TWO->clone());
 
-    //     // add two and two
-    //     const auto ADD_TWO_TWO = a(a(ADD, TWO), TWO)->reduce(0, l_globals);
+        // add three and two
+        const auto ADD_THREE_TWO =
+            a(a(ADD->clone(), THREE->clone()), TWO->clone());
 
-    //     std::cout << "add two two: ";
-    //     ADD_TWO_TWO->print(std::cout);
-    //     std::cout << std::endl;
+        // add five and five
+        const auto ADD_FIVE_FIVE =
+            a(a(ADD->clone(), FIVE->clone()), FIVE->clone());
 
-    //     // add three and two
-    //     const auto ADD_THREE_TWO = a(a(ADD, THREE), TWO)->reduce(0,
-    //     l_globals);
+        const auto ADD_ONE_ONE_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), ADD_ONE_ONE);
+        const auto ADD_ONE_TWO_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), ADD_ONE_TWO);
+        const auto ADD_TWO_TWO_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), ADD_TWO_TWO);
+        const auto ADD_THREE_TWO_PROGRAM = construct_program(
+            l_helpers.begin(), l_helpers.end(), ADD_THREE_TWO);
+        const auto ADD_FIVE_FIVE_PROGRAM = construct_program(
+            l_helpers.begin(), l_helpers.end(), ADD_FIVE_FIVE);
 
-    //     std::cout << "add three two: ";
-    //     ADD_THREE_TWO->print(std::cout);
-    //     std::cout << std::endl;
+        // reduce the programs
+        const auto ADD_ONE_ONE_REDUCED = ADD_ONE_ONE_PROGRAM->reduce(0);
+        const auto ADD_ONE_TWO_REDUCED = ADD_ONE_TWO_PROGRAM->reduce(0);
+        const auto ADD_TWO_TWO_REDUCED = ADD_TWO_TWO_PROGRAM->reduce(0);
+        const auto ADD_THREE_TWO_REDUCED = ADD_THREE_TWO_PROGRAM->reduce(0);
+        const auto ADD_FIVE_FIVE_REDUCED = ADD_FIVE_FIVE_PROGRAM->reduce(0);
 
-    //     // add five and five
-    //     const auto ADD_FIVE_FIVE = a(a(ADD, FIVE), FIVE)->reduce(0,
-    //     l_globals);
+        std::cout << "add one one: ";
+        ADD_ONE_ONE_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-    //     std::cout << "add five five: ";
-    //     ADD_FIVE_FIVE->print(std::cout);
-    //     std::cout << std::endl;
+        std::cout << "add one two: ";
+        ADD_ONE_TWO_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-    //     // assertions
-    //     assert(ADD_ONE_ONE->equals(f(f(a(l(0), a(l(0), l(1)))))));
-    //     assert(ADD_ONE_TWO->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
-    //     assert(ADD_TWO_TWO->equals(
-    //         f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
-    //     assert(ADD_THREE_TWO->equals(
-    //         f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
-    //     assert(ADD_FIVE_FIVE->equals(f(f(a(
-    //         l(0),
-    //         a(l(0),
-    //           a(l(0),
-    //             a(l(0),
-    //               a(l(0),
-    //                 a(l(0), a(l(0), a(l(0), a(l(0), a(l(0),
-    //                 l(1)))))))))))))));
-    // }
+        std::cout << "add two two: ";
+        ADD_TWO_TWO_REDUCED->print(std::cout);
+        std::cout << std::endl;
+
+        std::cout << "add three two: ";
+        ADD_THREE_TWO_REDUCED->print(std::cout);
+        std::cout << std::endl;
+
+        std::cout << "add five five: ";
+        ADD_FIVE_FIVE_REDUCED->print(std::cout);
+        std::cout << std::endl;
+
+        // assertions
+        assert(ADD_ONE_ONE_REDUCED->equals(f(f(a(g(0), a(g(0), g(1)))))));
+        assert(
+            ADD_ONE_TWO_REDUCED->equals(f(f(a(g(0), a(g(0), a(g(0), g(1))))))));
+        assert(ADD_TWO_TWO_REDUCED->equals(
+            f(f(a(g(0), a(g(0), a(g(0), a(g(0), g(1)))))))));
+        assert(ADD_THREE_TWO_REDUCED->equals(
+            f(f(a(g(0), a(g(0), a(g(0), a(g(0), a(g(0), g(1))))))))));
+        assert(ADD_FIVE_FIVE_REDUCED->equals(f(f(a(
+            g(0),
+            a(g(0),
+              a(g(0),
+                a(g(0),
+                  a(g(0),
+                    a(g(0), a(g(0), a(g(0), a(g(0), a(g(0), g(1)))))))))))))));
+    }
 }
 
 void lambda_test_main()

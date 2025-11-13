@@ -60,9 +60,8 @@ void var::print(std::ostream& a_ostream) const
 
 void func::print(std::ostream& a_ostream) const
 {
-    a_ostream << "λ.(";
+    a_ostream << "λ.";
     m_body->print(a_ostream);
-    a_ostream << ")";
 }
 
 void app::print(std::ostream& a_ostream) const

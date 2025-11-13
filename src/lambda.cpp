@@ -242,6 +242,7 @@ std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
 
 #include "test_utils.hpp"
 #include <iostream>
+#include <list>
 
 using namespace lambda;
 
@@ -1865,193 +1866,231 @@ void test_app_reduce()
     }
 }
 
-// void generic_use_case_test()
-// {
-//     using namespace lambda;
-//     expr::global_map l_globals{};
+std::unique_ptr<expr> construct_program(
+    std::list<std::unique_ptr<expr>>::const_iterator a_helpers_begin,
+    std::list<std::unique_ptr<expr>>::const_iterator a_helpers_end,
+    const std::unique_ptr<expr>& a_main_fn)
+{
+    // we will construct a tower of abstractions,
+    // with the main function at the bottom.
+    if(a_helpers_begin == a_helpers_end)
+        return a_main_fn->clone();
 
-//     // church booleans
+    // construct an abstraction and recur
+    return a(f(construct_program(std::next(a_helpers_begin), a_helpers_end,
+                                 a_main_fn)),
+             *a_helpers_begin);
+}
 
-//     // true
-//     l_globals.emplace_back(f(f(l(0))));
-//     const auto TRUE = g(0);
-//     // false
-//     l_globals.emplace_back(f(f(l(1))));
-//     const auto FALSE = g(1);
+void generic_use_case_test()
+{
+    using namespace lambda;
+    std::list<std::unique_ptr<expr>> l_helpers{};
 
-//     // test the church bools
-//     {
-//         // true case
-//         const auto l_true_case = f(l(10));
+    auto l = [&l_helpers](size_t a_local_index)
+    { return v(l_helpers.size() + a_local_index); };
 
-//         // false case
-//         const auto l_false_case = f(l(11));
+    auto g = [&l_helpers](size_t a_global_index) { return v(a_global_index); };
 
-//         // test the true case
-//         const auto l_true_case_app =
-//             a(a(TRUE, l_true_case), l_false_case)->reduce(0, l_globals);
+    // church booleans
 
-//         // test the false case
-//         const auto l_false_case_app =
-//             a(a(FALSE, l_true_case), l_false_case)->reduce(0, l_globals);
+    // true
+    const auto TRUE = g(l_helpers.size());
+    l_helpers.emplace_back(f(f(l(0))));
+    // false
+    const auto FALSE = g(l_helpers.size());
+    l_helpers.emplace_back(f(f(l(1))));
 
-//         std::cout << "true case app: ";
-//         l_true_case_app->print(std::cout);
-//         std::cout << std::endl;
+    // test the church bools
+    {
+        // true case
+        const auto l_true_case = f(l(10));
 
-//         std::cout << "false case app: ";
-//         l_false_case_app->print(std::cout);
-//         std::cout << std::endl;
+        // false case
+        const auto l_false_case = f(l(11));
 
-//         // test the true case
-//         assert(l_true_case_app->equals(l_true_case->clone()));
-//         assert(l_false_case_app->equals(l_false_case->clone()));
-//     }
+        // test the true case
+        const auto l_true_case_main = a(a(TRUE, l_true_case), l_false_case);
 
-//     // add church numerals
+        // test the false case
+        const auto l_false_case_main = a(a(FALSE, l_true_case), l_false_case);
 
-//     // 0
-//     l_globals.emplace_back(f(f(l(1))));
-//     const auto ZERO = g(2);
+        // construct the program
+        const auto l_true_program = construct_program(
+            l_helpers.begin(), l_helpers.end(), l_true_case_main);
 
-//     // succ
-//     l_globals.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
-//     const auto SUCC = g(3);
+        // construct the program
+        const auto l_false_program = construct_program(
+            l_helpers.begin(), l_helpers.end(), l_false_case_main);
 
-//     // test succ church numerals
-//     {
+        // reduce the programs
+        const auto l_true_reduced = l_true_program->reduce(0, {});
+        const auto l_false_reduced = l_false_program->reduce(0, {});
 
-//         std::cout << "zero: ";
-//         ZERO->print(std::cout);
-//         std::cout << std::endl;
-//         std::cout << "G2: ";
-//         l_globals.at(2)->print(std::cout);
-//         std::cout << std::endl;
-//         std::cout << "succ: ";
-//         SUCC->print(std::cout);
-//         std::cout << std::endl;
-//         std::cout << "G3: ";
-//         l_globals.at(3)->print(std::cout);
-//         std::cout << std::endl;
+        std::cout << "true reduced: ";
+        l_true_reduced->print(std::cout);
+        std::cout << std::endl;
 
-//         // reduce zero
-//         const auto ZERO_REDUCED = ZERO->reduce(0, l_globals);
-//         std::cout << "zero reduced: ";
-//         ZERO_REDUCED->print(std::cout);
-//         std::cout << std::endl;
+        std::cout << "false reduced: ";
+        l_false_reduced->print(std::cout);
+        std::cout << std::endl;
 
-//         // define one
-//         const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
-//         std::cout << "one: ";
-//         ONE->print(std::cout);
-//         std::cout << std::endl;
-//         std::cout << std::endl;
-//         std::cout << std::endl;
-//         std::cout << std::endl;
-//         std::cout << std::endl;
-//         // define two
-//         const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
-//         std::cout << "two: ";
-//         TWO->print(std::cout);
-//         std::cout << std::endl;
+        // test the reductions.
+        // NOTE: after reduction of a program, the main function's locals BECOME
+        // globals.
+        assert(l_true_reduced->equals(f(g(10))));
+        assert(l_false_reduced->equals(f(g(11))));
+    }
 
-//         // define three
-//         const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
-//         std::cout << "three: ";
-//         THREE->print(std::cout);
-//         std::cout << std::endl;
+    // add church numerals
 
-//         // define four
-//         const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
-//         std::cout << "four: ";
-//         FOUR->print(std::cout);
-//         std::cout << std::endl;
-//         // define five
-//         const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
-//         std::cout << "five: ";
-//         FIVE->print(std::cout);
-//         std::cout << std::endl;
+    // 0
+    const auto ZERO = g(l_helpers.size());
+    l_helpers.emplace_back(f(f(l(1))));
 
-//         assert(ONE->equals(f(f(a(l(0), l(1))))));
-//         assert(TWO->equals(f(f(a(l(0), a(l(0), l(1)))))));
-//         assert(THREE->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
-//         assert(FOUR->equals(f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
-//         assert(FIVE->equals(
-//             f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
-//     }
+    // succ
+    const auto SUCC = g(l_helpers.size());
+    l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
-//     // add
-//     l_globals.emplace_back(
-//         f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
-//     const auto ADD = g(4);
+    // test succ church numerals
+    {
+        // construct 1 - 5
 
-//     // test add church numerals
-//     {
-//         // define one
-//         const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
-//         // define two
-//         const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
-//         // define three
-//         const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
-//         // define four
-//         const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
-//         // define five
-//         const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
+        const auto ONE = a(SUCC, ZERO);
+        const auto TWO = a(SUCC, ONE);
+        const auto THREE = a(SUCC, TWO);
+        const auto FOUR = a(SUCC, THREE);
+        const auto FIVE = a(SUCC, FOUR);
 
-//         // add one and one
-//         const auto ADD_ONE_ONE = a(a(ADD, ONE), ONE)->reduce(0, l_globals);
+        // construct the programs
+        const auto ZERO_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), ZERO);
+        const auto ONE_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), ONE);
+        const auto TWO_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), TWO);
+        const auto THREE_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), THREE);
+        const auto FOUR_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), FOUR);
+        const auto FIVE_PROGRAM =
+            construct_program(l_helpers.begin(), l_helpers.end(), FIVE);
 
-//         std::cout << "add one one: ";
-//         ADD_ONE_ONE->print(std::cout);
-//         std::cout << std::endl;
+        // reduce zero
+        const auto ZERO_REDUCED = ZERO_PROGRAM->reduce(0, {});
+        std::cout << "zero reduced: ";
+        ZERO_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-//         // add one and two
-//         const auto ADD_ONE_TWO = a(a(ADD, ONE), TWO)->reduce(0, l_globals);
+        // define one
+        const auto ONE_REDUCED = ONE_PROGRAM->reduce(0, {});
+        std::cout << "one reduced: ";
+        ONE_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-//         std::cout << "add one two: ";
-//         ADD_ONE_TWO->print(std::cout);
-//         std::cout << std::endl;
+        // define two
+        const auto TWO_REDUCED = TWO_PROGRAM->reduce(0, {});
+        std::cout << "two reduced: ";
+        TWO_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-//         // add two and two
-//         const auto ADD_TWO_TWO = a(a(ADD, TWO), TWO)->reduce(0, l_globals);
+        // define three
+        const auto THREE_REDUCED = THREE_PROGRAM->reduce(0, {});
+        std::cout << "three reduced: ";
+        THREE_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-//         std::cout << "add two two: ";
-//         ADD_TWO_TWO->print(std::cout);
-//         std::cout << std::endl;
+        // define four
+        const auto FOUR_REDUCED = FOUR_PROGRAM->reduce(0, {});
+        std::cout << "four reduced: ";
+        FOUR_REDUCED->print(std::cout);
+        std::cout << std::endl;
+        // define five
+        const auto FIVE_REDUCED = FIVE_PROGRAM->reduce(0, {});
+        std::cout << "five reduced: ";
+        FIVE_REDUCED->print(std::cout);
+        std::cout << std::endl;
 
-//         // add three and two
-//         const auto ADD_THREE_TWO = a(a(ADD, THREE), TWO)->reduce(0,
-//         l_globals);
+        // assert(ONE->equals(f(f(a(l(0), l(1))))));
+        // assert(TWO->equals(f(f(a(l(0), a(l(0), l(1)))))));
+        // assert(THREE->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
+        // assert(FOUR->equals(f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
+        // assert(FIVE->equals(
+        //     f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
+    }
 
-//         std::cout << "add three two: ";
-//         ADD_THREE_TWO->print(std::cout);
-//         std::cout << std::endl;
+    // // add
+    // l_globals.emplace_back(
+    //     f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
+    // const auto ADD = g(4);
 
-//         // add five and five
-//         const auto ADD_FIVE_FIVE = a(a(ADD, FIVE), FIVE)->reduce(0,
-//         l_globals);
+    // // test add church numerals
+    // {
+    //     // define one
+    //     const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
+    //     // define two
+    //     const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
+    //     // define three
+    //     const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
+    //     // define four
+    //     const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
+    //     // define five
+    //     const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
 
-//         std::cout << "add five five: ";
-//         ADD_FIVE_FIVE->print(std::cout);
-//         std::cout << std::endl;
+    //     // add one and one
+    //     const auto ADD_ONE_ONE = a(a(ADD, ONE), ONE)->reduce(0, l_globals);
 
-//         // assertions
-//         assert(ADD_ONE_ONE->equals(f(f(a(l(0), a(l(0), l(1)))))));
-//         assert(ADD_ONE_TWO->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
-//         assert(ADD_TWO_TWO->equals(
-//             f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
-//         assert(ADD_THREE_TWO->equals(
-//             f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
-//         assert(ADD_FIVE_FIVE->equals(f(f(a(
-//             l(0),
-//             a(l(0),
-//               a(l(0),
-//                 a(l(0),
-//                   a(l(0),
-//                     a(l(0), a(l(0), a(l(0), a(l(0), a(l(0),
-//                     l(1)))))))))))))));
-//     }
-// }
+    //     std::cout << "add one one: ";
+    //     ADD_ONE_ONE->print(std::cout);
+    //     std::cout << std::endl;
+
+    //     // add one and two
+    //     const auto ADD_ONE_TWO = a(a(ADD, ONE), TWO)->reduce(0, l_globals);
+
+    //     std::cout << "add one two: ";
+    //     ADD_ONE_TWO->print(std::cout);
+    //     std::cout << std::endl;
+
+    //     // add two and two
+    //     const auto ADD_TWO_TWO = a(a(ADD, TWO), TWO)->reduce(0, l_globals);
+
+    //     std::cout << "add two two: ";
+    //     ADD_TWO_TWO->print(std::cout);
+    //     std::cout << std::endl;
+
+    //     // add three and two
+    //     const auto ADD_THREE_TWO = a(a(ADD, THREE), TWO)->reduce(0,
+    //     l_globals);
+
+    //     std::cout << "add three two: ";
+    //     ADD_THREE_TWO->print(std::cout);
+    //     std::cout << std::endl;
+
+    //     // add five and five
+    //     const auto ADD_FIVE_FIVE = a(a(ADD, FIVE), FIVE)->reduce(0,
+    //     l_globals);
+
+    //     std::cout << "add five five: ";
+    //     ADD_FIVE_FIVE->print(std::cout);
+    //     std::cout << std::endl;
+
+    //     // assertions
+    //     assert(ADD_ONE_ONE->equals(f(f(a(l(0), a(l(0), l(1)))))));
+    //     assert(ADD_ONE_TWO->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
+    //     assert(ADD_TWO_TWO->equals(
+    //         f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
+    //     assert(ADD_THREE_TWO->equals(
+    //         f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
+    //     assert(ADD_FIVE_FIVE->equals(f(f(a(
+    //         l(0),
+    //         a(l(0),
+    //           a(l(0),
+    //             a(l(0),
+    //               a(l(0),
+    //                 a(l(0), a(l(0), a(l(0), a(l(0), a(l(0),
+    //                 l(1)))))))))))))));
+    // }
+}
 
 void lambda_test_main()
 {
@@ -2076,6 +2115,8 @@ void lambda_test_main()
     TEST(test_var_reduce);
     TEST(test_func_reduce);
     TEST(test_app_reduce);
+
+    TEST(generic_use_case_test);
 }
 
 #endif

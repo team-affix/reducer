@@ -2011,12 +2011,13 @@ void generic_use_case_test()
         FIVE_REDUCED->print(std::cout);
         std::cout << std::endl;
 
-        // assert(ONE->equals(f(f(a(l(0), l(1))))));
-        // assert(TWO->equals(f(f(a(l(0), a(l(0), l(1)))))));
-        // assert(THREE->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
-        // assert(FOUR->equals(f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
-        // assert(FIVE->equals(
-        //     f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
+        assert(ONE_REDUCED->equals(f(f(a(g(0), g(1))))));
+        assert(TWO_REDUCED->equals(f(f(a(g(0), a(g(0), g(1)))))));
+        assert(THREE_REDUCED->equals(f(f(a(g(0), a(g(0), a(g(0), g(1))))))));
+        assert(FOUR_REDUCED->equals(
+            f(f(a(g(0), a(g(0), a(g(0), a(g(0), g(1)))))))));
+        assert(FIVE_REDUCED->equals(
+            f(f(a(g(0), a(g(0), a(g(0), a(g(0), a(g(0), g(1))))))))));
     }
 
     // // add

@@ -1,4 +1,5 @@
 #include "../include/lambda.hpp"
+#include <cinttypes>
 
 #define VERBOSE_LOGS 1
 #if VERBOSE_LOGS
@@ -22,19 +23,9 @@ namespace lambda
 
 // EQUALS METHODS
 
-bool local::equals(const std::unique_ptr<expr>& a_other) const
+bool var::equals(const std::unique_ptr<expr>& a_other) const
 {
-    const local* l_casted = dynamic_cast<const local*>(a_other.get());
-
-    if(!l_casted)
-        return false;
-
-    return m_index == l_casted->m_index;
-}
-
-bool global::equals(const std::unique_ptr<expr>& a_other) const
-{
-    const global* l_casted = dynamic_cast<const global*>(a_other.get());
+    const var* l_casted = dynamic_cast<const var*>(a_other.get());
 
     if(!l_casted)
         return false;
@@ -64,14 +55,9 @@ bool app::equals(const std::unique_ptr<expr>& a_other) const
 
 // PRINT METHODS
 
-void local::print(std::ostream& a_ostream) const
+void var::print(std::ostream& a_ostream) const
 {
     a_ostream << m_index;
-}
-
-void global::print(std::ostream& a_ostream) const
-{
-    a_ostream << "G" << m_index;
 }
 
 void func::print(std::ostream& a_ostream) const
@@ -92,17 +78,12 @@ void app::print(std::ostream& a_ostream) const
 
 // LIFT METHODS
 
-std::unique_ptr<expr> local::lift(size_t a_lift_amount, size_t a_cutoff) const
+std::unique_ptr<expr> var::lift(size_t a_lift_amount, size_t a_cutoff) const
 {
     if(m_index < a_cutoff)
-        return l(m_index);
+        return v(m_index);
 
-    return l(m_index + a_lift_amount);
-}
-
-std::unique_ptr<expr> global::lift(size_t a_lift_amount, size_t a_cutoff) const
-{
-    return g(m_index);
+    return v(m_index + a_lift_amount);
 }
 
 std::unique_ptr<expr> func::lift(size_t a_lift_amount, size_t a_cutoff) const
@@ -120,14 +101,13 @@ std::unique_ptr<expr> app::lift(size_t a_lift_amount, size_t a_cutoff) const
 
 // SUBSTITUTE METHODS
 
-std::unique_ptr<expr>
-local::substitute(size_t a_lift_amount, size_t a_var_index,
-                  const std::unique_ptr<expr>& a_arg) const
+std::unique_ptr<expr> var::substitute(size_t a_lift_amount, size_t a_var_index,
+                                      const std::unique_ptr<expr>& a_arg) const
 {
     if(m_index > a_var_index)
         // this var is defined inside the redex, so it is
         //     now 1 level shallower.
-        return l(m_index - 1);
+        return v(m_index - 1);
 
     if(m_index < a_var_index)
         // leave the var alone, it was declared outside the redex
@@ -135,14 +115,6 @@ local::substitute(size_t a_lift_amount, size_t a_var_index,
 
     // this var is the one we are substituting, so we must substitute it
     return a_arg->lift(a_lift_amount, a_var_index);
-}
-
-std::unique_ptr<expr>
-global::substitute(size_t a_lift_amount, size_t a_var_index,
-                   const std::unique_ptr<expr>& a_arg) const
-{
-    // doing a local substitution on a global variable is a no-op
-    return clone();
 }
 
 std::unique_ptr<expr> func::substitute(size_t a_lift_amount, size_t a_var_index,
@@ -162,36 +134,13 @@ std::unique_ptr<expr> app::substitute(size_t a_lift_amount, size_t a_var_index,
 
 // REDUCE METHODS
 
-std::unique_ptr<expr> local::reduce(size_t a_depth,
-                                    const global_map& a_globals) const
+std::unique_ptr<expr> var::reduce(size_t a_depth,
+                                  const expr::global_map& a_globals) const
 {
     // log the current expr
     LOG_EXPR(a_depth, this);
 
     auto l_result = clone();
-
-    // log the result
-    LOG_EXPR(a_depth, l_result);
-
-    return l_result;
-}
-
-std::unique_ptr<expr> global::reduce(size_t a_depth,
-                                     const global_map& a_globals) const
-{
-    // log the current expr
-    LOG_EXPR(a_depth, this);
-
-    // look up the definition of the global variable
-    const auto& l_definition = a_globals[m_index];
-
-    // lift the definition (interestingly, here we set cutoff to zero since
-    // all vars are defined in another scope, making it so we actually need to
-    // lift them all)
-    auto l_lifted_def = l_definition->lift(a_depth, 0);
-
-    // reduce the lifted definition
-    auto l_result = l_lifted_def->reduce(a_depth, a_globals);
 
     // log the result
     LOG_EXPR(a_depth, l_result);
@@ -254,11 +203,7 @@ expr::expr()
 {
 }
 
-local::local(size_t a_index) : expr(), m_index(a_index)
-{
-}
-
-global::global(size_t a_index) : expr(), m_index(a_index)
+var::var(size_t a_index) : expr(), m_index(a_index)
 {
 }
 
@@ -275,14 +220,9 @@ app::app(const std::unique_ptr<expr>& a_func,
 
 // FACTORY FUNCTIONS
 
-std::unique_ptr<expr> l(size_t a_index)
+std::unique_ptr<expr> v(size_t a_index)
 {
-    return std::unique_ptr<expr>(new local(a_index));
-}
-
-std::unique_ptr<expr> g(size_t a_index)
-{
-    return std::unique_ptr<expr>(new global(a_index));
+    return std::unique_ptr<expr>(new var(a_index));
 }
 
 std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body)
@@ -305,41 +245,22 @@ std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
 
 using namespace lambda;
 
-void test_local_constructor()
+void test_var_constructor()
 {
     // index 0
     {
-        auto l_local = l(0);
-        const local* l_local_casted = dynamic_cast<local*>(l_local.get());
-        assert(l_local_casted != nullptr);
-        assert(l_local_casted->m_index == 0);
+        auto l_var = v(0);
+        const var* l_var_casted = dynamic_cast<var*>(l_var.get());
+        assert(l_var_casted != nullptr);
+        assert(l_var_casted->m_index == 0);
     }
 
     // index 1
     {
-        auto l_local = l(1);
-        const local* l_local_casted = dynamic_cast<local*>(l_local.get());
-        assert(l_local_casted != nullptr);
-        assert(l_local_casted->m_index == 1);
-    }
-}
-
-void test_global_constructor()
-{
-    // index 0
-    {
-        auto l_global = g(0);
-        const global* l_global_casted = dynamic_cast<global*>(l_global.get());
-        assert(l_global_casted != nullptr);
-        assert(l_global_casted->m_index == 0);
-    }
-
-    // index 1
-    {
-        auto l_global = g(1);
-        const global* l_global_casted = dynamic_cast<global*>(l_global.get());
-        assert(l_global_casted != nullptr);
-        assert(l_global_casted->m_index == 1);
+        auto l_var = v(1);
+        const var* l_var_casted = dynamic_cast<var*>(l_var.get());
+        assert(l_var_casted != nullptr);
+        assert(l_var_casted->m_index == 1);
     }
 }
 
@@ -347,16 +268,16 @@ void test_func_constructor()
 {
     // local body
     {
-        auto l_func = f(l(0));
+        auto l_func = f(v(0));
         // get body
         const func* l_func_casted = dynamic_cast<func*>(l_func.get());
         assert(l_func_casted != nullptr);
         const auto& l_body = l_func_casted->m_body;
         // check if the body is a local
-        const local* l_local = dynamic_cast<local*>(l_body.get());
-        assert(l_local != nullptr);
+        const var* l_var = dynamic_cast<var*>(l_body.get());
+        assert(l_var != nullptr);
         // check if the index is correct
-        assert(l_local->m_index == 0);
+        assert(l_var->m_index == 0);
     }
 }
 
@@ -364,7 +285,7 @@ void test_app_constructor()
 {
     // local application
     {
-        auto l_app = a(l(0), l(1));
+        auto l_app = a(v(0), v(1));
         // get the lhs
         const app* l_app_casted = dynamic_cast<app*>(l_app.get());
         assert(l_app_casted != nullptr);
@@ -373,83 +294,59 @@ void test_app_constructor()
         const auto& l_rhs = l_app_casted->m_arg;
 
         // make sure they both are locals
-        const local* l_lhs_local = dynamic_cast<local*>(l_lhs.get());
-        const local* l_rhs_local = dynamic_cast<local*>(l_rhs.get());
-        assert(l_lhs_local != nullptr);
-        assert(l_rhs_local != nullptr);
+        const var* l_lhs_var = dynamic_cast<var*>(l_lhs.get());
+        const var* l_rhs_var = dynamic_cast<var*>(l_rhs.get());
+        assert(l_lhs_var != nullptr);
+        assert(l_rhs_var != nullptr);
 
         // make sure the indices are correct
-        assert(l_lhs_local->m_index == 0);
-        assert(l_rhs_local->m_index == 1);
+        assert(l_lhs_var->m_index == 0);
+        assert(l_rhs_var->m_index == 1);
     }
 }
 
-void test_local_equals()
+void test_var_equals()
 {
     // index 0, equals index 0
     {
-        auto l_local = l(0);
-        auto l_local_other = l(0);
-        assert(l_local->equals(l_local_other->clone()));
+        auto l_var = v(0);
+        auto l_local_other = v(0);
+        assert(l_var->equals(l_local_other->clone()));
     }
 
     // index 0, equals index 1
     {
-        auto l_local = l(0);
-        auto l_local_other = l(1);
-        assert(!l_local->equals(l_local_other->clone()));
+        auto l_var = v(0);
+        auto l_local_other = v(1);
+        assert(!l_var->equals(l_local_other->clone()));
     }
 
     // index 1, equals index 1
     {
-        auto l_local = l(1);
-        auto l_local_other = l(1);
-        assert(l_local->equals(l_local_other->clone()));
+        auto l_var = v(1);
+        auto l_local_other = v(1);
+        assert(l_var->equals(l_local_other->clone()));
     }
 
-    // local equals global
-    {
-        auto l_local = l(0);
-        auto l_global = g(0);
-        assert(!l_local->equals(l_global->clone()));
-    }
+    // var equals global
+    // {
+    //     auto l_var = l(0);
+    //     auto l_global = g(0);
+    //     assert(!l_var->equals(l_global->clone()));
+    // }
 
     // local equals func
     {
-        auto l_local = l(0);
-        auto l_func = f(l(0));
-        assert(!l_local->equals(l_func->clone()));
+        auto l_var = v(0);
+        auto l_func = f(v(0));
+        assert(!l_var->equals(l_func->clone()));
     }
 
     // local equals app
     {
-        auto l_local = l(0);
-        auto l_app = a(l(0), l(0));
-        assert(!l_local->equals(l_app->clone()));
-    }
-}
-
-void test_global_equals()
-{
-    // index 0, equals index 0
-    {
-        auto l_global = g(0);
-        auto l_global_other = g(0);
-        assert(l_global->equals(l_global_other->clone()));
-    }
-
-    // index 0, equals index 1
-    {
-        auto l_global = g(0);
-        auto l_global_other = g(1);
-        assert(!l_global->equals(l_global_other->clone()));
-    }
-
-    // global equals local
-    {
-        auto l_global = g(0);
-        auto l_local = l(0);
-        assert(!l_global->equals(l_local->clone()));
+        auto l_var = v(0);
+        auto l_app = a(v(0), v(0));
+        assert(!l_var->equals(l_app->clone()));
     }
 }
 
@@ -457,39 +354,24 @@ void test_func_equals()
 {
     // local body, equals local body
     {
-        auto l_local = l(0);
-        auto l_func = f(l_local->clone());
-        auto l_func_other = f(l_local->clone());
-        assert(l_func->equals(l_func_other->clone()));
-    }
-
-    // global body, equals global body
-    {
-        auto l_global = g(0);
-        auto l_func = f(l_global->clone());
-        auto l_func_other = f(l_global->clone());
+        auto l_var = v(0);
+        auto l_func = f(l_var->clone());
+        auto l_func_other = f(l_var->clone());
         assert(l_func->equals(l_func_other->clone()));
     }
 
     // func equals local
     {
-        auto l_func = f(l(0));
-        auto l_local = l(0);
-        assert(!l_func->equals(l_local->clone()));
-    }
-
-    // func equals global
-    {
-        auto l_func = f(g(0));
-        auto l_global = g(0);
-        assert(!l_func->equals(l_global->clone()));
+        auto l_func = f(v(0));
+        auto l_var = v(0);
+        assert(!l_func->equals(l_var->clone()));
     }
 
     // func with different bodies
     {
-        auto l_local = l(0);
-        auto l_local_other = l(1);
-        auto l_func = f(l_local->clone());
+        auto l_var = v(0);
+        auto l_local_other = v(1);
+        auto l_func = f(l_var->clone());
         auto l_func_other = f(l_local_other->clone());
         assert(!l_func->equals(l_func_other->clone()));
     }
@@ -499,179 +381,119 @@ void test_app_equals()
 {
     // local lhs, local rhs, equals local lhs, local rhs
     {
-        auto l_lhs_local = l(0);
-        auto l_rhs_local = l(0);
-        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
-        auto l_app_other = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lhs_var = v(0);
+        auto l_rhs_var = v(0);
+        auto l_app = a(l_lhs_var->clone(), l_rhs_var->clone());
+        auto l_app_other = a(l_lhs_var->clone(), l_rhs_var->clone());
         assert(l_app->equals(l_app_other->clone()));
     }
 
-    // local lhs, local rhs, equals global lhs, local rhs
+    // different applications
     {
-        auto l_first_lhs_local = l(0);
-        auto l_first_rhs_local = l(0);
-        auto l_second_lhs_global = g(0);
-        auto l_second_rhs_local = l(0);
-        auto l_app = a(l_first_lhs_local->clone(), l_first_rhs_local->clone());
-        auto l_app_other =
-            a(l_second_lhs_global->clone(), l_second_rhs_local->clone());
-        assert(!l_app->equals(l_app_other->clone()));
-    }
-
-    // local lhs, local rhs, equals global lhs, local rhs
-    {
-        auto l_first_lhs_local = l(0);
-        auto l_first_rhs_local = l(0);
-        auto l_second_lhs_global = g(0);
-        auto l_second_rhs_local = l(0);
-        auto l_app = a(l_first_lhs_local->clone(), l_first_rhs_local->clone());
-        auto l_app_other =
-            a(l_second_lhs_global->clone(), l_second_rhs_local->clone());
-        assert(!l_app->equals(l_app_other->clone()));
+        auto l_lhs_lhs = v(1);
+        auto l_lhs_rhs = v(0);
+        auto l_rhs_lhs = v(0);
+        auto l_rhs_rhs = v(0);
+        auto l_lhs = a(l_lhs_lhs->clone(), l_lhs_rhs->clone());
+        auto l_rhs = a(l_rhs_lhs->clone(), l_rhs_rhs->clone());
+        assert(!l_lhs->equals(l_rhs));
     }
 }
 
-void test_local_lift()
+void test_var_lift()
 {
     // index 0, lift 1 level
     {
-        auto l_local = l(0);
-        auto l_lifted = l_local->lift(1, 0);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 1);
+        auto l_var = v(0);
+        auto l_lifted = l_var->lift(1, 0);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 1);
     }
 
     // index 1, lift 1 level
     {
-        auto l_local = l(1);
-        auto l_lifted = l_local->lift(1, 0);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 2);
+        auto l_var = v(1);
+        auto l_lifted = l_var->lift(1, 0);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 2);
     }
 
     // index 1, lift 0 levels
     {
-        auto l_local = l(1);
-        auto l_lifted = l_local->lift(0, 0);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 1);
+        auto l_var = v(1);
+        auto l_lifted = l_var->lift(0, 0);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 1);
     }
 
     // index 0, lift 1 level, cutoff 1
     {
-        auto l_local = l(0);
-        auto l_lifted = l_local->lift(1, 1);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 0);
+        auto l_var = v(0);
+        auto l_lifted = l_var->lift(1, 1);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 0);
     }
 
     // index 1, lift 2 levels, cutoff 1
     {
-        auto l_local = l(1);
-        auto l_lifted = l_local->lift(2, 1);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 3);
+        auto l_var = v(1);
+        auto l_lifted = l_var->lift(2, 1);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 3);
     }
 
     // index 1, lift 2 levels, cutoff 2
     {
-        auto l_local = l(1);
-        auto l_lifted = l_local->lift(2, 2);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 1);
+        auto l_var = v(1);
+        auto l_lifted = l_var->lift(2, 2);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 1);
     }
 
     // Edge case: index equals cutoff, should be lifted (>= cutoff)
     // index 3, lift 5 levels, cutoff 3
     {
-        auto l_local = l(3);
-        auto l_lifted = l_local->lift(5, 3);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 8); // 3 + 5
+        auto l_var = v(3);
+        auto l_lifted = l_var->lift(5, 3);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 8); // 3 + 5
     }
 
     // Edge case: index just below cutoff
     // index 4, lift 3 levels, cutoff 5
     {
-        auto l_local = l(4);
-        auto l_lifted = l_local->lift(3, 5);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 4); // not lifted
+        auto l_var = v(4);
+        auto l_lifted = l_var->lift(3, 5);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 4); // not lifted
     }
 
     // Higher cutoff value test
     // index 7, lift 10 levels, cutoff 3
     {
-        auto l_local = l(7);
-        auto l_lifted = l_local->lift(10, 3);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 17); // 7 + 10
+        auto l_var = v(7);
+        auto l_lifted = l_var->lift(10, 3);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 17); // 7 + 10
     }
 
     // Multiple different cutoffs - lower index below cutoff
     // index 2, lift 4 levels, cutoff 10
     {
-        auto l_local = l(2);
-        auto l_lifted = l_local->lift(4, 10);
-        const local* l_lifted_local = dynamic_cast<local*>(l_lifted.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 2); // not lifted
-    }
-}
-
-void test_global_lift()
-{
-    // index 0, lift 1 level
-    {
-        auto l_global = g(0);
-        auto l_lifted = l_global->lift(1, 0);
-        const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
-        assert(l_lifted_global != nullptr);
-
-        // globals are left unchanged by lifting
-        assert(l_lifted_global->m_index == 0);
-    }
-
-    // index 3, lift 2 levels
-    {
-        auto l_global = g(3);
-        auto l_lifted = l_global->lift(2, 0);
-        const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
-        assert(l_lifted_global != nullptr);
-
-        // globals are left unchanged by lifting
-        assert(l_lifted_global->m_index == 3);
-    }
-
-    // index 0, lift 1 level, cutoff 1
-    {
-        auto l_global = g(0);
-        auto l_lifted = l_global->lift(1, 1);
-        const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
-        assert(l_lifted_global != nullptr);
-
-        // globals are left unchanged by lifting
-        assert(l_lifted_global->m_index == 0);
-    }
-
-    // index 3, lift 2 levels, cutoff 1
-    {
-        auto l_global = g(3);
-        auto l_lifted = l_global->lift(2, 1);
-        const global* l_lifted_global = dynamic_cast<global*>(l_lifted.get());
-        assert(l_lifted_global != nullptr);
-
-        // globals are left unchanged by lifting
-        assert(l_lifted_global->m_index == 3);
+        auto l_var = v(2);
+        auto l_lifted = l_var->lift(4, 10);
+        const var* l_lifted_var = dynamic_cast<var*>(l_lifted.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 2); // not lifted
     }
 }
 
@@ -679,60 +501,60 @@ void test_func_lift()
 {
     // local body, lift 1 level
     {
-        auto l_local = l(0);
-        auto l_func = f(l_local->clone());
+        auto l_var = v(0);
+        auto l_func = f(l_var->clone());
         auto l_lifted = l_func->lift(1, 0);
         const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
         assert(l_lifted_func != nullptr);
-        const local* l_lifted_local =
-            dynamic_cast<local*>(l_lifted_func->m_body.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 1);
+        const var* l_lifted_var =
+            dynamic_cast<var*>(l_lifted_func->m_body.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 1);
     }
 
     // local body, lift 2 levels
     {
-        auto l_local = l(1);
-        auto l_func = f(l_local->clone());
+        auto l_var = v(1);
+        auto l_func = f(l_var->clone());
         auto l_lifted = l_func->lift(2, 0);
         const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
         assert(l_lifted_func != nullptr);
-        const local* l_lifted_local =
-            dynamic_cast<local*>(l_lifted_func->m_body.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 3);
+        const var* l_lifted_var =
+            dynamic_cast<var*>(l_lifted_func->m_body.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 3);
     }
 
     // local body, lift 1 level, cutoff 1
     {
-        auto l_local = l(0);
-        auto l_func = f(l_local->clone());
+        auto l_var = v(0);
+        auto l_func = f(l_var->clone());
         auto l_lifted = l_func->lift(1, 1);
         const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
         assert(l_lifted_func != nullptr);
-        const local* l_lifted_local =
-            dynamic_cast<local*>(l_lifted_func->m_body.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 0);
+        const var* l_lifted_var =
+            dynamic_cast<var*>(l_lifted_func->m_body.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 0);
     }
 
     // local body, lift 2 levels, cutoff 2
     {
-        auto l_local = l(2);
-        auto l_func = f(l_local->clone());
+        auto l_var = v(2);
+        auto l_func = f(l_var->clone());
         auto l_lifted = l_func->lift(2, 2);
         const func* l_lifted_func = dynamic_cast<func*>(l_lifted.get());
         assert(l_lifted_func != nullptr);
-        const local* l_lifted_local =
-            dynamic_cast<local*>(l_lifted_func->m_body.get());
-        assert(l_lifted_local != nullptr);
-        assert(l_lifted_local->m_index == 4);
+        const var* l_lifted_var =
+            dynamic_cast<var*>(l_lifted_func->m_body.get());
+        assert(l_lifted_var != nullptr);
+        assert(l_lifted_var->m_index == 4);
     }
 
     // func with app body, mixed locals with various cutoffs
     // Body: (2 5 8), lift 3, cutoff 5
     {
-        auto l_body = a(a(l(2)->clone(), l(5)->clone()), l(8)->clone());
+        auto l_body = a(a(v(2)->clone(), v(5)->clone()), v(8)->clone());
         auto l_func = f(l_body->clone());
         auto l_lifted = l_func->lift(3, 5);
 
@@ -743,14 +565,14 @@ void test_func_lift()
         // l(2) < 5, not lifted
         // l(5) >= 5, lifted to 8
         // l(8) >= 5, lifted to 11
-        auto l_expected = f(a(a(l(2)->clone(), l(8)->clone()), l(11)->clone()));
+        auto l_expected = f(a(a(v(2)->clone(), v(8)->clone()), v(11)->clone()));
         assert(l_lifted->equals(l_expected));
     }
 
     // func with nested func, testing cutoff propagation
     // f(f((1 3 6))), lift 2, cutoff 3
     {
-        auto l_inner_body = a(a(l(1)->clone(), l(3)->clone()), l(6)->clone());
+        auto l_inner_body = a(a(v(1)->clone(), v(3)->clone()), v(6)->clone());
         auto l_body = f(l_inner_body->clone());
         auto l_func = f(l_body->clone());
         auto l_lifted = l_func->lift(2, 3);
@@ -760,18 +582,18 @@ void test_func_lift()
         // l(3) >= 3, lifted to 5
         // l(6) >= 3, lifted to 8
         auto l_expected =
-            f(f(a(a(l(1)->clone(), l(5)->clone()), l(8)->clone())));
+            f(f(a(a(v(1)->clone(), v(5)->clone()), v(8)->clone())));
         assert(l_lifted->equals(l_expected));
     }
 
     // func with higher cutoff than any local
     // f(l(2)), lift 5, cutoff 10
     {
-        auto l_func = f(l(2)->clone());
+        auto l_func = f(v(2)->clone());
         auto l_lifted = l_func->lift(5, 10);
 
         // l(2) < 10, not lifted
-        auto l_expected = f(l(2)->clone());
+        auto l_expected = f(v(2)->clone());
         assert(l_lifted->equals(l_expected));
     }
 }
@@ -780,9 +602,9 @@ void test_app_lift()
 {
     // local lhs, local rhs, lift 1 level
     {
-        auto l_lhs_local = l(1);
-        auto l_rhs_local = l(2);
-        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lhs_var = v(1);
+        auto l_rhs_var = v(2);
+        auto l_app = a(l_lhs_var->clone(), l_rhs_var->clone());
         auto l_lifted = l_app->lift(1, 0);
 
         // get the lifted app (still an app)
@@ -791,24 +613,22 @@ void test_app_lift()
 
         // get the lifted lhs
         const auto& l_lifted_lhs = l_lifted_app->m_func;
-        const local* l_lifted_lhs_local =
-            dynamic_cast<local*>(l_lifted_lhs.get());
+        const var* l_lifted_lhs_local = dynamic_cast<var*>(l_lifted_lhs.get());
         assert(l_lifted_lhs_local != nullptr);
         assert(l_lifted_lhs_local->m_index == 2);
 
         // get the lifted rhs
         const auto& l_lifted_rhs = l_lifted_app->m_arg;
-        const local* l_lifted_rhs_local =
-            dynamic_cast<local*>(l_lifted_rhs.get());
+        const var* l_lifted_rhs_local = dynamic_cast<var*>(l_lifted_rhs.get());
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 3);
     }
 
     // local lhs, local rhs, lift 2 levels
     {
-        auto l_lhs_local = l(1);
-        auto l_rhs_local = l(2);
-        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lhs_var = v(1);
+        auto l_rhs_var = v(2);
+        auto l_app = a(l_lhs_var->clone(), l_rhs_var->clone());
         auto l_lifted = l_app->lift(2, 0);
 
         // get the lifted app (still an app)
@@ -817,24 +637,22 @@ void test_app_lift()
 
         // get the lifted lhs
         const auto& l_lifted_lhs = l_lifted_app->m_func;
-        const local* l_lifted_lhs_local =
-            dynamic_cast<local*>(l_lifted_lhs.get());
+        const var* l_lifted_lhs_local = dynamic_cast<var*>(l_lifted_lhs.get());
         assert(l_lifted_lhs_local != nullptr);
         assert(l_lifted_lhs_local->m_index == 3);
 
         // get the lifted rhs
         const auto& l_lifted_rhs = l_lifted_app->m_arg;
-        const local* l_lifted_rhs_local =
-            dynamic_cast<local*>(l_lifted_rhs.get());
+        const var* l_lifted_rhs_local = dynamic_cast<var*>(l_lifted_rhs.get());
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 4);
     }
 
     // local lhs, local rhs, lift 1 level, cutoff 1
     {
-        auto l_lhs_local = l(1);
-        auto l_rhs_local = l(2);
-        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lhs_var = v(1);
+        auto l_rhs_var = v(2);
+        auto l_app = a(l_lhs_var->clone(), l_rhs_var->clone());
         auto l_lifted = l_app->lift(1, 1);
 
         // get the lifted app (still an app)
@@ -843,24 +661,22 @@ void test_app_lift()
 
         // get the lifted lhs
         const auto& l_lifted_lhs = l_lifted_app->m_func;
-        const local* l_lifted_lhs_local =
-            dynamic_cast<local*>(l_lifted_lhs.get());
+        const var* l_lifted_lhs_local = dynamic_cast<var*>(l_lifted_lhs.get());
         assert(l_lifted_lhs_local != nullptr);
         assert(l_lifted_lhs_local->m_index == 2);
 
         // get the lifted rhs
         const auto& l_lifted_rhs = l_lifted_app->m_arg;
-        const local* l_lifted_rhs_local =
-            dynamic_cast<local*>(l_lifted_rhs.get());
+        const var* l_lifted_rhs_local = dynamic_cast<var*>(l_lifted_rhs.get());
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 3);
     }
 
     // local lhs, local rhs, lift 2 levels, cutoff 2
     {
-        auto l_lhs_local = l(1);
-        auto l_rhs_local = l(2);
-        auto l_app = a(l_lhs_local->clone(), l_rhs_local->clone());
+        auto l_lhs_var = v(1);
+        auto l_rhs_var = v(2);
+        auto l_app = a(l_lhs_var->clone(), l_rhs_var->clone());
         auto l_lifted = l_app->lift(2, 2);
 
         // get the lifted app (still an app)
@@ -869,15 +685,13 @@ void test_app_lift()
 
         // get the lifted lhs
         const auto& l_lifted_lhs = l_lifted_app->m_func;
-        const local* l_lifted_lhs_local =
-            dynamic_cast<local*>(l_lifted_lhs.get());
+        const var* l_lifted_lhs_local = dynamic_cast<var*>(l_lifted_lhs.get());
         assert(l_lifted_lhs_local != nullptr);
         assert(l_lifted_lhs_local->m_index == 1);
 
         // get the lifted rhs
         const auto& l_lifted_rhs = l_lifted_app->m_arg;
-        const local* l_lifted_rhs_local =
-            dynamic_cast<local*>(l_lifted_rhs.get());
+        const var* l_lifted_rhs_local = dynamic_cast<var*>(l_lifted_rhs.get());
         assert(l_lifted_rhs_local != nullptr);
         assert(l_lifted_rhs_local->m_index == 4);
     }
@@ -886,39 +700,39 @@ void test_app_lift()
     // (1 2 3 4 5) - mix below, at, and above cutoff
     {
         auto l_app = a(
-            a(a(a(l(1)->clone(), l(2)->clone()), l(3)->clone()), l(4)->clone()),
-            l(5)->clone());
+            a(a(a(v(1)->clone(), v(2)->clone()), v(3)->clone()), v(4)->clone()),
+            v(5)->clone());
         auto l_lifted = l_app->lift(4, 3);
 
         // Expected: (1 2 7 8 9)
         // l(1), l(2) < 3, not lifted
         // l(3), l(4), l(5) >= 3, lifted by 4
         auto l_expected = a(
-            a(a(a(l(1)->clone(), l(2)->clone()), l(7)->clone()), l(8)->clone()),
-            l(9)->clone());
+            a(a(a(v(1)->clone(), v(2)->clone()), v(7)->clone()), v(8)->clone()),
+            v(9)->clone());
         assert(l_lifted->equals(l_expected));
     }
 
     // app with nested funcs, cutoff applies throughout
     // (f(l(2)) f(l(4))), lift 3, cutoff 3
     {
-        auto l_lhs = f(l(2)->clone());
-        auto l_rhs = f(l(4)->clone());
+        auto l_lhs = f(v(2)->clone());
+        auto l_rhs = f(v(4)->clone());
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
         auto l_lifted = l_app->lift(3, 3);
 
         // Expected: (f(l(2)) f(l(7)))
         // l(2) < 3, not lifted
         // l(4) >= 3, lifted to 7
-        auto l_expected = a(f(l(2)->clone()), f(l(7)->clone()));
+        auto l_expected = a(f(v(2)->clone()), f(v(7)->clone()));
         assert(l_lifted->equals(l_expected));
     }
 
     // app with complex nested structure, various cutoffs
     // ((1 6) (f(3) f(8))), lift 2, cutoff 5
     {
-        auto l_func_left = a(l(1)->clone(), l(6)->clone());
-        auto l_func_right = a(f(l(3)->clone()), f(l(8)->clone()));
+        auto l_func_left = a(v(1)->clone(), v(6)->clone());
+        auto l_func_right = a(f(v(3)->clone()), f(v(8)->clone()));
         auto l_app = a(l_func_left->clone(), l_func_right->clone());
         auto l_lifted = l_app->lift(2, 5);
 
@@ -927,71 +741,68 @@ void test_app_lift()
         // l(6) >= 5, lifted to 8
         // l(3) < 5, not lifted
         // l(8) >= 5, lifted to 10
-        auto l_expected = a(a(l(1)->clone(), l(8)->clone()),
-                            a(f(l(3)->clone()), f(l(10)->clone())));
+        auto l_expected = a(a(v(1)->clone(), v(8)->clone()),
+                            a(f(v(3)->clone()), f(v(10)->clone())));
         assert(l_lifted->equals(l_expected));
     }
 
     // app with high cutoff, nothing gets lifted
     // (3 4 5), lift 10, cutoff 20
     {
-        auto l_app = a(a(l(3)->clone(), l(4)->clone()), l(5)->clone());
+        auto l_app = a(a(v(3)->clone(), v(4)->clone()), v(5)->clone());
         auto l_lifted = l_app->lift(10, 20);
 
         // All < 20, none lifted
-        auto l_expected = a(a(l(3)->clone(), l(4)->clone()), l(5)->clone());
+        auto l_expected = a(a(v(3)->clone(), v(4)->clone()), v(5)->clone());
         assert(l_lifted->equals(l_expected));
     }
 
     // app with cutoff 0, everything gets lifted
     // (0 1 2), lift 5, cutoff 0
     {
-        auto l_app = a(a(l(0)->clone(), l(1)->clone()), l(2)->clone());
+        auto l_app = a(a(v(0)->clone(), v(1)->clone()), v(2)->clone());
         auto l_lifted = l_app->lift(5, 0);
 
         // All >= 0, all lifted by 5
-        auto l_expected = a(a(l(5)->clone(), l(6)->clone()), l(7)->clone());
+        auto l_expected = a(a(v(5)->clone(), v(6)->clone()), v(7)->clone());
         assert(l_lifted->equals(l_expected));
     }
 }
 
-void test_local_substitute()
+void test_var_substitute()
 {
     // index 0, occurrance depth 0, substitute with a local
     {
-        auto l_local = l(0);
-        auto l_substitute = l(1);
-        auto l_substituted = l_local->substitute(0, 0, l_substitute->clone());
+        auto l_var = v(0);
+        auto l_sub = v(1);
+        auto l_substituted = l_var->substitute(0, 0, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
-        assert(l_substituted_local->m_index == 1);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
+        assert(l_substituted_var->m_index == 1);
     }
 
     // index 0, occurrance depth 10, substitute with a local
     {
-        auto l_local = l(0);
-        auto l_substitute = l(1);
-        auto l_substituted = l_local->substitute(10, 0, l_substitute->clone());
+        auto l_var = v(0);
+        auto l_sub = v(1);
+        auto l_substituted = l_var->substitute(10, 0, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
         // it would be 1 if occurrance depth == 0, but since 10,
         //     l_substitute had to be lifted.
-        assert(l_substituted_local->m_index == 11);
+        assert(l_substituted_var->m_index == 11);
     }
 
     // index 2, occurrance depth 0, substitute with a local
     {
-        auto l_local = l(2);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(0, 0, l_substitute->clone());
+        auto l_var = v(2);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(0, 0, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution decrements the lhs local index since the lhs does
         // not have var(0). var(0) is the only one that ever gets replaced due
@@ -1000,18 +811,17 @@ void test_local_substitute()
         // var(0). If the lhs has local vars with greater indices, then they
         // must have been defined inside the redex, so they are now 1 level
         // shallower.
-        assert(l_substituted_local->m_index == 1);
+        assert(l_substituted_var->m_index == 1);
     }
 
     // index 1, occurrance depth 0, substitute with a local
     {
-        auto l_local = l(1);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(0, 0, l_substitute->clone());
+        auto l_var = v(1);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(0, 0, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution decrements the lhs local index since the lhs does
         // not have var(0). var(0) is the only one that ever gets replaced due
@@ -1020,18 +830,17 @@ void test_local_substitute()
         // var(0). If the lhs has local vars with greater indices, then they
         // must have been defined inside the redex, so they are now 1 level
         // shallower.
-        assert(l_substituted_local->m_index == 0);
+        assert(l_substituted_var->m_index == 0);
     }
 
     // index 2, occurrance depth 10, substitute with a local
     {
-        auto l_local = l(2);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(10, 0, l_substitute->clone());
+        auto l_var = v(2);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(10, 0, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution decrements the lhs local index since the lhs does
         // not have var(0). var(0) is the only one that ever gets replaced due
@@ -1040,18 +849,17 @@ void test_local_substitute()
         // var(0). If the lhs has local vars with greater indices, then they
         // must have been defined inside the redex, so they are now 1 level
         // shallower.
-        assert(l_substituted_local->m_index == 1);
+        assert(l_substituted_var->m_index == 1);
     }
 
     // index 1, occurrance depth 10, substitute with a local
     {
-        auto l_local = l(1);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(10, 0, l_substitute->clone());
+        auto l_var = v(1);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(10, 0, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution decrements the lhs local index since the lhs does
         // not have var(0). var(0) is the only one that ever gets replaced due
@@ -1060,187 +868,90 @@ void test_local_substitute()
         // var(0). If the lhs has local vars with greater indices, then they
         // must have been defined inside the redex, so they are now 1 level
         // shallower.
-        assert(l_substituted_local->m_index == 0);
+        assert(l_substituted_var->m_index == 0);
     }
 
     // index 0, occurrance depth 0, substitute with a local, a_var_index 1
     {
-        auto l_local = l(0);
-        auto l_substitute = l(1);
-        auto l_substituted = l_local->substitute(0, 1, l_substitute->clone());
+        auto l_var = v(0);
+        auto l_sub = v(1);
+        auto l_substituted = l_var->substitute(0, 1, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
-        assert(l_substituted_local->m_index == 0);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
+        assert(l_substituted_var->m_index == 0);
     }
 
     // index 0, occurrance depth 10, substitute with a local, a_var_index 1
     {
-        auto l_local = l(0);
-        auto l_substitute = l(1);
-        auto l_substituted = l_local->substitute(10, 1, l_substitute->clone());
+        auto l_var = v(0);
+        auto l_sub = v(1);
+        auto l_substituted = l_var->substitute(10, 1, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
         // it would be 10 if a_var_index == 0, but since 1,
         //     not only were there no occurrances, but the
         //     var(0) was bound before cutoff (a_var_index == 1)
         //     so no lifting occurred.
-        assert(l_substituted_local->m_index == 0);
+        assert(l_substituted_var->m_index == 0);
     }
 
     // index 2, occurrance depth 0, substitute with a local, a_var_index 2
     {
-        auto l_local = l(2);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(0, 2, l_substitute->clone());
+        auto l_var = v(2);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(0, 2, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution trivially finds var(2) and substitutes with var(3),
         // without lifting as the redex body has no binders.
-        assert(l_substituted_local->m_index == 3);
+        assert(l_substituted_var->m_index == 3);
     }
 
     // index 1, occurrance depth 0, substitute with a local, a_var_index 2
     {
-        auto l_local = l(1);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(0, 2, l_substitute->clone());
+        auto l_var = v(1);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(0, 2, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution does not find var(2),
         // but var(1) is left alone since it was bound before cutoff
         // (a_var_index == 2)
-        assert(l_substituted_local->m_index == 1);
+        assert(l_substituted_var->m_index == 1);
     }
 
     // index 2, occurrance depth 10, substitute with a local, a_var_index 2
     {
-        auto l_local = l(2);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(10, 2, l_substitute->clone());
+        auto l_var = v(2);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(10, 2, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // this substitution finds var(2) and substitutes with var(3),
         // and lifts by 10 levels since the redex body has 10 binders.
-        assert(l_substituted_local->m_index == 13);
+        assert(l_substituted_var->m_index == 13);
     }
 
     // index 1, occurrance depth 10, substitute with a local, a_var_index 2
     {
-        auto l_local = l(1);
-        auto l_substitute = l(3);
-        auto l_substituted = l_local->substitute(10, 2, l_substitute->clone());
+        auto l_var = v(1);
+        auto l_sub = v(3);
+        auto l_substituted = l_var->substitute(10, 2, l_sub->clone());
 
-        const local* l_substituted_local =
-            dynamic_cast<local*>(l_substituted.get());
-        assert(l_substituted_local != nullptr);
+        const var* l_substituted_var = dynamic_cast<var*>(l_substituted.get());
+        assert(l_substituted_var != nullptr);
 
         // no var(2) was found, so var(1) is left alone since it was bound
         // before cutoff (a_var_index == 2)
-        assert(l_substituted_local->m_index == 1);
-    }
-}
-
-void test_global_substitute()
-{
-    // index 0, depth 0, substitute with a local
-    {
-        auto l_global = g(0);
-        auto l_local = l(1);
-        const auto l_substituted = l_global->substitute(0, 0, l_local->clone());
-
-        // should be global still
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_substituted.get());
-        assert(l_subbed_global != nullptr);
-        // globals are unaffected by substitution.
-        assert(l_subbed_global->m_index == 0);
-    }
-
-    // index 0, depth 10, substitute with a local
-    {
-        auto l_global = g(0);
-        auto l_local = l(1);
-        const auto l_substituted =
-            l_global->substitute(10, 0, l_local->clone());
-
-        // should be global still
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_substituted.get());
-        assert(l_subbed_global != nullptr);
-        // globals are unaffected by substitution.
-        assert(l_subbed_global->m_index == 0);
-    }
-
-    // index 10, depth 10, substitute with a local
-    {
-        auto l_global = g(10);
-        auto l_local = l(1);
-        const auto l_substituted =
-            l_global->substitute(10, 0, l_local->clone());
-
-        // should be global still
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_substituted.get());
-        assert(l_subbed_global != nullptr);
-        // globals are unaffected by substitution.
-        assert(l_subbed_global->m_index == 10);
-    }
-
-    // index 0, depth 0, substitute with a local, a_var_index 1
-    {
-        auto l_global = g(0);
-        auto l_local = l(1);
-        const auto l_substituted = l_global->substitute(0, 1, l_local->clone());
-
-        // should be global still
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_substituted.get());
-        assert(l_subbed_global != nullptr);
-        // globals are unaffected by substitution.
-        assert(l_subbed_global->m_index == 0);
-    }
-
-    // index 0, depth 10, substitute with a local, a_var_index 1
-    {
-        auto l_global = g(0);
-        auto l_local = l(1);
-        const auto l_substituted =
-            l_global->substitute(10, 1, l_local->clone());
-
-        // should be global still
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_substituted.get());
-        assert(l_subbed_global != nullptr);
-        // globals are unaffected by substitution.
-        assert(l_subbed_global->m_index == 0);
-    }
-
-    // index 10, depth 10, substitute with a local, a_var_index 1
-    {
-        auto l_global = g(10);
-        auto l_local = l(1);
-        const auto l_substituted =
-            l_global->substitute(10, 1, l_local->clone());
-
-        // should be global still
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_substituted.get());
-        assert(l_subbed_global != nullptr);
-        // globals are unaffected by substitution.
-        assert(l_subbed_global->m_index == 10);
+        assert(l_substituted_var->m_index == 1);
     }
 }
 
@@ -1255,10 +966,10 @@ void test_func_substitute()
         // there USED to be an even more outer binder (which 0 would
         // have been bound to, hence the substitution DOES take place)
 
-        auto l_func = f(l(0)->clone());
-        auto l_local = l(11);
+        auto l_func = f(v(0)->clone());
+        auto l_var = v(11);
 
-        const auto l_subbed = l_func->substitute(0, 0, l_local->clone());
+        const auto l_subbed = l_func->substitute(0, 0, l_var->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -1266,14 +977,14 @@ void test_func_substitute()
         assert(l_subbed_func != nullptr);
 
         // get body
-        const local* l_subbed_local =
-            dynamic_cast<local*>(l_subbed_func->m_body.get());
+        const var* l_subbed_var =
+            dynamic_cast<var*>(l_subbed_func->m_body.get());
 
         // make sure the substitution took place
-        assert(l_subbed_local != nullptr);
+        assert(l_subbed_var != nullptr);
 
         // the index of the substitute is lifted by 1 (one binder)
-        assert(l_subbed_local->m_index == 12);
+        assert(l_subbed_var->m_index == 12);
     }
     // doublle composition lambda, outer depth 0, occurrance found
     {
@@ -1284,10 +995,10 @@ void test_func_substitute()
         // there USED to be an even more outer binder (which 0 would
         // have been bound to, hence the substitution DOES take place)
 
-        auto l_func = f(f(l(0)->clone())->clone());
-        auto l_local = l(11);
+        auto l_func = f(f(v(0)->clone())->clone());
+        auto l_var = v(11);
 
-        const auto l_subbed = l_func->substitute(0, 0, l_local->clone());
+        const auto l_subbed = l_func->substitute(0, 0, l_var->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -1298,37 +1009,14 @@ void test_func_substitute()
             dynamic_cast<func*>(l_subbed_func->m_body.get());
 
         // get body
-        const local* l_subbed_local =
-            dynamic_cast<local*>(l_subbed_func_2->m_body.get());
+        const var* l_subbed_var =
+            dynamic_cast<var*>(l_subbed_func_2->m_body.get());
 
         // make sure the substitution took place
-        assert(l_subbed_local != nullptr);
+        assert(l_subbed_var != nullptr);
 
         // the index of the substitute is lifted by 2 (two binders)
-        assert(l_subbed_local->m_index == 13);
-    }
-
-    // single composition lambda, outer depth 0, occurrance not found
-    {
-        auto l_func = f(l(1)->clone());
-        auto l_global = g(11);
-
-        const auto l_subbed = l_func->substitute(0, 0, l_global->clone());
-
-        const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
-
-        // make sure still a function
-        assert(l_subbed_func != nullptr);
-
-        // get body
-        const local* l_subbed_local =
-            dynamic_cast<local*>(l_subbed_func->m_body.get());
-
-        // make sure the substitution took place
-        assert(l_subbed_local != nullptr);
-
-        // the local got decremented since it was not the thing to replace.
-        assert(l_subbed_local->m_index == 0);
+        assert(l_subbed_var->m_index == 13);
     }
 
     // single composition lambda, outer depth 0, occurrance NOT found,
@@ -1341,10 +1029,10 @@ void test_func_substitute()
         // there USED to be an even more outer binder (which 0 would
         // have been bound to, hence the substitution DOES take place)
 
-        auto l_func = f(l(0)->clone());
-        auto l_local = l(11);
+        auto l_func = f(v(0)->clone());
+        auto l_var = v(11);
 
-        const auto l_subbed = l_func->substitute(0, 1, l_local->clone());
+        const auto l_subbed = l_func->substitute(0, 1, l_var->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -1352,15 +1040,15 @@ void test_func_substitute()
         assert(l_subbed_func != nullptr);
 
         // get body
-        const local* l_subbed_local =
-            dynamic_cast<local*>(l_subbed_func->m_body.get());
+        const var* l_subbed_var =
+            dynamic_cast<var*>(l_subbed_func->m_body.get());
 
         // make sure the substitution took place
-        assert(l_subbed_local != nullptr);
+        assert(l_subbed_var != nullptr);
 
         // the local is unchanged as it was not replaced and it was bound before
         // cutoff (a_var_index == 1) so no lifting occurred.
-        assert(l_subbed_local->m_index == 0);
+        assert(l_subbed_var->m_index == 0);
     }
 
     // doublle composition lambda, outer depth 0, occurrance not found,
@@ -1373,10 +1061,10 @@ void test_func_substitute()
         // there USED to be an even more outer binder (which 0 would
         // have been bound to, hence the substitution DOES take place)
 
-        auto l_func = f(f(l(0)->clone())->clone());
-        auto l_local = l(11);
+        auto l_func = f(f(v(0)->clone())->clone());
+        auto l_var = v(11);
 
-        const auto l_subbed = l_func->substitute(0, 1, l_local->clone());
+        const auto l_subbed = l_func->substitute(0, 1, l_var->clone());
 
         const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
 
@@ -1387,47 +1075,23 @@ void test_func_substitute()
             dynamic_cast<func*>(l_subbed_func->m_body.get());
 
         // get body
-        const local* l_subbed_local =
-            dynamic_cast<local*>(l_subbed_func_2->m_body.get());
+        const var* l_subbed_var =
+            dynamic_cast<var*>(l_subbed_func_2->m_body.get());
 
         // make sure the substitution took place
-        assert(l_subbed_local != nullptr);
+        assert(l_subbed_var != nullptr);
 
         // the local is unchanged as it was not replaced and it was bound before
         // cutoff (a_var_index == 1) so no lifting occurred.
-        assert(l_subbed_local->m_index == 0);
-    }
-
-    // single composition lambda, outer depth 0, occurrance found,
-    // a_var_index 1
-    {
-        auto l_func = f(l(1)->clone());
-        auto l_global = g(11);
-
-        const auto l_subbed = l_func->substitute(0, 1, l_global->clone());
-
-        const func* l_subbed_func = dynamic_cast<func*>(l_subbed.get());
-
-        // make sure still a function
-        assert(l_subbed_func != nullptr);
-
-        // get body
-        const global* l_subbed_global =
-            dynamic_cast<global*>(l_subbed_func->m_body.get());
-
-        // make sure the substitution took place
-        assert(l_subbed_global != nullptr);
-
-        // the local got decremented since it was not the thing to replace.
-        assert(l_subbed_global->m_index == 11);
+        assert(l_subbed_var->m_index == 0);
     }
 
     // func with occurrence in its body, a_lift_amount > 0
     {
         // Create a function whose body contains a local with index 2 (is the
         // occurrence)
-        auto l_func = f(l(2)->clone());
-        auto l_sub = l(7);
+        auto l_func = f(v(2)->clone());
+        auto l_sub = v(7);
 
         // substitute at depth = 6 (5 + 1), var_index=2, so a_lift_amount=6
         const auto l_subbed = l_func->substitute(5, 2, l_sub->clone());
@@ -1436,10 +1100,10 @@ void test_func_substitute()
         assert(l_subbed_func != nullptr);
 
         // get body, should be a local with index = 7 + 6 = 13
-        const local* l_subbed_local =
-            dynamic_cast<local*>(l_subbed_func->m_body.get());
-        assert(l_subbed_local != nullptr);
-        assert(l_subbed_local->m_index == 13);
+        const var* l_subbed_var =
+            dynamic_cast<var*>(l_subbed_func->m_body.get());
+        assert(l_subbed_var != nullptr);
+        assert(l_subbed_var->m_index == 13);
     }
 
     // func with app body containing mixed locals, var_index=3
@@ -1447,10 +1111,10 @@ void test_func_substitute()
     {
         // Body: (0 1 2 3 4) - mix of locals below, at, and above var_index=3
         auto l_body = a(
-            a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()), l(3)->clone()),
-            l(4)->clone());
+            a(a(a(v(0)->clone(), v(1)->clone()), v(2)->clone()), v(3)->clone()),
+            v(4)->clone());
         auto l_func = f(l_body->clone());
-        auto l_sub = l(99);
+        auto l_sub = v(99);
 
         // substitute var_index=3 with l(99) at depth 0
         const auto l_subbed = l_func->substitute(0, 3, l_sub->clone());
@@ -1460,9 +1124,9 @@ void test_func_substitute()
         // - l(3) gets replaced with l(99) lifted by 1 (func binder) = l(100)
         // - l(4) decrements to l(3) (> 3)
         auto l_expected =
-            f(a(a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()),
-                  l(100)->clone()),
-                l(3)->clone()));
+            f(a(a(a(a(v(0)->clone(), v(1)->clone()), v(2)->clone()),
+                  v(100)->clone()),
+                v(3)->clone()));
 
         assert(l_subbed->equals(l_expected));
     }
@@ -1472,10 +1136,10 @@ void test_func_substitute()
         // Body: λ.(0 2 3) with outer var_index=2
         // Inner l(0) is bound by inner lambda
         // Outer l(2) and l(3) are from outer scope
-        auto l_inner_body = a(a(l(0)->clone(), l(2)->clone()), l(3)->clone());
+        auto l_inner_body = a(a(v(0)->clone(), v(2)->clone()), v(3)->clone());
         auto l_body = f(l_inner_body->clone());
         auto l_func = f(l_body->clone());
-        auto l_sub = l(88);
+        auto l_sub = v(88);
 
         // substitute var_index=2 at depth=0
         const auto l_subbed = l_func->substitute(0, 2, l_sub->clone());
@@ -1486,7 +1150,7 @@ void test_func_substitute()
         //   and be replaced with l(88) lifted by 2 = l(90)
         // - l(3) decrements to l(2)
         auto l_expected =
-            f(f(a(a(l(0)->clone(), l(90)->clone()), l(2)->clone())));
+            f(f(a(a(v(0)->clone(), v(90)->clone()), v(2)->clone())));
 
         assert(l_subbed->equals(l_expected));
     }
@@ -1496,10 +1160,10 @@ void test_app_substitute()
 {
     // app of locals, both are occurrances
     {
-        auto l_lhs = l(0);
-        auto l_rhs = l(0);
+        auto l_lhs = v(0);
+        auto l_rhs = v(0);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
-        auto l_sub = l(11);
+        auto l_sub = v(11);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
@@ -1509,15 +1173,14 @@ void test_app_substitute()
         assert(l_subbed_app != nullptr);
 
         // get lhs
-        const local* l_subbed_lhs =
-            dynamic_cast<local*>(l_subbed_app->m_func.get());
+        const var* l_subbed_lhs =
+            dynamic_cast<var*>(l_subbed_app->m_func.get());
 
         // make sure lhs is a local
         assert(l_subbed_lhs != nullptr);
 
         // get rhs
-        const local* l_subbed_rhs =
-            dynamic_cast<local*>(l_subbed_app->m_arg.get());
+        const var* l_subbed_rhs = dynamic_cast<var*>(l_subbed_app->m_arg.get());
 
         // make sure rhs is a local
         assert(l_subbed_rhs != nullptr);
@@ -1529,10 +1192,10 @@ void test_app_substitute()
 
     // app of locals, lhs is an occurrance
     {
-        auto l_lhs = l(0);
-        auto l_rhs = l(1);
+        auto l_lhs = v(0);
+        auto l_rhs = v(1);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
-        auto l_sub = l(11);
+        auto l_sub = v(11);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
@@ -1542,15 +1205,14 @@ void test_app_substitute()
         assert(l_subbed_app != nullptr);
 
         // get lhs
-        const local* l_subbed_lhs =
-            dynamic_cast<local*>(l_subbed_app->m_func.get());
+        const var* l_subbed_lhs =
+            dynamic_cast<var*>(l_subbed_app->m_func.get());
 
         // make sure lhs is a local
         assert(l_subbed_lhs != nullptr);
 
         // get rhs
-        const local* l_subbed_rhs =
-            dynamic_cast<local*>(l_subbed_app->m_arg.get());
+        const var* l_subbed_rhs = dynamic_cast<var*>(l_subbed_app->m_arg.get());
 
         // make sure rhs is a local
         assert(l_subbed_rhs != nullptr);
@@ -1562,10 +1224,10 @@ void test_app_substitute()
 
     // app of locals, rhs is an occurrance
     {
-        auto l_lhs = l(1);
-        auto l_rhs = l(0);
+        auto l_lhs = v(1);
+        auto l_rhs = v(0);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
-        auto l_sub = l(11);
+        auto l_sub = v(11);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
@@ -1575,15 +1237,14 @@ void test_app_substitute()
         assert(l_subbed_app != nullptr);
 
         // get lhs
-        const local* l_subbed_lhs =
-            dynamic_cast<local*>(l_subbed_app->m_func.get());
+        const var* l_subbed_lhs =
+            dynamic_cast<var*>(l_subbed_app->m_func.get());
 
         // make sure lhs is a local
         assert(l_subbed_lhs != nullptr);
 
         // get rhs
-        const local* l_subbed_rhs =
-            dynamic_cast<local*>(l_subbed_app->m_arg.get());
+        const var* l_subbed_rhs = dynamic_cast<var*>(l_subbed_app->m_arg.get());
 
         // make sure rhs is a local
         assert(l_subbed_rhs != nullptr);
@@ -1595,10 +1256,10 @@ void test_app_substitute()
 
     // app of locals, neither are occurrances
     {
-        auto l_lhs = l(1);
-        auto l_rhs = l(1);
+        auto l_lhs = v(1);
+        auto l_rhs = v(1);
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
-        auto l_sub = l(11);
+        auto l_sub = v(11);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
@@ -1608,15 +1269,14 @@ void test_app_substitute()
         assert(l_subbed_app != nullptr);
 
         // get lhs
-        const local* l_subbed_lhs =
-            dynamic_cast<local*>(l_subbed_app->m_func.get());
+        const var* l_subbed_lhs =
+            dynamic_cast<var*>(l_subbed_app->m_func.get());
 
         // make sure lhs is a local
         assert(l_subbed_lhs != nullptr);
 
         // get rhs
-        const local* l_subbed_rhs =
-            dynamic_cast<local*>(l_subbed_app->m_arg.get());
+        const var* l_subbed_rhs = dynamic_cast<var*>(l_subbed_app->m_arg.get());
 
         // make sure rhs is a local
         assert(l_subbed_rhs != nullptr);
@@ -1628,10 +1288,10 @@ void test_app_substitute()
 
     // app of funcs, both with occurrances
     {
-        auto l_lhs = f(l(0)->clone());
-        auto l_rhs = f(l(0)->clone());
+        auto l_lhs = f(v(0)->clone());
+        auto l_rhs = f(v(0)->clone());
         auto l_app = a(l_lhs->clone(), l_rhs->clone());
-        auto l_sub = l(11);
+        auto l_sub = v(11);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
 
         // get the outer app
@@ -1654,21 +1314,19 @@ void test_app_substitute()
         // make sure rhs is a func
         assert(l_subbed_rhs != nullptr);
 
-        const local* l_lhs_local =
-            dynamic_cast<local*>(l_subbed_lhs->m_body.get());
+        const var* l_lhs_var = dynamic_cast<var*>(l_subbed_lhs->m_body.get());
 
         // make sure body of lhs is a local
-        assert(l_lhs_local != nullptr);
+        assert(l_lhs_var != nullptr);
 
-        const local* l_rhs_local =
-            dynamic_cast<local*>(l_subbed_rhs->m_body.get());
+        const var* l_rhs_var = dynamic_cast<var*>(l_subbed_rhs->m_body.get());
 
         // make sure body of rhs is a local
-        assert(l_rhs_local != nullptr);
+        assert(l_rhs_var != nullptr);
 
         // make sure they have correct indices (lifted by 1 due to binders)
-        assert(l_lhs_local->m_index == 12);
-        assert(l_rhs_local->m_index == 12);
+        assert(l_lhs_var->m_index == 12);
+        assert(l_rhs_var->m_index == 12);
     }
 
     ////////////////////////////////////
@@ -1678,103 +1336,93 @@ void test_app_substitute()
     // Test 1: substitute at depth 0, var_index 0 - basic substitution
     // (0 0) with var 0 -> l(5) should give (5 5)
     {
-        auto l_app = a(l(0)->clone(), l(0)->clone());
-        auto l_sub = l(5);
+        auto l_app = a(v(0)->clone(), v(0)->clone());
+        auto l_sub = v(5);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
-        auto l_expected = a(l(5)->clone(), l(5)->clone());
+        auto l_expected = a(v(5)->clone(), v(5)->clone());
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 2: substitute at depth 0, var_index 1 - substituting higher var
     // (1 2) with var 1 -> l(7) should give (7 1)
     {
-        auto l_app = a(l(1)->clone(), l(2)->clone());
-        auto l_sub = l(7);
+        auto l_app = a(v(1)->clone(), v(2)->clone());
+        auto l_sub = v(7);
         const auto l_subbed = l_app->substitute(0, 1, l_sub->clone());
-        auto l_expected = a(l(7)->clone(), l(1)->clone());
+        auto l_expected = a(v(7)->clone(), v(1)->clone());
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 3: substitute at depth 1, var_index 0 - inside a binder context
     // (λ.0 λ.1) with var 0 at depth 1 -> l(3) should give (λ.5 λ.0)
     {
-        auto l_app = a(f(l(0)->clone()), f(l(1)->clone()));
-        auto l_sub = l(3);
+        auto l_app = a(f(v(0)->clone()), f(v(1)->clone()));
+        auto l_sub = v(3);
         const auto l_subbed = l_app->substitute(1, 0, l_sub->clone());
-        auto l_expected = a(f(l(5)->clone()), f(l(0)->clone()));
-        assert(l_subbed->equals(l_expected));
-    }
-
-    // Test 4: substitute with global - globals should be unaffected
-    // (G0 0) with var 0 -> l(2) should give (G0 2)
-    {
-        auto l_app = a(g(0)->clone(), l(0)->clone());
-        auto l_sub = l(2);
-        const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
-        auto l_expected = a(g(0)->clone(), l(2)->clone());
+        auto l_expected = a(f(v(5)->clone()), f(v(0)->clone()));
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 5: substitute with complex expression (app as substitution)
     // (0 1) with var 0 -> (2 3) should give ((2 3) 0)
     {
-        auto l_app = a(l(0)->clone(), l(1)->clone());
-        auto l_sub = a(l(2)->clone(), l(3)->clone());
+        auto l_app = a(v(0)->clone(), v(1)->clone());
+        auto l_sub = a(v(2)->clone(), v(3)->clone());
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
-        auto l_expected = a(a(l(2)->clone(), l(3)->clone()), l(0)->clone());
+        auto l_expected = a(a(v(2)->clone(), v(3)->clone()), v(0)->clone());
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 6: substitute with func as substitution
     // (0 0) with var 0 -> λ.5 should give (λ.5 λ.5)
     {
-        auto l_app = a(l(0)->clone(), l(0)->clone());
-        auto l_sub = f(l(5)->clone());
+        auto l_app = a(v(0)->clone(), v(0)->clone());
+        auto l_sub = f(v(5)->clone());
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
-        auto l_expected = a(f(l(5)->clone()), f(l(5)->clone()));
+        auto l_expected = a(f(v(5)->clone()), f(v(5)->clone()));
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 7: substitute at depth 2, var_index 1 - deeply nested
     // (λ.λ.1 λ.λ.2) with var 1 at depth 2 -> l(10) should give (λ.λ.14 λ.λ.1)
     {
-        auto l_app = a(f(f(l(1)->clone())), f(f(l(2)->clone())));
-        auto l_sub = l(10);
+        auto l_app = a(f(f(v(1)->clone())), f(f(v(2)->clone())));
+        auto l_sub = v(10);
         const auto l_subbed = l_app->substitute(2, 1, l_sub->clone());
-        auto l_expected = a(f(f(l(14)->clone())), f(f(l(1)->clone())));
+        auto l_expected = a(f(f(v(14)->clone())), f(f(v(1)->clone())));
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 8: no matching variable - all vars higher than target
     // (2 3) with var 0 -> l(99) should give (1 2)
     {
-        auto l_app = a(l(2)->clone(), l(3)->clone());
-        auto l_sub = l(99);
+        auto l_app = a(v(2)->clone(), v(3)->clone());
+        auto l_sub = v(99);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
-        auto l_expected = a(l(1)->clone(), l(2)->clone());
+        auto l_expected = a(v(1)->clone(), v(2)->clone());
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 9: no matching variable - all vars lower than target
     // (0 1) with var 5 -> l(99) should give (0 1)
     {
-        auto l_app = a(l(0)->clone(), l(1)->clone());
-        auto l_sub = l(99);
+        auto l_app = a(v(0)->clone(), v(1)->clone());
+        auto l_sub = v(99);
         const auto l_subbed = l_app->substitute(0, 5, l_sub->clone());
-        auto l_expected = a(l(0)->clone(), l(1)->clone());
+        auto l_expected = a(v(0)->clone(), v(1)->clone());
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 10: nested app with mixed locals
     // ((0 1) (2 0)) with var 0 -> l(8) should give ((8 0) (1 8))
     {
-        auto l_inner1 = a(l(0)->clone(), l(1)->clone());
-        auto l_inner2 = a(l(2)->clone(), l(0)->clone());
+        auto l_inner1 = a(v(0)->clone(), v(1)->clone());
+        auto l_inner2 = a(v(2)->clone(), v(0)->clone());
         auto l_app = a(l_inner1->clone(), l_inner2->clone());
-        auto l_sub = l(8);
+        auto l_sub = v(8);
         const auto l_subbed = l_app->substitute(0, 0, l_sub->clone());
         auto l_expected =
-            a(a(l(8)->clone(), l(0)->clone()), a(l(1)->clone(), l(8)->clone()));
+            a(a(v(8)->clone(), v(0)->clone()), a(v(1)->clone(), v(8)->clone()));
         assert(l_subbed->equals(l_expected));
     }
 
@@ -1782,10 +1430,10 @@ void test_app_substitute()
     // (0 2) with var 2 -> l(9) should give (0 9)
     // l(0) stays unchanged (< 2), l(2) gets replaced
     {
-        auto l_app = a(l(0)->clone(), l(2)->clone());
-        auto l_sub = l(9);
+        auto l_app = a(v(0)->clone(), v(2)->clone());
+        auto l_sub = v(9);
         const auto l_subbed = l_app->substitute(0, 2, l_sub->clone());
-        auto l_expected = a(l(0)->clone(), l(9)->clone());
+        auto l_expected = a(v(0)->clone(), v(9)->clone());
         assert(l_subbed->equals(l_expected));
     }
 
@@ -1793,10 +1441,10 @@ void test_app_substitute()
     // ((0 1 2 3) (4 5 6)) with var 4 -> l(77) should give ((0 1 2 3) (77 4 5))
     {
         auto l_func_app =
-            a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()), l(3)->clone());
-        auto l_arg_app = a(a(l(4)->clone(), l(5)->clone()), l(6)->clone());
+            a(a(a(v(0)->clone(), v(1)->clone()), v(2)->clone()), v(3)->clone());
+        auto l_arg_app = a(a(v(4)->clone(), v(5)->clone()), v(6)->clone());
         auto l_app = a(l_func_app->clone(), l_arg_app->clone());
-        auto l_sub = l(77);
+        auto l_sub = v(77);
         const auto l_subbed = l_app->substitute(0, 4, l_sub->clone());
 
         // Expected: ((0 1 2 3) (77 4 5))
@@ -1804,18 +1452,18 @@ void test_app_substitute()
         // l(4) replaced with l(77)
         // l(5), l(6) decremented to l(4), l(5)
         auto l_expected = a(
-            a(a(a(l(0)->clone(), l(1)->clone()), l(2)->clone()), l(3)->clone()),
-            a(a(l(77)->clone(), l(4)->clone()), l(5)->clone()));
+            a(a(a(v(0)->clone(), v(1)->clone()), v(2)->clone()), v(3)->clone()),
+            a(a(v(77)->clone(), v(4)->clone()), v(5)->clone()));
         assert(l_subbed->equals(l_expected));
     }
 
     // Test 13: nested app with funcs, var_index=2
     // (λ.(0 1 2) λ.(1 2 3)) with var 2 -> l(55)
     {
-        auto l_lhs_body = a(a(l(0)->clone(), l(1)->clone()), l(2)->clone());
-        auto l_rhs_body = a(a(l(1)->clone(), l(2)->clone()), l(3)->clone());
+        auto l_lhs_body = a(a(v(0)->clone(), v(1)->clone()), v(2)->clone());
+        auto l_rhs_body = a(a(v(1)->clone(), v(2)->clone()), v(3)->clone());
         auto l_app = a(f(l_lhs_body->clone()), f(l_rhs_body->clone()));
-        auto l_sub = l(55);
+        auto l_sub = v(55);
         const auto l_subbed = l_app->substitute(0, 2, l_sub->clone());
 
         // In lhs func: depth becomes 1, so var 2 at that depth
@@ -1826,248 +1474,59 @@ void test_app_substitute()
         // l(2) matches var 2, replaced with l(55) lifted by 1 = l(56)
         // l(3) decrements to l(2)
         auto l_expected =
-            a(f(a(a(l(0)->clone(), l(1)->clone()), l(56)->clone())),
-              f(a(a(l(1)->clone(), l(56)->clone()), l(2)->clone())));
+            a(f(a(a(v(0)->clone(), v(1)->clone()), v(56)->clone())),
+              f(a(a(v(1)->clone(), v(56)->clone()), v(2)->clone())));
         assert(l_subbed->equals(l_expected));
     }
 }
 
-void test_local_reduce()
+void test_var_reduce()
 {
     // local with var 0 at depth 0
     {
-        auto l_expr = l(0);
+        auto l_expr = v(0);
         const auto l_reduced = l_expr->reduce(0, {});
 
         // cast the pointer
-        const local* l_local = dynamic_cast<local*>(l_reduced.get());
-        assert(l_local != nullptr);
+        const var* l_var = dynamic_cast<var*>(l_reduced.get());
+        assert(l_var != nullptr);
 
         // make sure it has the same index
-        assert(l_local->m_index == 0);
+        assert(l_var->m_index == 0);
     }
 
     // local with var 1 at depth 0
     {
-        auto l_expr = l(1);
+        auto l_expr = v(1);
         const auto l_reduced = l_expr->reduce(0, {});
 
         // cast the pointer
-        const local* l_local = dynamic_cast<local*>(l_reduced.get());
-        assert(l_local != nullptr);
+        const var* l_var = dynamic_cast<var*>(l_reduced.get());
+        assert(l_var != nullptr);
 
         // make sure it has the same index
-        assert(l_local->m_index == 1);
+        assert(l_var->m_index == 1);
     }
 
     // local with var 0 at depth 1 - locals are unaffected by depth
     {
-        auto l_expr = l(0);
+        auto l_expr = v(0);
         const auto l_reduced = l_expr->reduce(1, {});
-        assert(l_reduced->equals(l(0)->clone()));
+        assert(l_reduced->equals(v(0)->clone()));
     }
 
     // local with var 5 at depth 2 - locals are unaffected by depth
     {
-        auto l_expr = l(5);
+        auto l_expr = v(5);
         const auto l_reduced = l_expr->reduce(2, {});
-        assert(l_reduced->equals(l(5)->clone()));
+        assert(l_reduced->equals(v(5)->clone()));
     }
 
     // local with var 10 at depth 3 - locals are unaffected by depth
     {
-        auto l_expr = l(10);
+        auto l_expr = v(10);
         const auto l_reduced = l_expr->reduce(3, {});
-        assert(l_reduced->equals(l(10)->clone()));
-    }
-}
-
-void test_global_reduce()
-{
-    // global with index 0
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(f(l(13)->clone())->clone());
-
-        // set up reduction
-        auto l_expr = g(0);
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // cast the pointer
-        const func* l_casted = dynamic_cast<func*>(l_reduced.get());
-        assert(l_casted != nullptr);
-
-        // get body
-        const local* l_local = dynamic_cast<local*>(l_casted->m_body.get());
-        assert(l_local != nullptr);
-
-        // make sure it has the same index
-        assert(l_local->m_index == 0);
-    }
-
-    // global with index 1
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(f(l(13)->clone())->clone());
-
-        // set up reduction
-        auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // cast the pointer
-        const func* l_casted = dynamic_cast<func*>(l_reduced.get());
-        assert(l_casted != nullptr);
-
-        // get body
-        const local* l_local = dynamic_cast<local*>(l_casted->m_body.get());
-        assert(l_local != nullptr);
-
-        // make sure it has the same index
-        assert(l_local->m_index == 13);
-    }
-
-    // 1 cascading global reduction
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(g(0)->clone());
-
-        // set up reduction
-        auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // cast the pointer
-        const func* l_casted = dynamic_cast<func*>(l_reduced.get());
-        assert(l_casted != nullptr);
-
-        // get body
-        const local* l_local = dynamic_cast<local*>(l_casted->m_body.get());
-        assert(l_local != nullptr);
-
-        // make sure it has the same index
-        assert(l_local->m_index == 0);
-    }
-
-    // 2 cascading global reductions
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(g(0)->clone());
-        l_globals.emplace_back(g(1)->clone());
-
-        // set up reduction
-        auto l_expr = g(2);
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // cast the pointer
-        const func* l_casted = dynamic_cast<func*>(l_reduced.get());
-        assert(l_casted != nullptr);
-
-        // get body
-        const local* l_local = dynamic_cast<local*>(l_casted->m_body.get());
-        assert(l_local != nullptr);
-
-        // make sure it has the same index
-        assert(l_local->m_index == 0);
-    }
-
-    // 2 cascading global reductions
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(f(g(0)->clone())->clone());
-
-        // set up reduction
-        auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        assert(l_reduced->equals(f(f(l(1)))));
-    }
-
-    ////////////////////////////////////
-    // Testing global reduction at non-zero depths
-    ////////////////////////////////////
-
-    // global at depth 1 - simple expression
-    {
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(5)->clone());
-
-        auto l_expr = g(0);
-        const auto l_reduced = l_expr->reduce(1, l_globals);
-
-        // global expands to l(5), lifted by 1 = l(6)
-        assert(l_reduced->equals(l(6)->clone()));
-    }
-
-    // global at depth 2 - simple expression
-    {
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(3)->clone());
-
-        auto l_expr = g(0);
-        const auto l_reduced = l_expr->reduce(2, l_globals);
-
-        // global expands to l(3), lifted by 2 = l(5)
-        assert(l_reduced->equals(l(5)->clone()));
-    }
-
-    // global at depth 1 - func expression
-    {
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(7)->clone())->clone());
-
-        auto l_expr = g(0);
-        const auto l_reduced = l_expr->reduce(1, l_globals);
-
-        // global expands to f(l(7)), lifted by 1 = f(l(8))
-        assert(l_reduced->equals(f(l(8)->clone())));
-    }
-
-    // global at depth 3 - nested func
-    {
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(f(l(2)->clone()))->clone());
-
-        auto l_expr = g(0);
-        const auto l_reduced = l_expr->reduce(3, l_globals);
-
-        // global expands to f(f(l(2))), lifted by 3 = f(f(l(5)))
-        assert(l_reduced->equals(f(f(l(5)->clone()))->clone()));
-    }
-
-    // cascading global at depth 1
-    {
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(10)->clone());
-        l_globals.emplace_back(g(0)->clone());
-
-        auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(1, l_globals);
-
-        // g(1) -> g(0) (lifted by 1) but globals don't lift -> g(0)
-        // then g(0) -> l(10) (lifted by 1) = l(11)
-        assert(l_reduced->equals(l(11)->clone()));
-    }
-
-    // cascading global at depth 2
-    {
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(4)->clone());
-        l_globals.emplace_back(g(0)->clone());
-
-        auto l_expr = g(1);
-        const auto l_reduced = l_expr->reduce(2, l_globals);
-
-        // g(1) -> g(0), then g(0) -> l(4) (lifted by 2) = l(6)
-        assert(l_reduced->equals(l(6)->clone()));
+        assert(l_reduced->equals(v(10)->clone()));
     }
 }
 
@@ -2075,7 +1534,7 @@ void test_func_reduce()
 {
     // func with body of a local at depth 0
     {
-        auto l_expr = f(l(0)->clone());
+        auto l_expr = f(v(0)->clone());
         const auto l_reduced = l_expr->reduce(0, {});
 
         // make sure still a func
@@ -2083,29 +1542,16 @@ void test_func_reduce()
         assert(l_func != nullptr);
 
         // get body
-        const auto* l_body = dynamic_cast<local*>(l_func->m_body.get());
+        const auto* l_body = dynamic_cast<var*>(l_func->m_body.get());
         assert(l_body != nullptr);
 
         // make sure body is still same thing
         assert(l_body->m_index == 0);
     }
 
-    // func with body of a global at depth 0
-    {
-        // define globals
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(f(l(13)->clone())->clone());
-
-        auto l_expr = f(g(1)->clone());
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        assert(l_reduced->equals(f(f(l(14)))));
-    }
-
     // func with body of a local at depth 1
     {
-        auto l_expr = f(l(0)->clone());
+        auto l_expr = f(v(0)->clone());
         const auto l_reduced = l_expr->reduce(1, {});
 
         // make sure still a func
@@ -2113,52 +1559,9 @@ void test_func_reduce()
         assert(l_func != nullptr);
 
         // get body - should be unchanged
-        const auto* l_body = dynamic_cast<local*>(l_func->m_body.get());
+        const auto* l_body = dynamic_cast<var*>(l_func->m_body.get());
         assert(l_body != nullptr);
         assert(l_body->m_index == 0);
-    }
-
-    // func with body of a global at depth 1
-    {
-        // define globals - simple local expressions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(5)->clone());
-        l_globals.emplace_back(l(7)->clone());
-
-        auto l_expr = f(g(0)->clone());
-        const auto l_reduced = l_expr->reduce(1, l_globals);
-
-        // global should be expanded and lifted by depth + func depth
-        // func at depth 1, body at depth 2, so l(5) -> l(7)
-        assert(l_reduced->equals(f(l(7)->clone())));
-    }
-
-    // func with body of a global at depth 2
-    {
-        // define globals
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(3)->clone());
-
-        auto l_expr = f(g(0)->clone());
-        const auto l_reduced = l_expr->reduce(2, l_globals);
-
-        // global should be expanded and lifted by depth + func depth
-        // func at depth 2, body at depth 3, so l(3) -> l(6)
-        assert(l_reduced->equals(f(l(6)->clone())));
-    }
-
-    // func with nested func body containing global at depth 1
-    {
-        // define globals
-        expr::global_map l_globals{};
-        l_globals.emplace_back(l(10)->clone());
-
-        auto l_expr = f(f(g(0)->clone())->clone());
-        const auto l_reduced = l_expr->reduce(1, l_globals);
-
-        // global inside should be expanded at depth: 1 (initial) + 1 (outer
-        // func) + 1 (inner func) = 3 so l(10) -> l(13)
-        assert(l_reduced->equals(f(f(l(13)->clone()))->clone()));
     }
 }
 
@@ -2166,8 +1569,8 @@ void test_app_reduce()
 {
     // app with lhs and rhs both locals
     {
-        auto l_lhs = l(0);
-        auto l_rhs = l(1);
+        auto l_lhs = v(0);
+        auto l_rhs = v(1);
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2177,11 +1580,11 @@ void test_app_reduce()
         assert(l_app != nullptr);
 
         // lhs should be local
-        const local* l_reduced_lhs = dynamic_cast<local*>(l_app->m_func.get());
+        const var* l_reduced_lhs = dynamic_cast<var*>(l_app->m_func.get());
         assert(l_reduced_lhs != nullptr);
 
         // rhs should be local
-        const local* l_reduced_rhs = dynamic_cast<local*>(l_app->m_arg.get());
+        const var* l_reduced_rhs = dynamic_cast<var*>(l_app->m_arg.get());
         assert(l_reduced_rhs != nullptr);
 
         // same on both (no reduction occurred)
@@ -2189,31 +1592,14 @@ void test_app_reduce()
         assert(l_reduced_rhs->m_index == 1);
     }
 
-    // app with lhs global and rhs local
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-
-        auto l_lhs = g(0);
-        auto l_rhs = l(1);
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // make sure beta reduction did occurred
-        assert(l_reduced->equals(l(1)));
-    }
-
     // app with lhs func and rhs local
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = f(l(0)->clone());
-        auto l_rhs = l(1);
+        auto l_lhs = f(v(0)->clone());
+        auto l_rhs = v(1);
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2221,17 +1607,17 @@ void test_app_reduce()
 
         // make sure nothing changed
         // (beta reduction did not occur since rhs is local)
-        assert(l_reduced->equals(l(1)));
+        assert(l_reduced->equals(v(1)));
     }
 
     // app with lhs func and rhs func
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = f(l(0)->clone());
-        auto l_rhs = f(l(1)->clone());
+        auto l_lhs = f(v(0)->clone());
+        auto l_rhs = f(v(1)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2245,10 +1631,10 @@ void test_app_reduce()
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = f(l(3)->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = f(v(3)->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2256,17 +1642,17 @@ void test_app_reduce()
 
         // make sure beta-reduction occurred, but no replacements.
         // other vars decremented by 1.
-        assert(l_reduced->equals(l(2)->clone()));
+        assert(l_reduced->equals(v(2)->clone()));
     }
 
     // app with lhs (nested func with occurrences of var 0) and rhs func
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = f(f(l(0)->clone())->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = f(f(v(0)->clone())->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2274,17 +1660,17 @@ void test_app_reduce()
 
         // make sure beta-reduction occurred, with replacement,
         // and a lifting of 1 level
-        assert(l_reduced->equals(f(f(l(6)->clone()))->clone()));
+        assert(l_reduced->equals(f(f(v(6)->clone()))->clone()));
     }
 
     // app with lhs (nested func without occurrences of var 0) and rhs func
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = f(f(l(3)->clone())->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = f(f(v(3)->clone())->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2292,17 +1678,17 @@ void test_app_reduce()
 
         // make sure beta-reduction occurred, no replacements.
         // other vars decremented by 1.
-        assert(l_reduced->equals(f(l(2)->clone())));
+        assert(l_reduced->equals(f(v(2)->clone())));
     }
 
     // app with lhs (app that doesnt reduce to func) and rhs func
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = a(l(3)->clone(), l(4)->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = a(v(3)->clone(), v(4)->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2318,17 +1704,17 @@ void test_app_reduce()
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = a(f(l(3)->clone())->clone(), l(4)->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = a(f(v(3)->clone())->clone(), v(4)->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
         const auto l_reduced = l_expr->reduce(0, l_globals);
 
         // lhs should have beta-reduced, but cannot consume rhs of app
-        assert(l_reduced->equals(a(l(2), f(l(5)))));
+        assert(l_reduced->equals(a(v(2), f(v(5)))));
     }
 
     // app with lhs (app with lhs (func without occurrances), rhs func)
@@ -2336,10 +1722,10 @@ void test_app_reduce()
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
-        auto l_lhs = a(f(l(3)->clone())->clone(), f(l(4)->clone())->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = a(f(v(3)->clone())->clone(), f(v(4)->clone())->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2347,7 +1733,7 @@ void test_app_reduce()
 
         // lhs of app should beta-reduce, but lhs is not capable of consuming 2
         // args. Thus NF is an application with LHS beta-reduced once.
-        assert(l_reduced->equals(a(l(2)->clone(), f(l(5)->clone()))->clone()));
+        assert(l_reduced->equals(a(v(2)->clone(), f(v(5)->clone()))->clone()));
     }
 
     // app with lhs (app with lhs (func without occurrances), rhs func)
@@ -2355,11 +1741,11 @@ void test_app_reduce()
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
         auto l_lhs =
-            a(f(f(l(3)->clone())->clone())->clone(), f(l(4)->clone())->clone());
-        auto l_rhs = f(l(5)->clone());
+            a(f(f(v(3)->clone())->clone())->clone(), f(v(4)->clone())->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2367,7 +1753,7 @@ void test_app_reduce()
 
         // should beta-reduce twice, consuming all args. No replacements, only
         // decrementing twice.
-        assert(l_reduced->equals(l(1)->clone()));
+        assert(l_reduced->equals(v(1)->clone()));
     }
 
     // app with lhs (app with lhs (func WITH occurrances), rhs func)
@@ -2375,11 +1761,11 @@ void test_app_reduce()
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
         auto l_lhs =
-            a(f(f(l(0)->clone())->clone())->clone(), f(l(4)->clone())->clone());
-        auto l_rhs = f(l(5)->clone());
+            a(f(f(v(0)->clone())->clone())->clone(), f(v(4)->clone())->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2388,7 +1774,7 @@ void test_app_reduce()
         // should beta-reduce twice, consuming all args.
         // becomes first arg, without lifting. (lifting occurred but was undone
         // by second arg)
-        assert(l_reduced->equals(f(l(4)->clone())));
+        assert(l_reduced->equals(f(v(4)->clone())));
     }
 
     // app with lhs (app with lhs (func WITH occurrances), rhs func)
@@ -2396,11 +1782,11 @@ void test_app_reduce()
     {
         // create global definitions
         expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
+        l_globals.emplace_back(f(v(0)->clone())->clone());
 
         auto l_lhs =
-            a(f(f(l(1)->clone())->clone())->clone(), f(l(4)->clone())->clone());
-        auto l_rhs = f(l(5)->clone());
+            a(f(f(v(1)->clone())->clone())->clone(), f(v(4)->clone())->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce the app
@@ -2412,110 +1798,6 @@ void test_app_reduce()
         assert(l_reduced->equals(l_rhs->clone()));
     }
 
-    // app with lhs (global that directly reduces to func with occurrances) and
-    // rhs func
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-
-        auto l_lhs = g(0);
-        auto l_rhs = f(l(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // should beta-reduce, consuming the arg.
-        // A replacement occurred, and no lifting occurred.
-        assert(l_reduced->equals(l_rhs->clone()));
-    }
-
-    // app with lhs (global that indirectly reduces to func with occurrances)
-    // and rhs func
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-        l_globals.emplace_back(g(0)->clone());
-
-        auto l_lhs = g(1);
-        auto l_rhs = f(l(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // firstly, a delta cascade occurs, reducing the global to a func.
-        // then, the func should beta-reduce, consuming the arg.
-        // A replacement occurred, and no lifting occurred.
-        assert(l_reduced->equals(l_rhs->clone()));
-    }
-
-    // app with lhs (global that indirectly reduces to func without occurrances)
-    // and rhs func
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(1)->clone())->clone());
-        l_globals.emplace_back(g(0)->clone());
-
-        auto l_lhs = g(1);
-        auto l_rhs = f(l(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // firstly, a delta cascade occurs, reducing the global to a func.
-        // then, the func should beta-reduce, consuming the arg.
-        // No replacements, only decrementing.
-        assert(l_reduced->equals(l(0)->clone()));
-    }
-
-    // app with lhs (global that indirectly reduces to func with occurrances,
-    // but needs lifting) and rhs func
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(f(l(0)->clone()))->clone());
-        l_globals.emplace_back(g(0)->clone());
-
-        auto l_lhs = g(1);
-        auto l_rhs = f(l(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // firstly, a delta cascade occurs, reducing the global to a func.
-        // then, the func should beta-reduce, consuming the arg.
-        // A replacement occurred, and a lifting of 1 level occurred.
-        assert(l_reduced->equals(f(f(l(6)->clone()))->clone()));
-    }
-
-    // app with lhs (global that reduces to app which reduces to func) and rhs
-    // func
-    {
-        // create global definitions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(f(l(1)->clone()))->clone());
-        l_globals.emplace_back(a(g(0)->clone(), g(10)->clone())->clone());
-
-        auto l_lhs = g(1);
-        auto l_rhs = f(l(5)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce the app
-        const auto l_reduced = l_expr->reduce(0, l_globals);
-
-        // firstly, a delta cascade occurs, reducing the global to a func.
-        // then, a beta-reduction occurs, consuming the arg defined in global1
-        // def. then, the returned func should beta-reduce, consuming the arg.
-        // A replacement occurred, and no lifting occurred.
-        assert(l_reduced->equals(f(l(5)->clone())));
-    }
-
     ////////////////////////////////////
     // Testing reduction at non-zero depths
     ////////////////////////////////////
@@ -2523,8 +1805,8 @@ void test_app_reduce()
     // app with lhs func and rhs func at depth 1
     {
         expr::global_map l_globals{};
-        auto l_lhs = f(l(0)->clone());
-        auto l_rhs = f(l(3)->clone());
+        auto l_lhs = f(v(0)->clone());
+        auto l_rhs = f(v(3)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 1
@@ -2533,14 +1815,14 @@ void test_app_reduce()
         // beta-reduction occurs, but f(l(0)) at depth 1 is a CONSTANT function
         // l(0) refers to a variable captured from depth 0, not the parameter
         // so it ignores its argument and always returns l(0)
-        assert(l_reduced->equals(l(0)->clone()));
+        assert(l_reduced->equals(v(0)->clone()));
     }
 
     // app with lhs func (with occurrence) and rhs func at depth 2
     {
         expr::global_map l_globals{};
-        auto l_lhs = f(l(0)->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = f(v(0)->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 2
@@ -2549,85 +1831,28 @@ void test_app_reduce()
         // beta-reduction occurs, but f(l(0)) at depth 2 is also a CONSTANT
         // function l(0) refers to a variable captured from depth 0, not the
         // parameter so it ignores its argument and always returns l(0)
-        assert(l_reduced->equals(l(0)->clone()));
-    }
-
-    // app with lhs global and rhs func at depth 1
-    {
-        // globals with simple expressions
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(l(0)->clone())->clone());
-
-        auto l_lhs = g(0);
-        auto l_rhs = f(l(7)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce at depth 1
-        const auto l_reduced = l_expr->reduce(1, l_globals);
-
-        // global expands to f(l(0)), then delta-reduction lifts all locals by
-        // depth so f(l(0)) lifted by 1 becomes f(l(1)) At depth 1, l(1) in a
-        // func body refers to the parameter at depth 1 So f(l(1)) at depth 1 is
-        // the IDENTITY function - returns its argument Beta-reducing with
-        // f(l(7)) returns f(l(7))
-        assert(l_reduced->equals(f(l(7)->clone())));
-    }
-
-    // app with lhs global (expands to nested func) and rhs func at depth 2
-    {
-        // globals with nested func
-        expr::global_map l_globals{};
-        l_globals.emplace_back(f(f(l(0)->clone()))->clone());
-
-        auto l_lhs = g(0);
-        auto l_rhs = f(l(10)->clone());
-        auto l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        // reduce at depth 2
-        const auto l_reduced = l_expr->reduce(2, l_globals);
-
-        // global expands to f(f(l(0))), lifted by 2 becomes f(f(l(2)))
-        // beta-reduces with f(l(10)), replacing var 0 with f(l(10))
-        // result: f(f(l(10)))  because inner l(0) -> f(l(10)) but lifted +1 =
-        // f(l(11)) Wait, let me reconsider: f(f(l(0))) at depth 2 becomes
-        // f(f(l(2))) Then beta-reduce: substitute 0 in f(l(2)) with f(l(10))
-        // f(l(2)) has no var 0, so just decrement: becomes f(l(1))?
-        // No wait, the substitute happens at depth 1 (inside the outer func)
-        // Actually this is getting complex. Let me use a simpler test.
-        // Let's use f(l(1)) instead
-        l_globals.clear();
-        l_globals.emplace_back(f(l(1)->clone())->clone());
-
-        l_lhs = g(0);
-        l_rhs = f(l(10)->clone());
-        l_expr = a(l_lhs->clone(), l_rhs->clone());
-
-        const auto l_reduced2 = l_expr->reduce(2, l_globals);
-
-        // global expands to f(l(1)), lifted by 2 becomes f(l(3)))
-        // beta-reduces: l(3) is > 0, so decrements to l(2)
-        assert(l_reduced2->equals(l(2)->clone()));
+        assert(l_reduced->equals(v(0)->clone()));
     }
 
     // app with lhs func (no occurrence of var 0) and rhs func at depth 1
     {
         expr::global_map l_globals{};
-        auto l_lhs = f(l(3)->clone());
-        auto l_rhs = f(l(5)->clone());
+        auto l_lhs = f(v(3)->clone());
+        auto l_rhs = f(v(5)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 1
         const auto l_reduced = l_expr->reduce(1, l_globals);
 
         // beta-reduction: l(3) is > 0, decrements to l(2)
-        assert(l_reduced->equals(l(2)->clone()));
+        assert(l_reduced->equals(v(2)->clone()));
     }
 
     // app at depth 3 with beta reduction
     {
         expr::global_map l_globals{};
-        auto l_lhs = f(l(0)->clone());
-        auto l_rhs = f(l(8)->clone());
+        auto l_lhs = f(v(0)->clone());
+        auto l_rhs = f(v(8)->clone());
         auto l_expr = a(l_lhs->clone(), l_rhs->clone());
 
         // reduce at depth 3
@@ -2636,224 +1861,221 @@ void test_app_reduce()
         // beta-reduction occurs, but f(l(0)) at depth 3 is also a CONSTANT
         // function l(0) refers to a variable captured from depth 0, not the
         // parameter so it ignores its argument and always returns l(0)
-        assert(l_reduced->equals(l(0)->clone()));
+        assert(l_reduced->equals(v(0)->clone()));
     }
 }
 
-void generic_use_case_test()
-{
-    using namespace lambda;
-    expr::global_map l_globals{};
+// void generic_use_case_test()
+// {
+//     using namespace lambda;
+//     expr::global_map l_globals{};
 
-    // church booleans
+//     // church booleans
 
-    // true
-    l_globals.emplace_back(f(f(l(0))));
-    const auto TRUE = g(0);
-    // false
-    l_globals.emplace_back(f(f(l(1))));
-    const auto FALSE = g(1);
+//     // true
+//     l_globals.emplace_back(f(f(l(0))));
+//     const auto TRUE = g(0);
+//     // false
+//     l_globals.emplace_back(f(f(l(1))));
+//     const auto FALSE = g(1);
 
-    // test the church bools
-    {
-        // true case
-        const auto l_true_case = f(l(10));
+//     // test the church bools
+//     {
+//         // true case
+//         const auto l_true_case = f(l(10));
 
-        // false case
-        const auto l_false_case = f(l(11));
+//         // false case
+//         const auto l_false_case = f(l(11));
 
-        // test the true case
-        const auto l_true_case_app =
-            a(a(TRUE, l_true_case), l_false_case)->reduce(0, l_globals);
+//         // test the true case
+//         const auto l_true_case_app =
+//             a(a(TRUE, l_true_case), l_false_case)->reduce(0, l_globals);
 
-        // test the false case
-        const auto l_false_case_app =
-            a(a(FALSE, l_true_case), l_false_case)->reduce(0, l_globals);
+//         // test the false case
+//         const auto l_false_case_app =
+//             a(a(FALSE, l_true_case), l_false_case)->reduce(0, l_globals);
 
-        std::cout << "true case app: ";
-        l_true_case_app->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "true case app: ";
+//         l_true_case_app->print(std::cout);
+//         std::cout << std::endl;
 
-        std::cout << "false case app: ";
-        l_false_case_app->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "false case app: ";
+//         l_false_case_app->print(std::cout);
+//         std::cout << std::endl;
 
-        // test the true case
-        assert(l_true_case_app->equals(l_true_case->clone()));
-        assert(l_false_case_app->equals(l_false_case->clone()));
-    }
+//         // test the true case
+//         assert(l_true_case_app->equals(l_true_case->clone()));
+//         assert(l_false_case_app->equals(l_false_case->clone()));
+//     }
 
-    // add church numerals
+//     // add church numerals
 
-    // 0
-    l_globals.emplace_back(f(f(l(1))));
-    const auto ZERO = g(2);
+//     // 0
+//     l_globals.emplace_back(f(f(l(1))));
+//     const auto ZERO = g(2);
 
-    // succ
-    l_globals.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
-    const auto SUCC = g(3);
+//     // succ
+//     l_globals.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
+//     const auto SUCC = g(3);
 
-    // test succ church numerals
-    {
+//     // test succ church numerals
+//     {
 
-        std::cout << "zero: ";
-        ZERO->print(std::cout);
-        std::cout << std::endl;
-        std::cout << "G2: ";
-        l_globals.at(2)->print(std::cout);
-        std::cout << std::endl;
-        std::cout << "succ: ";
-        SUCC->print(std::cout);
-        std::cout << std::endl;
-        std::cout << "G3: ";
-        l_globals.at(3)->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "zero: ";
+//         ZERO->print(std::cout);
+//         std::cout << std::endl;
+//         std::cout << "G2: ";
+//         l_globals.at(2)->print(std::cout);
+//         std::cout << std::endl;
+//         std::cout << "succ: ";
+//         SUCC->print(std::cout);
+//         std::cout << std::endl;
+//         std::cout << "G3: ";
+//         l_globals.at(3)->print(std::cout);
+//         std::cout << std::endl;
 
-        // reduce zero
-        const auto ZERO_REDUCED = ZERO->reduce(0, l_globals);
-        std::cout << "zero reduced: ";
-        ZERO_REDUCED->print(std::cout);
-        std::cout << std::endl;
+//         // reduce zero
+//         const auto ZERO_REDUCED = ZERO->reduce(0, l_globals);
+//         std::cout << "zero reduced: ";
+//         ZERO_REDUCED->print(std::cout);
+//         std::cout << std::endl;
 
-        // define one
-        const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
-        std::cout << "one: ";
-        ONE->print(std::cout);
-        std::cout << std::endl;
-        std::cout << std::endl;
-        std::cout << std::endl;
-        std::cout << std::endl;
-        std::cout << std::endl;
-        // define two
-        const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
-        std::cout << "two: ";
-        TWO->print(std::cout);
-        std::cout << std::endl;
+//         // define one
+//         const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
+//         std::cout << "one: ";
+//         ONE->print(std::cout);
+//         std::cout << std::endl;
+//         std::cout << std::endl;
+//         std::cout << std::endl;
+//         std::cout << std::endl;
+//         std::cout << std::endl;
+//         // define two
+//         const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
+//         std::cout << "two: ";
+//         TWO->print(std::cout);
+//         std::cout << std::endl;
 
-        // define three
-        const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
-        std::cout << "three: ";
-        THREE->print(std::cout);
-        std::cout << std::endl;
+//         // define three
+//         const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
+//         std::cout << "three: ";
+//         THREE->print(std::cout);
+//         std::cout << std::endl;
 
-        // define four
-        const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
-        std::cout << "four: ";
-        FOUR->print(std::cout);
-        std::cout << std::endl;
-        // define five
-        const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
-        std::cout << "five: ";
-        FIVE->print(std::cout);
-        std::cout << std::endl;
+//         // define four
+//         const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
+//         std::cout << "four: ";
+//         FOUR->print(std::cout);
+//         std::cout << std::endl;
+//         // define five
+//         const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
+//         std::cout << "five: ";
+//         FIVE->print(std::cout);
+//         std::cout << std::endl;
 
-        assert(ONE->equals(f(f(a(l(0), l(1))))));
-        assert(TWO->equals(f(f(a(l(0), a(l(0), l(1)))))));
-        assert(THREE->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
-        assert(FOUR->equals(f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
-        assert(FIVE->equals(
-            f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
-    }
+//         assert(ONE->equals(f(f(a(l(0), l(1))))));
+//         assert(TWO->equals(f(f(a(l(0), a(l(0), l(1)))))));
+//         assert(THREE->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
+//         assert(FOUR->equals(f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
+//         assert(FIVE->equals(
+//             f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
+//     }
 
-    // add
-    l_globals.emplace_back(
-        f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
-    const auto ADD = g(4);
+//     // add
+//     l_globals.emplace_back(
+//         f(f(f(f(a(a(l(0), l(2)), a(a(l(1), l(2)), l(3))))))));
+//     const auto ADD = g(4);
 
-    // test add church numerals
-    {
-        // define one
-        const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
-        // define two
-        const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
-        // define three
-        const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
-        // define four
-        const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
-        // define five
-        const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
+//     // test add church numerals
+//     {
+//         // define one
+//         const auto ONE = a(SUCC, ZERO)->reduce(0, l_globals);
+//         // define two
+//         const auto TWO = a(SUCC, ONE)->reduce(0, l_globals);
+//         // define three
+//         const auto THREE = a(SUCC, TWO)->reduce(0, l_globals);
+//         // define four
+//         const auto FOUR = a(SUCC, THREE)->reduce(0, l_globals);
+//         // define five
+//         const auto FIVE = a(SUCC, FOUR)->reduce(0, l_globals);
 
-        // add one and one
-        const auto ADD_ONE_ONE = a(a(ADD, ONE), ONE)->reduce(0, l_globals);
+//         // add one and one
+//         const auto ADD_ONE_ONE = a(a(ADD, ONE), ONE)->reduce(0, l_globals);
 
-        std::cout << "add one one: ";
-        ADD_ONE_ONE->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "add one one: ";
+//         ADD_ONE_ONE->print(std::cout);
+//         std::cout << std::endl;
 
-        // add one and two
-        const auto ADD_ONE_TWO = a(a(ADD, ONE), TWO)->reduce(0, l_globals);
+//         // add one and two
+//         const auto ADD_ONE_TWO = a(a(ADD, ONE), TWO)->reduce(0, l_globals);
 
-        std::cout << "add one two: ";
-        ADD_ONE_TWO->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "add one two: ";
+//         ADD_ONE_TWO->print(std::cout);
+//         std::cout << std::endl;
 
-        // add two and two
-        const auto ADD_TWO_TWO = a(a(ADD, TWO), TWO)->reduce(0, l_globals);
+//         // add two and two
+//         const auto ADD_TWO_TWO = a(a(ADD, TWO), TWO)->reduce(0, l_globals);
 
-        std::cout << "add two two: ";
-        ADD_TWO_TWO->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "add two two: ";
+//         ADD_TWO_TWO->print(std::cout);
+//         std::cout << std::endl;
 
-        // add three and two
-        const auto ADD_THREE_TWO = a(a(ADD, THREE), TWO)->reduce(0, l_globals);
+//         // add three and two
+//         const auto ADD_THREE_TWO = a(a(ADD, THREE), TWO)->reduce(0,
+//         l_globals);
 
-        std::cout << "add three two: ";
-        ADD_THREE_TWO->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "add three two: ";
+//         ADD_THREE_TWO->print(std::cout);
+//         std::cout << std::endl;
 
-        // add five and five
-        const auto ADD_FIVE_FIVE = a(a(ADD, FIVE), FIVE)->reduce(0, l_globals);
+//         // add five and five
+//         const auto ADD_FIVE_FIVE = a(a(ADD, FIVE), FIVE)->reduce(0,
+//         l_globals);
 
-        std::cout << "add five five: ";
-        ADD_FIVE_FIVE->print(std::cout);
-        std::cout << std::endl;
+//         std::cout << "add five five: ";
+//         ADD_FIVE_FIVE->print(std::cout);
+//         std::cout << std::endl;
 
-        // assertions
-        assert(ADD_ONE_ONE->equals(f(f(a(l(0), a(l(0), l(1)))))));
-        assert(ADD_ONE_TWO->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
-        assert(ADD_TWO_TWO->equals(
-            f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
-        assert(ADD_THREE_TWO->equals(
-            f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
-        assert(ADD_FIVE_FIVE->equals(f(f(a(
-            l(0),
-            a(l(0),
-              a(l(0),
-                a(l(0),
-                  a(l(0),
-                    a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))))))))));
-    }
-}
+//         // assertions
+//         assert(ADD_ONE_ONE->equals(f(f(a(l(0), a(l(0), l(1)))))));
+//         assert(ADD_ONE_TWO->equals(f(f(a(l(0), a(l(0), a(l(0), l(1))))))));
+//         assert(ADD_TWO_TWO->equals(
+//             f(f(a(l(0), a(l(0), a(l(0), a(l(0), l(1)))))))));
+//         assert(ADD_THREE_TWO->equals(
+//             f(f(a(l(0), a(l(0), a(l(0), a(l(0), a(l(0), l(1))))))))));
+//         assert(ADD_FIVE_FIVE->equals(f(f(a(
+//             l(0),
+//             a(l(0),
+//               a(l(0),
+//                 a(l(0),
+//                   a(l(0),
+//                     a(l(0), a(l(0), a(l(0), a(l(0), a(l(0),
+//                     l(1)))))))))))))));
+//     }
+// }
 
 void lambda_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
-    TEST(test_local_constructor);
-    TEST(test_global_constructor);
+    TEST(test_var_constructor);
     TEST(test_func_constructor);
     TEST(test_app_constructor);
 
-    TEST(test_local_equals);
-    TEST(test_global_equals);
+    TEST(test_var_equals);
     TEST(test_func_equals);
     TEST(test_app_equals);
 
-    TEST(test_local_lift);
-    TEST(test_global_lift);
+    TEST(test_var_lift);
     TEST(test_func_lift);
     TEST(test_app_lift);
 
-    TEST(test_local_substitute);
-    TEST(test_global_substitute);
+    TEST(test_var_substitute);
     TEST(test_func_substitute);
     TEST(test_app_substitute);
 
-    TEST(test_local_reduce);
-    TEST(test_global_reduce);
+    TEST(test_var_reduce);
     TEST(test_func_reduce);
     TEST(test_app_reduce);
-    TEST(generic_use_case_test);
 }
 
 #endif

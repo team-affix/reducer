@@ -28,9 +28,9 @@ struct expr
     expr& operator=(const expr& other) = delete;
 };
 
-struct local : expr
+struct var : expr
 {
-    virtual ~local() = default;
+    virtual ~var() = default;
     bool equals(const std::unique_ptr<expr>&) const override;
     void print(std::ostream& a_ostream) const override;
     std::unique_ptr<expr> lift(size_t a_lift_amount,
@@ -43,27 +43,8 @@ struct local : expr
     size_t m_index;
 
   private:
-    local(size_t a_index);
-    friend std::unique_ptr<expr> l(size_t a_index);
-};
-
-struct global : expr
-{
-    virtual ~global() = default;
-    bool equals(const std::unique_ptr<expr>&) const override;
-    void print(std::ostream& a_ostream) const override;
-    std::unique_ptr<expr> lift(size_t a_lift_amount,
-                               size_t a_cutoff) const override;
-    std::unique_ptr<expr>
-    substitute(size_t a_lift_amount, size_t a_var_index,
-               const std::unique_ptr<expr>& a_arg) const override;
-    std::unique_ptr<expr> reduce(size_t a_depth,
-                                 const global_map& a_globals) const override;
-    size_t m_index;
-
-  private:
-    global(size_t a_index);
-    friend std::unique_ptr<expr> g(size_t a_index);
+    var(size_t a_index);
+    friend std::unique_ptr<expr> v(size_t a_index);
 };
 
 struct func : expr
@@ -108,8 +89,7 @@ struct app : expr
 };
 
 // factory functions
-std::unique_ptr<expr> l(size_t a_index);
-std::unique_ptr<expr> g(size_t a_index);
+std::unique_ptr<expr> v(size_t a_index);
 std::unique_ptr<expr> f(const std::unique_ptr<expr>& a_body);
 std::unique_ptr<expr> a(const std::unique_ptr<expr>& a_func,
                         const std::unique_ptr<expr>& a_arg);

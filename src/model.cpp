@@ -1,44 +1,65 @@
 #include "../include/model.hpp"
-#include "../include/program.hpp"
 #include <cassert>
 
-bool model::eval(const std::any* a_params, size_t a_param_count)
+// builds an application tower of the binning function and params
+lambda::expr::normalize_result
+eval_binning_function(const std::unique_ptr<lambda::expr>& a_binning_function,
+                      const std::unique_ptr<lambda::expr>* a_params,
+                      size_t a_param_count, size_t a_step_limit,
+                      size_t a_size_limit)
 {
+    // construct the application of the binning function to the parameters
+    auto l_app = a_binning_function->clone();
+    for(size_t i = 0; i < a_param_count; ++i)
+        l_app = a(std::move(l_app), a_params[i]->clone());
+
+    // normalize the application
+    return l_app->normalize(a_step_limit, a_size_limit);
+}
+
+bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
+{
+    // TODO: implement this
+    return;
+}
+
+std::optional<bool> model::eval(const std::unique_ptr<lambda::expr>* a_params,
+                                size_t a_param_count, size_t a_step_limit,
+                                size_t a_size_limit)
+{
+    using namespace lambda;
+
     // if the model is homogenous, then return the homogenous value
     if(m_func == nullptr)
         return m_homogenous_value;
 
-    // evaluate the binning function (these are always nullary)
-    bool l_binning_result =
-        std::any_cast<bool>(m_func->m_body.eval(a_params, a_param_count));
+    // evaluate the binning function
+    auto l_normalize_result = eval_binning_function(
+        m_func, a_params, a_param_count, a_step_limit, a_size_limit);
+
+    // if the evaluation is too complex, return std::nullopt
+    if(l_normalize_result.m_step_excess || l_normalize_result.m_size_excess)
+        return std::nullopt;
+
+    // boolify the result
+    bool l_binning_result = boolify(l_normalize_result.m_expr);
 
     // get the appropriate child
-    model* l_child =
-        l_binning_result ? m_positive_child.get() : m_negative_child.get();
+    const auto& l_child =
+        l_binning_result ? m_positive_child : m_negative_child;
 
-    return l_child->eval(a_params, a_param_count);
+    // evaluate the child
+    return l_child->eval(a_params, a_param_count, a_step_limit, a_size_limit);
 }
 
-size_t model::node_count() const
+std::ostream& operator<<(std::ostream& a_ostream, const model& a_model)
 {
-    size_t l_result = 1;
+    if(a_model.m_func == nullptr)
+        return a_ostream << (a_model.m_homogenous_value ? "true" : "false");
 
-    if(m_func != nullptr)
-    {
-        l_result += m_negative_child->node_count();
-        l_result += m_positive_child->node_count();
-    }
-
-    return l_result;
-}
-
-std::string model::repr() const
-{
-    if(m_func == nullptr)
-        return std::to_string(m_homogenous_value);
-
-    return "[" + m_func->m_repr + "] ? {" + m_positive_child->repr() + "} : {" +
-           m_negative_child->repr() + "}";
+    return a_ostream << "[" << *a_model.m_func << "] ? {"
+                     << *a_model.m_positive_child << "} : {"
+                     << *a_model.m_negative_child << "}";
 }
 
 #ifdef UNIT_TEST

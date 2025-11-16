@@ -1,8 +1,4 @@
 #include "../include/reduce.hpp"
-#include "../include/model.hpp"
-#include "../include/program.hpp"
-#include "../include/scope.hpp"
-#include "../mcts/include/mcts.hpp"
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -11,19 +7,23 @@
 //////////////// COMPARISON OPERATORS //////////////
 ////////////////////////////////////////////////////
 
-bool operator<(const place_param_node& a_lhs, const place_param_node& a_rhs)
+bool operator<(const place_var_node& a_lhs, const place_var_node& a_rhs)
+{
+    return a_lhs.m_index < a_rhs.m_index;
+}
+bool operator<(const place_func_node&, const place_func_node&)
 {
     return false;
 }
-bool operator<(const place_func_node& a_lhs, const place_func_node& a_rhs)
+bool operator<(const place_app_node&, const place_app_node&)
 {
-    return a_lhs.m_func < a_rhs.m_func;
+    return false;
+}
+bool operator<(const add_helper&, const add_helper&)
+{
+    return false;
 }
 bool operator<(const terminate&, const terminate&)
-{
-    return false;
-}
-bool operator<(const make_function&, const make_function&)
 {
     return false;
 }
@@ -32,128 +32,80 @@ bool operator<(const make_function&, const make_function&)
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
-func::body
-build_function(program& a_program, scope& a_scope,
-               std::multimap<std::type_index, size_t>& a_param_types,
-               std::stringstream& a_repr_stream,
-               const std::type_index& a_return_type,
-               const bool& a_allow_adding_params,
+std::unique_ptr<lambda::expr>
+build_function_body(const size_t a_binder_depth,
+                    monte_carlo::simulation<choice, std::mt19937>& a_simulation,
+                    const size_t& a_recursion_limit)
+{
+    using namespace lambda;
+
+    // declare the choice list
+    std::vector<choice> l_choices;
+
+    // add var choices
+    for(size_t i = 0; i < a_binder_depth; ++i)
+        l_choices.push_back(place_var_node{i});
+
+    if(a_recursion_limit > 0)
+    {
+        // add func choices
+        l_choices.push_back(place_func_node{});
+
+        // add app choices
+        l_choices.push_back(place_app_node{});
+    }
+
+    // make choice
+    choice l_choice = a_simulation.choose(l_choices);
+
+    // handle the choice
+    if(const auto* l_var_node = std::get_if<place_var_node>(&l_choice))
+    {
+        return v(l_var_node->m_index);
+    }
+    else if(std::holds_alternative<place_func_node>(l_choice))
+    {
+        // build the function
+        return f(build_function_body(a_binder_depth + 1, a_simulation,
+                                     a_recursion_limit - 1));
+    }
+    else if(std::holds_alternative<place_app_node>(l_choice))
+    {
+        // MUST be an application here
+
+        // build the application
+        return a(build_function_body(a_binder_depth, a_simulation,
+                                     a_recursion_limit - 1),
+                 build_function_body(a_binder_depth, a_simulation,
+                                     a_recursion_limit - 1));
+    }
+
+    throw std::runtime_error("Error: invalid choice in build_function_body.");
+}
+
+std::unique_ptr<lambda::expr>
+build_function(const size_t a_binder_depth, const size_t a_arity,
                monte_carlo::simulation<choice, std::mt19937>& a_simulation,
                const size_t& a_recursion_limit)
 {
-    ////////////////////////////////////////////////////
-    /////////////// GET THE SCOPE RANGES ///////////////
-    ////////////////////////////////////////////////////
-    const auto& l_nullary_range =
-        a_scope.m_nullaries.equal_range(a_return_type);
-    const auto& l_non_nullary_range =
-        a_scope.m_non_nullaries.equal_range(a_return_type);
+    using namespace lambda;
 
-    ////////////////////////////////////////////////////
-    //////////////// GET THE PARAM RANGE ///////////////
-    ////////////////////////////////////////////////////
-    const auto& l_param_range = a_param_types.equal_range(a_return_type);
+    // build the function body
+    std::unique_ptr<lambda::expr> l_function = build_function_body(
+        a_binder_depth + a_arity, a_simulation, a_recursion_limit);
 
-    ////////////////////////////////////////////////////
-    ////////////// POPULATE CHOICE VECTOR //////////////
-    ////////////////////////////////////////////////////
-    std::vector<choice> l_node_choices;
+    // add the lambda abstractions
+    for(size_t i = 0; i < a_arity; ++i)
+        l_function = f(std::move(l_function));
 
-    // allow choosing any nullary of this type
-    std::transform(l_nullary_range.first, l_nullary_range.second,
-                   std::back_inserter(l_node_choices), [](auto a_nullary)
-                   { return place_func_node{a_nullary.second}; });
-
-    // if the recursion limit has not been reached,
-    // push non-nullary function types into list
-    if(a_recursion_limit > 0)
-    {
-        std::transform(l_non_nullary_range.first, l_non_nullary_range.second,
-                       std::back_inserter(l_node_choices),
-                       [](auto a_non_nullary)
-                       { return place_func_node{a_non_nullary.second}; });
-    }
-
-    // allow choosing any known param of this type
-    std::transform(l_param_range.first, l_param_range.second,
-                   std::back_inserter(l_node_choices), [](auto a_entry)
-                   { return place_param_node{a_entry.second}; });
-
-    // allow choosing the next param of this type
-    if(a_allow_adding_params)
-        l_node_choices.push_back(place_param_node{a_param_types.size()});
-
-    ////////////////////////////////////////////////////
-    ////////////// CHOOSE A NODE TO PLACE //////////////
-    ////////////////////////////////////////////////////
-    choice l_node_choice = a_simulation.choose(l_node_choices);
-
-    // if the choice is a place_param_node
-    if(const auto& l_place_param_node =
-           std::get_if<place_param_node>(&l_node_choice))
-    {
-        // if the choice is a new param
-        if(l_place_param_node->m_index == a_param_types.size())
-        {
-            // add the param to the param types
-            a_param_types.insert({a_return_type, l_place_param_node->m_index});
-        }
-
-        // add the param's representation to the stream
-        a_repr_stream << "?" << l_place_param_node->m_index;
-
-        // regardless, return the param node
-        return func::body{
-            .m_functor = func::param{l_place_param_node->m_index},
-            .m_children = {},
-        };
-    }
-
-    // extract the func
-    auto l_node_func = std::get<place_func_node>(l_node_choice).m_func;
-
-    // add the node's representation to the stream
-    a_repr_stream << l_node_func->m_repr << "(";
-
-    ////////////////////////////////////////////////////
-    //////////////// CONSTRUCT CHILDREN ////////////////
-    ////////////////////////////////////////////////////
-    size_t l_node_arity = l_node_func->m_param_types.size();
-
-    // pre-allocate the args vector
-    std::vector<func::body> l_node_children(l_node_func->m_param_types.size());
-
-    // loop through with iterator, construct args in place
-    for(auto l_param_type_it = l_node_func->m_param_types.begin();
-        l_param_type_it != l_node_func->m_param_types.end(); ++l_param_type_it)
-    {
-        l_node_children[l_param_type_it->second] =
-            build_function(a_program, a_scope, a_param_types, a_repr_stream,
-                           l_param_type_it->first, a_allow_adding_params,
-                           a_simulation, a_recursion_limit - 1);
-
-        // if this is not the last param, add a comma
-        if(std::next(l_param_type_it) != l_node_func->m_param_types.end())
-            a_repr_stream << ",";
-    }
-
-    a_repr_stream << ")";
-
-    ////////////////////////////////////////////////////
-    //////////// CONSTRUCT THE FUNC_NODE_T /////////////
-    ////////////////////////////////////////////////////
-    return func::body{
-        .m_functor = l_node_func,
-        .m_children = l_node_children,
-    };
+    // return the final expression
+    return l_function;
 }
 
-model build_model(
-    program& a_program, scope& a_scope,
-    std::multimap<std::type_index, size_t>& a_param_types,
-    const std::vector<std::pair<std::vector<std::any>, bool>>& a_data,
-    monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-    const size_t& a_recursion_limit)
+model build_model(const size_t a_binder_depth, const size_t a_arity,
+                  const std::vector<const data_point*>& a_data,
+                  monte_carlo::simulation<choice, std::mt19937>& a_simulation,
+                  const size_t& a_recursion_limit)
 {
     ////////////////////////////////////////////////////
     //////////////// CHECK FOR TRIVIALITY //////////////
@@ -166,13 +118,13 @@ model build_model(
     ////////////////////////////////////////////////////
 
     // get the first label
-    bool l_homogenous_value = a_data.begin()->second;
+    bool l_homogenous_value = (*a_data.begin())->m_output;
 
     // loop through the data points, check for homogeneity
     bool l_data_is_homogenous =
         std::all_of(a_data.begin(), a_data.end(),
-                    [l_homogenous_value](const auto& a_data_point)
-                    { return a_data_point.second == l_homogenous_value; });
+                    [l_homogenous_value](const data_point* a_data_point)
+                    { return a_data_point->m_output == l_homogenous_value; });
 
     // if the data is homogenous, return the appropriate
     // constant
@@ -183,45 +135,33 @@ model build_model(
     /////////////// CREATE BINNING FUNCTION ////////////
     ////////////////////////////////////////////////////
 
-    // declare return type
-    const std::type_index BINNING_RETURN_TYPE = std::type_index(typeid(bool));
-
     // construct the negative bin
-    std::vector<std::pair<std::vector<std::any>, bool>> l_negative_bin;
+    std::vector<const data_point*> l_negative_bin;
 
     // construct the positive bin
-    std::vector<std::pair<std::vector<std::any>, bool>> l_positive_bin;
+    std::vector<const data_point*> l_positive_bin;
 
     // declare the binning function body
-    func::body l_binning_function_body;
+    std::unique_ptr<lambda::expr> l_binning_function;
 
-    // construct the repr stream
-    std::stringstream l_repr_stream;
-
-    // create a copy of the original program
-    program l_original_program = a_program;
+    bool l_normalization_terminates = false;
 
     // loop until neither output bin is empty
     // REASON: if one of the bins is empty, the binning
     // function is useless
-    while(l_negative_bin.empty() || l_positive_bin.empty())
+    while(!l_normalization_terminates || l_negative_bin.empty() ||
+          l_positive_bin.empty())
     {
         // clear BOTH bins in case one contains items
         l_negative_bin.clear();
         l_positive_bin.clear();
+        l_normalization_terminates = false;
 
-        // clear the repr stream
-        l_repr_stream.str("");
-
-        // restore the original program
-        a_program = l_original_program;
-
-        // construct the binning function body
+        // construct the binning function
         // [create a binning function that will bin (evaluate
         // on) each data point]
-        l_binning_function_body = build_function(
-            a_program, a_scope, a_param_types, l_repr_stream,
-            BINNING_RETURN_TYPE, false, a_simulation, a_recursion_limit);
+        l_binning_function = build_function(a_binder_depth, a_arity,
+                                            a_simulation, a_recursion_limit);
 
         ////////////////////////////////////////////////////
         ////////////// EVALUATE BINNING FUNCTION ///////////
@@ -229,7 +169,7 @@ model build_model(
 
         // evaluate the binning function on all of the
         // data points
-        for(const auto& [l_x, l_y] : a_data)
+        for(const auto* l_data_point : a_data)
         {
             // evaluate the binning function (should return bool)
             bool l_binning_result = std::any_cast<bool>(

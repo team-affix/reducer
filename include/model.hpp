@@ -3,6 +3,8 @@
 
 #include "lambda.hpp"
 #include <memory>
+#include <optional>
+#include <ostream>
 
 struct model
 {
@@ -13,18 +15,15 @@ struct model
     const std::unique_ptr<lambda::expr> m_func;
 
     // the next functions to evaluate
-    std::unique_ptr<model> m_negative_child;
-    std::unique_ptr<model> m_positive_child;
+    const std::unique_ptr<model> m_negative_child;
+    const std::unique_ptr<model> m_positive_child;
 
     // the function to evaluate the model
-    bool eval(const std::unique_ptr<lambda::expr>* a_params,
-              size_t a_param_count);
-
-    // get the node count
-    size_t node_count() const;
-
-    // representation of the model
-    std::string repr() const;
+    std::optional<bool> eval(const std::unique_ptr<lambda::expr>* a_params,
+                             size_t a_param_count, size_t a_step_limit,
+                             size_t a_size_limit);
 };
+
+std::ostream& operator<<(std::ostream& a_ostream, const model& a_model);
 
 #endif // MODEL_HPP

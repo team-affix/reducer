@@ -1,296 +1,6 @@
-#include "../include/reduce.hpp"
 #include <iostream>
 #include <random>
 #include <sstream>
-
-////////////////////////////////////////////////////
-//////////////// COMPARISON OPERATORS //////////////
-////////////////////////////////////////////////////
-
-bool operator<(const place_var_node& a_lhs, const place_var_node& a_rhs)
-{
-    return a_lhs.m_index < a_rhs.m_index;
-}
-bool operator<(const place_func_node&, const place_func_node&)
-{
-    return false;
-}
-bool operator<(const place_app_node&, const place_app_node&)
-{
-    return false;
-}
-bool operator<(const add_helper&, const add_helper&)
-{
-    return false;
-}
-bool operator<(const terminate&, const terminate&)
-{
-    return false;
-}
-
-////////////////////////////////////////////////////
-//////////////// FUNCTION GENERATION ///////////////
-////////////////////////////////////////////////////
-
-std::unique_ptr<lambda::expr>
-build_function_body(const size_t a_binder_depth,
-                    monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-                    const size_t& a_recursion_limit)
-{
-    using namespace lambda;
-
-    // declare the choice list
-    std::vector<choice> l_choices;
-
-    // add var choices
-    for(size_t i = 0; i < a_binder_depth; ++i)
-        l_choices.push_back(place_var_node{i});
-
-    if(a_recursion_limit > 0)
-    {
-        // add func choices
-        l_choices.push_back(place_func_node{});
-
-        // add app choices
-        l_choices.push_back(place_app_node{});
-    }
-
-    // make choice
-    choice l_choice = a_simulation.choose(l_choices);
-
-    // handle the choice
-    if(const auto* l_var_node = std::get_if<place_var_node>(&l_choice))
-    {
-        return v(l_var_node->m_index);
-    }
-    else if(std::holds_alternative<place_func_node>(l_choice))
-    {
-        // build the function
-        return f(build_function_body(a_binder_depth + 1, a_simulation,
-                                     a_recursion_limit - 1));
-    }
-    else if(std::holds_alternative<place_app_node>(l_choice))
-    {
-        // MUST be an application here
-
-        // build the application
-        return a(build_function_body(a_binder_depth, a_simulation,
-                                     a_recursion_limit - 1),
-                 build_function_body(a_binder_depth, a_simulation,
-                                     a_recursion_limit - 1));
-    }
-
-    throw std::runtime_error("Error: invalid choice in build_function_body.");
-}
-
-std::unique_ptr<lambda::expr>
-build_function(const size_t a_binder_depth, const size_t a_arity,
-               monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-               const size_t& a_recursion_limit)
-{
-    using namespace lambda;
-
-    // build the function body
-    std::unique_ptr<lambda::expr> l_function = build_function_body(
-        a_binder_depth + a_arity, a_simulation, a_recursion_limit);
-
-    // add the lambda abstractions
-    for(size_t i = 0; i < a_arity; ++i)
-        l_function = f(std::move(l_function));
-
-    // return the final expression
-    return l_function;
-}
-
-model build_model(const size_t a_binder_depth, const size_t a_arity,
-                  const std::vector<const data_point*>& a_data,
-                  monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-                  const size_t& a_recursion_limit)
-{
-    ////////////////////////////////////////////////////
-    //////////////// CHECK FOR TRIVIALITY //////////////
-    ////////////////////////////////////////////////////
-    if(a_data.empty())
-        throw std::runtime_error("Error: no data points to build model from.");
-
-    ////////////////////////////////////////////////////
-    //////////////// CHECK FOR HOMOGENEITY /////////////
-    ////////////////////////////////////////////////////
-
-    // get the first label
-    bool l_homogenous_value = (*a_data.begin())->m_output;
-
-    // loop through the data points, check for homogeneity
-    bool l_data_is_homogenous =
-        std::all_of(a_data.begin(), a_data.end(),
-                    [l_homogenous_value](const data_point* a_data_point)
-                    { return a_data_point->m_output == l_homogenous_value; });
-
-    // if the data is homogenous, return the appropriate
-    // constant
-    if(l_data_is_homogenous)
-        return model{.m_homogenous_value = l_homogenous_value};
-
-    ////////////////////////////////////////////////////
-    /////////////// CREATE BINNING FUNCTION ////////////
-    ////////////////////////////////////////////////////
-
-    // construct the negative bin
-    std::vector<const data_point*> l_negative_bin;
-
-    // construct the positive bin
-    std::vector<const data_point*> l_positive_bin;
-
-    // declare the binning function body
-    std::unique_ptr<lambda::expr> l_binning_function;
-
-    bool l_normalization_terminates = false;
-
-    // loop until neither output bin is empty
-    // REASON: if one of the bins is empty, the binning
-    // function is useless
-    while(!l_normalization_terminates || l_negative_bin.empty() ||
-          l_positive_bin.empty())
-    {
-        // clear BOTH bins in case one contains items
-        l_negative_bin.clear();
-        l_positive_bin.clear();
-        l_normalization_terminates = false;
-
-        // construct the binning function
-        // [create a binning function that will bin (evaluate
-        // on) each data point]
-        l_binning_function = build_function(a_binder_depth, a_arity,
-                                            a_simulation, a_recursion_limit);
-
-        ////////////////////////////////////////////////////
-        ////////////// EVALUATE BINNING FUNCTION ///////////
-        ////////////////////////////////////////////////////
-
-        // evaluate the binning function on all of the
-        // data points
-        for(const auto* l_data_point : a_data)
-        {
-            // evaluate the binning function (should return bool)
-            bool l_binning_result = std::any_cast<bool>(
-                l_binning_function_body.eval(l_x.data(), l_x.size()));
-
-            // store in the appropriate bin
-            if(l_binning_result)
-                l_positive_bin.emplace_back(l_x, l_y);
-            else
-                l_negative_bin.emplace_back(l_x, l_y);
-        }
-    }
-
-    // construct the function definition
-    auto l_binning_function =
-        std::make_shared<func>(typeid(bool), a_param_types,
-                               l_binning_function_body, l_repr_stream.str());
-
-    // add the binning function to the program
-    a_program.m_funcs.push_back(l_binning_function);
-
-    ////////////////////////////////////////////////////
-    //////////////////////// RECUR /////////////////////
-    ////////////////////////////////////////////////////
-
-    // construct the negative child
-    model l_negative_child =
-        build_model(a_program, a_scope, a_param_types, l_negative_bin,
-                    a_simulation, a_recursion_limit);
-
-    // construct the positive child
-    model l_positive_child =
-        build_model(a_program, a_scope, a_param_types, l_positive_bin,
-                    a_simulation, a_recursion_limit);
-
-    // construct the final node
-    return model{
-        .m_func = l_binning_function.get(),
-        .m_negative_child = std::make_shared<model>(l_negative_child),
-        .m_positive_child = std::make_shared<model>(l_positive_child),
-    };
-}
-
-template <typename... Params>
-model learn_model(
-    program& a_program, scope& a_scope,
-    const std::vector<std::pair<std::vector<std::any>, bool>>& a_data,
-    const size_t& a_iterations, const size_t& a_recursion_limit,
-    const double& a_exploration_constant)
-{
-    std::mt19937 l_rnd_gen(27);
-    monte_carlo::tree_node<choice> l_root;
-
-    // get the parameter types
-    std::vector<std::type_index> l_param_types_list = {typeid(Params)...};
-
-    // convert the parameter types to a multimap
-    std::multimap<std::type_index, size_t> l_param_types;
-    for(size_t i = 0; i < l_param_types_list.size(); ++i)
-        l_param_types.emplace(l_param_types_list[i], i);
-
-    // initialize the best reward to the lowest possible
-    // value
-    double l_best_reward = -std::numeric_limits<double>::infinity();
-    model l_best_model;
-
-    // save the original program and scope
-    program l_original_program = a_program;
-    scope l_original_scope = a_scope;
-
-    for(int i = 0; i < a_iterations; ++i)
-    {
-        // construct the simulation
-        monte_carlo::simulation<choice, std::mt19937> l_sim(
-            l_root, a_exploration_constant, l_rnd_gen);
-
-        // restore the original program and scope
-        program l_program = l_original_program;
-        scope l_scope = l_original_scope;
-
-        // construct the model
-        model l_model = build_model(l_program, l_scope, l_param_types, a_data,
-                                    l_sim, a_recursion_limit);
-
-        // compute the number of nodes in the whole program
-        size_t l_program_node_count =
-            std::accumulate(l_program.m_funcs.begin(), l_program.m_funcs.end(),
-                            size_t{0}, [](size_t a_acc, const auto& a_func)
-                            { return a_acc + a_func->m_body.node_count(); });
-
-        // compute the number of nodes in the model
-        size_t l_model_node_count = l_model.node_count();
-
-        // compute the reward (negative number of nodes)
-        double l_reward =
-            -static_cast<double>(l_program_node_count + l_model_node_count);
-
-        // save best model
-        if(l_reward > l_best_reward)
-        {
-            l_best_reward = l_reward;
-            a_program = l_program;
-            a_scope = l_scope;
-            l_best_model = l_model;
-
-            std::cout << l_program_node_count << " " << l_reward << std::endl;
-
-            std::cout << "program: " << std::endl;
-            for(const auto& l_func : l_program.m_funcs)
-                std::cout << "    " << l_func->m_repr << std::endl;
-
-            std::cout << "model: " << l_model.repr() << std::endl;
-            std::cout << std::endl;
-        }
-
-        // terminate the simulation
-        l_sim.terminate(l_reward);
-    }
-
-    return l_best_model;
-}
 
 ////////////////////////////////////////////////////
 ////////////////////// TESTING /////////////////////
@@ -730,390 +440,401 @@ model learn_model(
 //     }
 // }
 
-int string_length(const std::string& a_string)
-{
-    return a_string.size();
-}
-
-void test_learn_model()
-{
-    // learn nested exor
-    {
-        constexpr size_t ITERATIONS = 10000;
-
-        // nested exor data
-        // 8 rows
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
-            {{false, false, false}, false}, {{false, false, true}, true},
-            {{false, true, false}, true},   {{false, true, true}, false},
-            {{true, false, false}, true}, //{{true, false, true}, false},
-            {{true, true, false}, false},   {{true, true, true}, true},
-        };
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add some primitive functions
-        std::function l_exor = std::function(
-            [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
-        std::function l_exor_3 =
-            std::function([l_exor](bool a_x, bool a_y, bool a_z)
-                          { return l_exor(l_exor(a_x, a_y), a_z); });
-
-        // add two-way exor
-        l_scope.add_function(l_program.add_primitive("exor", l_exor));
-
-        // add three-way exor
-        l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
-
-        // learn a model
-        model l_model = learn_model<bool, bool, bool>(
-            l_program, l_scope, l_data, ITERATIONS, 10, 100);
-    }
-
-    // learn a&&(b exor c exor d)
-    {
-        constexpr size_t ITERATIONS = 10000;
-
-        // nested exor data
-        // 16 rows
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
-            {{false, false, false, false}, false},
-            {{false, false, false, true}, false},
-            {{false, false, true, false}, false},
-            // {{false, false, true, true}, false},
-            {{false, true, false, false}, false},
-            {{false, true, false, true}, false},
-            {{false, true, true, false}, false},
-            {{false, true, true, true}, false},
-            {{true, false, false, false}, false},
-            {{true, false, false, true}, true},
-            // {{true, false, true, false}, true},
-            {{true, false, true, true}, false},
-            {{true, true, false, false}, true},
-            {{true, true, false, true}, false},
-            // {{true, true, true, false}, false},
-            {{true, true, true, true}, true},
-        };
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add some primitive functions
-        std::function l_exor = std::function(
-            [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
-
-        std::function l_and =
-            std::function([](bool a_x, bool a_y) { return a_x && a_y; });
-
-        // add two-way exor
-        l_scope.add_function(l_program.add_primitive("exor", l_exor));
-
-        // add three-way exor
-        l_scope.add_function(l_program.add_primitive("and", l_and));
-
-        // learn a model
-        model l_model = learn_model<bool, bool, bool, bool>(
-            l_program, l_scope, l_data, ITERATIONS, 10, 100);
-    }
-
-    // learn x > 0 && x < 3 function
-    {
-        constexpr size_t ITERATIONS = 1000;
-
-        // x > 0 && x < 3 data
-        // 8 rows
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
-            {{-3}, false}, {{-2}, false}, {{-1}, false}, {{0}, false},
-            {{1}, true},   {{2}, true},   {{3}, false},  {{4}, false},
-            {{5}, false},  {{6}, false},
-        };
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add primitive for 0
-        l_scope.add_function(
-            l_program.add_primitive("0", std::function([]() { return 0; })));
-
-        // add primitive for succ(n)
-        l_scope.add_function(l_program.add_primitive(
-            "succ", std::function([](int a_n) { return a_n + 1; })));
-
-        // add primitive for >
-        l_scope.add_function(l_program.add_primitive(
-            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
-
-        // add primitive for <
-        l_scope.add_function(l_program.add_primitive(
-            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
-
-        // add primitive for &&
-        l_scope.add_function(l_program.add_primitive(
-            "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
-
-        // learn a model
-        model l_model =
-            learn_model<int>(l_program, l_scope, l_data, ITERATIONS, 10, 100);
-    }
-
-    // learn x^2 < y
-    {
-        constexpr size_t ITERATIONS = 1000;
-
-        // x^2 < y data
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
-            {{0, 0}, false},  {{0, 1}, true},  {{0, 2}, true},  {{1, 0}, false},
-            {{1, 2}, true},   {{2, 3}, false}, {{2, 4}, false}, {{2, 5}, true},
-            {{7, 49}, false}, {{7, 50}, true},
-        };
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add primitive for 0
-        l_scope.add_function(
-            l_program.add_primitive("0", std::function([]() { return 0; })));
-
-        // add primitive for succ(n)
-        l_scope.add_function(l_program.add_primitive(
-            "succ", std::function([](int a_n) { return a_n + 1; })));
-
-        // add primitive for square(n)
-        l_scope.add_function(l_program.add_primitive(
-            "square", std::function([](int a_n) { return a_n * a_n; })));
-
-        // add primitive for >
-        l_scope.add_function(l_program.add_primitive(
-            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
-
-        // add primitive for <
-        l_scope.add_function(l_program.add_primitive(
-            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
-
-        // add primitive for &&
-        l_scope.add_function(l_program.add_primitive(
-            "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
-
-        // learn a model
-        model l_model = learn_model<int, int>(l_program, l_scope, l_data,
-                                              ITERATIONS, 10, 100);
-    }
-
-    // learn xy < y
-    {
-        constexpr size_t ITERATIONS = 10000;
-
-        // xy < y data
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data{
-            {{0, 0}, false}, {{0, 1}, true},   {{0, 2}, true},  {{1, 1}, false},
-            {{1, 2}, false}, {{1, 3}, false},  {{2, 1}, false}, {{2, 2}, false},
-            {{-1, 1}, true}, {{-10, 1}, true},
-        };
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add primitive for 0
-        l_scope.add_function(
-            l_program.add_primitive("0", std::function([]() { return 0; })));
-
-        // add primitive for succ(n)
-        l_scope.add_function(l_program.add_primitive(
-            "succ", std::function([](int a_n) { return a_n + 1; })));
-
-        // add primitive for square(n)
-        l_scope.add_function(l_program.add_primitive(
-            "square", std::function([](int a_n) { return a_n * a_n; })));
-
-        // add primitive for mul(n, m)
-        l_scope.add_function(l_program.add_primitive(
-            "*", std::function([](int a_n, int a_m) { return a_n * a_m; })));
-
-        // add primitive for >
-        l_scope.add_function(l_program.add_primitive(
-            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
-
-        // add primitive for <
-        l_scope.add_function(l_program.add_primitive(
-            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
-
-        // add primitive for &&
-        l_scope.add_function(l_program.add_primitive(
-            "&&", std::function([](int a_x, int a_y) { return a_x && a_y; })));
-
-        // learn a model
-        model l_model = learn_model<int, int>(l_program, l_scope, l_data,
-                                              ITERATIONS, 10, 1000);
-    }
-
-    // learn string length < 5
-    {
-        constexpr size_t ITERATIONS = 1000;
-
-        // string length < 5 data
-        std::vector<std::pair<std::string, bool>> l_og_data{
-            {{""}, true},        {{"a"}, true},        {{"ab"}, true},
-            {{"abc"}, true},     {{"abcd"}, true},     {{"abcde"}, false},
-            {{"abcdef"}, false}, {{"abcdefg"}, false},
-        };
-
-        // convert the data to a vector of pairs of vectors of any and bool
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data;
-        for(const auto& l_example : l_og_data)
-            l_data.emplace_back(std::vector<std::any>{l_example.first},
-                                l_example.second);
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add primitive for 0
-        l_scope.add_function(
-            l_program.add_primitive("0", std::function([]() { return 0; })));
-
-        // add primitive for succ(n)
-        l_scope.add_function(l_program.add_primitive(
-            "succ", std::function([](int a_n) { return a_n + 1; })));
-
-        // add primitive for >
-        l_scope.add_function(l_program.add_primitive(
-            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
-
-        // add primitive for <
-        l_scope.add_function(l_program.add_primitive(
-            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
-
-        // add primitive for string length
-        l_scope.add_function(l_program.add_primitive(
-            "string_length", std::function(string_length)));
-
-        // learn a model
-        model l_model = learn_model<std::string>(l_program, l_scope, l_data,
-                                                 ITERATIONS, 10, 1000);
-    }
-
-    // learn 2 < string length < 5
-    {
-        constexpr size_t ITERATIONS = 1000;
-
-        // 2 < string length < 5 data
-        std::vector<std::pair<std::string, bool>> l_og_data{
-            {{""}, false},       {{"a"}, false},       {{"ab"}, false},
-            {{"abc"}, true},     {{"abcd"}, true},     {{"abcde"}, false},
-            {{"abcdef"}, false}, {{"abcdefg"}, false},
-        };
-
-        // convert the data to a vector of pairs of vectors of any and bool
-        std::vector<std::pair<std::vector<std::any>, bool>> l_data;
-        for(const auto& l_example : l_og_data)
-            l_data.emplace_back(std::vector<std::any>{l_example.first},
-                                l_example.second);
-
-        // initialize the program and scope
-        program l_program;
-        scope l_scope;
-
-        // add primitive for 0
-        l_scope.add_function(
-            l_program.add_primitive("0", std::function([]() { return 0; })));
-
-        // add primitive for succ(n)
-        l_scope.add_function(l_program.add_primitive(
-            "succ", std::function([](int a_n) { return a_n + 1; })));
-
-        // add primitive for >
-        l_scope.add_function(l_program.add_primitive(
-            ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
-
-        // add primitive for <
-        l_scope.add_function(l_program.add_primitive(
-            "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
-
-        // add primitive for string length
-        l_scope.add_function(l_program.add_primitive(
-            "string_length", std::function(string_length)));
-
-        // learn a model
-        model l_model = learn_model<std::string>(l_program, l_scope, l_data,
-                                                 ITERATIONS, 10, 1000);
-    }
-
-    // // learn v[4] == param
-    // {
-    //     constexpr size_t ITERATIONS = 10000;
-
-    //     // 2 < string length < 5 data
-    //     std::vector<std::pair<std::tuple<std::vector<int>, int>, bool>>
-    //         l_og_data{
-    //             {{{1, 1, 12, 13, 1}, 1}, true},
-    //             {{{2, 5, 1, 9, 4}, 5}, false},
-    //             {{{4, 2, 2, 5, 4}, 2}, false},
-    //             {{{6, 8, 20, 2, 7, 8, 9}, 7}, true},
-    //             {{{7, 1, 7, 31, 7, 8, 9}, 3}, false},
-    //         };
-
-    //     // convert the data to a vector of pairs of vectors of any and bool
-    //     std::vector<std::pair<std::vector<std::any>, bool>> l_data;
-    //     for(const auto& l_example : l_og_data)
-    //         l_data.emplace_back(
-    //             std::vector<std::any>{std::get<0>(l_example.first),
-    //                                   std::get<1>(l_example.first)},
-    //             l_example.second);
-
-    //     // initialize the program and scope
-    //     program l_program;
-    //     scope l_scope;
-
-    //     // add primitive for 0
-    //     l_scope.add_function(
-    //         l_program.add_primitive("0", std::function([]() { return 0; })));
-
-    //     // add primitive for succ(n)
-    //     l_scope.add_function(l_program.add_primitive(
-    //         "succ", std::function([](int a_n) { return a_n + 1; })));
-
-    //     // add primitive for v[i]
-    //     l_scope.add_function(l_program.add_primitive(
-    //         "index", std::function(
-    //                      [](std::vector<int> a_v, int a_i)
-    //                      {
-    //                          // compute the index by modulus
-    //                          int l_index = a_i % a_v.size();
-    //                          return a_v[l_index];
-    //                      })));
-
-    //     // add primitive for ==
-    //     l_scope.add_function(l_program.add_primitive(
-    //         "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
-
-    //     // learn a model
-    //     model l_model = learn_model<std::vector<int>, int>(
-    //         l_program, l_scope, l_data, ITERATIONS, 10, 1000);
-    // }
-}
-
-void reduce_test_main()
-{
-    constexpr bool ENABLE_DEBUG_LOGS = true;
-
-    // TEST(test_zero_construct_and_equality_check);
-    // TEST(test_one_construct_and_equality_check);
-    // TEST(test_var_construct_and_equality_check);
-    // TEST(test_invert_construct_and_equality_check);
-    // TEST(test_disjoin_construct_and_equality_check);
-    // TEST(test_conjoin_construct_and_equality_check);
-    // TEST(test_helper_construct_and_equality_check);
-    // TEST(test_bool_node_ostream_inserter);
-    // TEST(test_build_function);
-    // TEST(test_build_model);
-    // TEST(test_evaluate);
-    TEST(test_learn_model);
-}
+// int string_length(const std::string& a_string)
+// {
+//     return a_string.size();
+// }
+
+// void test_learn_model()
+// {
+//     // learn nested exor
+//     {
+//         constexpr size_t ITERATIONS = 10000;
+
+//         // nested exor data
+//         // 8 rows
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data{
+//             {{false, false, false}, false}, {{false, false, true}, true},
+//             {{false, true, false}, true},   {{false, true, true}, false},
+//             {{true, false, false}, true}, //{{true, false, true}, false},
+//             {{true, true, false}, false},   {{true, true, true}, true},
+//         };
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add some primitive functions
+//         std::function l_exor = std::function(
+//             [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
+//         std::function l_exor_3 =
+//             std::function([l_exor](bool a_x, bool a_y, bool a_z)
+//                           { return l_exor(l_exor(a_x, a_y), a_z); });
+
+//         // add two-way exor
+//         l_scope.add_function(l_program.add_primitive("exor", l_exor));
+
+//         // add three-way exor
+//         l_scope.add_function(l_program.add_primitive("exor_3", l_exor_3));
+
+//         // learn a model
+//         model l_model = learn_model<bool, bool, bool>(
+//             l_program, l_scope, l_data, ITERATIONS, 10, 100);
+//     }
+
+//     // learn a&&(b exor c exor d)
+//     {
+//         constexpr size_t ITERATIONS = 10000;
+
+//         // nested exor data
+//         // 16 rows
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data{
+//             {{false, false, false, false}, false},
+//             {{false, false, false, true}, false},
+//             {{false, false, true, false}, false},
+//             // {{false, false, true, true}, false},
+//             {{false, true, false, false}, false},
+//             {{false, true, false, true}, false},
+//             {{false, true, true, false}, false},
+//             {{false, true, true, true}, false},
+//             {{true, false, false, false}, false},
+//             {{true, false, false, true}, true},
+//             // {{true, false, true, false}, true},
+//             {{true, false, true, true}, false},
+//             {{true, true, false, false}, true},
+//             {{true, true, false, true}, false},
+//             // {{true, true, true, false}, false},
+//             {{true, true, true, true}, true},
+//         };
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add some primitive functions
+//         std::function l_exor = std::function(
+//             [](bool a_x, bool a_y) { return !a_x && a_y || a_x && !a_y; });
+
+//         std::function l_and =
+//             std::function([](bool a_x, bool a_y) { return a_x && a_y; });
+
+//         // add two-way exor
+//         l_scope.add_function(l_program.add_primitive("exor", l_exor));
+
+//         // add three-way exor
+//         l_scope.add_function(l_program.add_primitive("and", l_and));
+
+//         // learn a model
+//         model l_model = learn_model<bool, bool, bool, bool>(
+//             l_program, l_scope, l_data, ITERATIONS, 10, 100);
+//     }
+
+//     // learn x > 0 && x < 3 function
+//     {
+//         constexpr size_t ITERATIONS = 1000;
+
+//         // x > 0 && x < 3 data
+//         // 8 rows
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data{
+//             {{-3}, false}, {{-2}, false}, {{-1}, false}, {{0}, false},
+//             {{1}, true},   {{2}, true},   {{3}, false},  {{4}, false},
+//             {{5}, false},  {{6}, false},
+//         };
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add primitive for 0
+//         l_scope.add_function(
+//             l_program.add_primitive("0", std::function([]() { return 0; })));
+
+//         // add primitive for succ(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "succ", std::function([](int a_n) { return a_n + 1; })));
+
+//         // add primitive for >
+//         l_scope.add_function(l_program.add_primitive(
+//             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+//         // add primitive for <
+//         l_scope.add_function(l_program.add_primitive(
+//             "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+//         // add primitive for &&
+//         l_scope.add_function(l_program.add_primitive(
+//             "&&", std::function([](int a_x, int a_y) { return a_x && a_y;
+//             })));
+
+//         // learn a model
+//         model l_model =
+//             learn_model<int>(l_program, l_scope, l_data, ITERATIONS, 10,
+//             100);
+//     }
+
+//     // learn x^2 < y
+//     {
+//         constexpr size_t ITERATIONS = 1000;
+
+//         // x^2 < y data
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data{
+//             {{0, 0}, false},  {{0, 1}, true},  {{0, 2}, true},  {{1, 0},
+//             false},
+//             {{1, 2}, true},   {{2, 3}, false}, {{2, 4}, false}, {{2, 5},
+//             true},
+//             {{7, 49}, false}, {{7, 50}, true},
+//         };
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add primitive for 0
+//         l_scope.add_function(
+//             l_program.add_primitive("0", std::function([]() { return 0; })));
+
+//         // add primitive for succ(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "succ", std::function([](int a_n) { return a_n + 1; })));
+
+//         // add primitive for square(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "square", std::function([](int a_n) { return a_n * a_n; })));
+
+//         // add primitive for >
+//         l_scope.add_function(l_program.add_primitive(
+//             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+//         // add primitive for <
+//         l_scope.add_function(l_program.add_primitive(
+//             "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+//         // add primitive for &&
+//         l_scope.add_function(l_program.add_primitive(
+//             "&&", std::function([](int a_x, int a_y) { return a_x && a_y;
+//             })));
+
+//         // learn a model
+//         model l_model = learn_model<int, int>(l_program, l_scope, l_data,
+//                                               ITERATIONS, 10, 100);
+//     }
+
+//     // learn xy < y
+//     {
+//         constexpr size_t ITERATIONS = 10000;
+
+//         // xy < y data
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data{
+//             {{0, 0}, false}, {{0, 1}, true},   {{0, 2}, true},  {{1, 1},
+//             false},
+//             {{1, 2}, false}, {{1, 3}, false},  {{2, 1}, false}, {{2, 2},
+//             false},
+//             {{-1, 1}, true}, {{-10, 1}, true},
+//         };
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add primitive for 0
+//         l_scope.add_function(
+//             l_program.add_primitive("0", std::function([]() { return 0; })));
+
+//         // add primitive for succ(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "succ", std::function([](int a_n) { return a_n + 1; })));
+
+//         // add primitive for square(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "square", std::function([](int a_n) { return a_n * a_n; })));
+
+//         // add primitive for mul(n, m)
+//         l_scope.add_function(l_program.add_primitive(
+//             "*", std::function([](int a_n, int a_m) { return a_n * a_m; })));
+
+//         // add primitive for >
+//         l_scope.add_function(l_program.add_primitive(
+//             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+//         // add primitive for <
+//         l_scope.add_function(l_program.add_primitive(
+//             "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+//         // add primitive for &&
+//         l_scope.add_function(l_program.add_primitive(
+//             "&&", std::function([](int a_x, int a_y) { return a_x && a_y;
+//             })));
+
+//         // learn a model
+//         model l_model = learn_model<int, int>(l_program, l_scope, l_data,
+//                                               ITERATIONS, 10, 1000);
+//     }
+
+//     // learn string length < 5
+//     {
+//         constexpr size_t ITERATIONS = 1000;
+
+//         // string length < 5 data
+//         std::vector<std::pair<std::string, bool>> l_og_data{
+//             {{""}, true},        {{"a"}, true},        {{"ab"}, true},
+//             {{"abc"}, true},     {{"abcd"}, true},     {{"abcde"}, false},
+//             {{"abcdef"}, false}, {{"abcdefg"}, false},
+//         };
+
+//         // convert the data to a vector of pairs of vectors of any and bool
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data;
+//         for(const auto& l_example : l_og_data)
+//             l_data.emplace_back(std::vector<std::any>{l_example.first},
+//                                 l_example.second);
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add primitive for 0
+//         l_scope.add_function(
+//             l_program.add_primitive("0", std::function([]() { return 0; })));
+
+//         // add primitive for succ(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "succ", std::function([](int a_n) { return a_n + 1; })));
+
+//         // add primitive for >
+//         l_scope.add_function(l_program.add_primitive(
+//             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+//         // add primitive for <
+//         l_scope.add_function(l_program.add_primitive(
+//             "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+//         // add primitive for string length
+//         l_scope.add_function(l_program.add_primitive(
+//             "string_length", std::function(string_length)));
+
+//         // learn a model
+//         model l_model = learn_model<std::string>(l_program, l_scope, l_data,
+//                                                  ITERATIONS, 10, 1000);
+//     }
+
+//     // learn 2 < string length < 5
+//     {
+//         constexpr size_t ITERATIONS = 1000;
+
+//         // 2 < string length < 5 data
+//         std::vector<std::pair<std::string, bool>> l_og_data{
+//             {{""}, false},       {{"a"}, false},       {{"ab"}, false},
+//             {{"abc"}, true},     {{"abcd"}, true},     {{"abcde"}, false},
+//             {{"abcdef"}, false}, {{"abcdefg"}, false},
+//         };
+
+//         // convert the data to a vector of pairs of vectors of any and bool
+//         std::vector<std::pair<std::vector<std::any>, bool>> l_data;
+//         for(const auto& l_example : l_og_data)
+//             l_data.emplace_back(std::vector<std::any>{l_example.first},
+//                                 l_example.second);
+
+//         // initialize the program and scope
+//         program l_program;
+//         scope l_scope;
+
+//         // add primitive for 0
+//         l_scope.add_function(
+//             l_program.add_primitive("0", std::function([]() { return 0; })));
+
+//         // add primitive for succ(n)
+//         l_scope.add_function(l_program.add_primitive(
+//             "succ", std::function([](int a_n) { return a_n + 1; })));
+
+//         // add primitive for >
+//         l_scope.add_function(l_program.add_primitive(
+//             ">", std::function([](int a_x, int a_y) { return a_x > a_y; })));
+
+//         // add primitive for <
+//         l_scope.add_function(l_program.add_primitive(
+//             "<", std::function([](int a_x, int a_y) { return a_x < a_y; })));
+
+//         // add primitive for string length
+//         l_scope.add_function(l_program.add_primitive(
+//             "string_length", std::function(string_length)));
+
+//         // learn a model
+//         model l_model = learn_model<std::string>(l_program, l_scope, l_data,
+//                                                  ITERATIONS, 10, 1000);
+//     }
+
+//     // // learn v[4] == param
+//     // {
+//     //     constexpr size_t ITERATIONS = 10000;
+
+//     //     // 2 < string length < 5 data
+//     //     std::vector<std::pair<std::tuple<std::vector<int>, int>, bool>>
+//     //         l_og_data{
+//     //             {{{1, 1, 12, 13, 1}, 1}, true},
+//     //             {{{2, 5, 1, 9, 4}, 5}, false},
+//     //             {{{4, 2, 2, 5, 4}, 2}, false},
+//     //             {{{6, 8, 20, 2, 7, 8, 9}, 7}, true},
+//     //             {{{7, 1, 7, 31, 7, 8, 9}, 3}, false},
+//     //         };
+
+//     //     // convert the data to a vector of pairs of vectors of any and
+//     bool
+//     //     std::vector<std::pair<std::vector<std::any>, bool>> l_data;
+//     //     for(const auto& l_example : l_og_data)
+//     //         l_data.emplace_back(
+//     //             std::vector<std::any>{std::get<0>(l_example.first),
+//     //                                   std::get<1>(l_example.first)},
+//     //             l_example.second);
+
+//     //     // initialize the program and scope
+//     //     program l_program;
+//     //     scope l_scope;
+
+//     //     // add primitive for 0
+//     //     l_scope.add_function(
+//     //         l_program.add_primitive("0", std::function([]() { return 0;
+//     })));
+
+//     //     // add primitive for succ(n)
+//     //     l_scope.add_function(l_program.add_primitive(
+//     //         "succ", std::function([](int a_n) { return a_n + 1; })));
+
+//     //     // add primitive for v[i]
+//     //     l_scope.add_function(l_program.add_primitive(
+//     //         "index", std::function(
+//     //                      [](std::vector<int> a_v, int a_i)
+//     //                      {
+//     //                          // compute the index by modulus
+//     //                          int l_index = a_i % a_v.size();
+//     //                          return a_v[l_index];
+//     //                      })));
+
+//     //     // add primitive for ==
+//     //     l_scope.add_function(l_program.add_primitive(
+//     //         "<", std::function([](int a_x, int a_y) { return a_x < a_y;
+//     })));
+
+//     //     // learn a model
+//     //     model l_model = learn_model<std::vector<int>, int>(
+//     //         l_program, l_scope, l_data, ITERATIONS, 10, 1000);
+//     // }
+// }
+
+// void reduce_test_main()
+// {
+//     constexpr bool ENABLE_DEBUG_LOGS = true;
+
+//     // TEST(test_zero_construct_and_equality_check);
+//     // TEST(test_one_construct_and_equality_check);
+//     // TEST(test_var_construct_and_equality_check);
+//     // TEST(test_invert_construct_and_equality_check);
+//     // TEST(test_disjoin_construct_and_equality_check);
+//     // TEST(test_conjoin_construct_and_equality_check);
+//     // TEST(test_helper_construct_and_equality_check);
+//     // TEST(test_bool_node_ostream_inserter);
+//     // TEST(test_build_function);
+//     // TEST(test_build_model);
+//     // TEST(test_evaluate);
+//     TEST(test_learn_model);
+// }
 
 #endif

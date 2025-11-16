@@ -431,6 +431,26 @@ build_model(const std::vector<const data_point*>& a_data,
 #include "test_utils.hpp"
 #include <sstream>
 
+void test_boolify()
+{
+    using namespace lambda;
+    assert(boolify(v(0)) == true);
+    assert(boolify(v(1)) == false);
+    assert(boolify(f(v(0))) == true);
+    assert(boolify(f(v(1))) == false);
+    assert(boolify(a(v(0), v(1))) == true);
+    assert(boolify(a(f(v(0)), v(1))) == true);
+    // var 2
+    assert(boolify(v(2)) == true);
+    assert(boolify(v(3)) == false);
+    assert(boolify(f(v(2))) == true);
+    assert(boolify(f(v(3))) == false);
+    assert(boolify(a(v(2), v(3))) == true);
+    assert(boolify(a(f(v(2)), v(3))) == true);
+    assert(boolify(a(v(2), f(v(3)))) == true);
+    assert(boolify(a(f(v(2)), f(v(3)))) == true);
+}
+
 void test_model_construct_and_print()
 {
     using namespace lambda;
@@ -544,6 +564,7 @@ void model_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
+    TEST(test_boolify);
     TEST(test_model_construct_and_print);
     TEST(test_model_eval);
 }

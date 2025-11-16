@@ -12,13 +12,6 @@
 
 struct model
 {
-    // constructor for homogenous models
-    model(bool a_homogenous_value);
-
-    // constructor for non-homogenous models
-    model(std::unique_ptr<lambda::expr>&& a_func,
-          std::unique_ptr<model>&& a_negative_child,
-          std::unique_ptr<model>&& a_positive_child);
 
     // the function to evaluate the model
     std::optional<bool> eval(const std::unique_ptr<lambda::expr>* a_params,
@@ -26,6 +19,14 @@ struct model
                              size_t a_size_limit);
 
   private:
+    // constructor for homogenous models
+    model(bool a_homogenous_value);
+
+    // constructor for non-homogenous models
+    model(std::unique_ptr<lambda::expr>&& a_func,
+          std::unique_ptr<model>&& a_positive_child,
+          std::unique_ptr<model>&& a_negative_child);
+
     // describes the value of the bins
     const bool m_homogenous_value;
 
@@ -33,13 +34,25 @@ struct model
     const std::unique_ptr<lambda::expr> m_func;
 
     // the next functions to evaluate
-    const std::unique_ptr<model> m_negative_child;
     const std::unique_ptr<model> m_positive_child;
+    const std::unique_ptr<model> m_negative_child;
 
+    // friend operators
+    friend std::unique_ptr<model> m(bool a_value);
+    friend std::unique_ptr<model> m(std::unique_ptr<lambda::expr>&& a_func,
+                                    std::unique_ptr<model>&& a_positive_child,
+                                    std::unique_ptr<model>&& a_negative_child);
     friend std::ostream& operator<<(std::ostream& a_ostream,
                                     const model& a_model);
 };
 
+// factory functions for model
+std::unique_ptr<model> m(bool a_value);
+std::unique_ptr<model> m(std::unique_ptr<lambda::expr>&& a_func,
+                         std::unique_ptr<model>&& a_positive_child,
+                         std::unique_ptr<model>&& a_negative_child);
+
+// ostream inserter for model
 std::ostream& operator<<(std::ostream& a_ostream, const model& a_model);
 
 ////////////////////////////////////////////////////

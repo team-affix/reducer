@@ -6,12 +6,13 @@ model::model(bool a_homogenous_value)
       m_negative_child(nullptr), m_positive_child(nullptr)
 {
 }
+
 model::model(std::unique_ptr<lambda::expr>&& a_func,
-             std::unique_ptr<model>&& a_negative_child,
-             std::unique_ptr<model>&& a_positive_child)
+             std::unique_ptr<model>&& a_positive_child,
+             std::unique_ptr<model>&& a_negative_child)
     : m_homogenous_value(false), m_func(std::move(a_func)),
-      m_negative_child(std::move(a_negative_child)),
-      m_positive_child(std::move(a_positive_child))
+      m_positive_child(std::move(a_positive_child)),
+      m_negative_child(std::move(a_negative_child))
 {
 }
 
@@ -81,6 +82,20 @@ std::optional<bool> model::eval(const std::unique_ptr<lambda::expr>* a_params,
 
     // evaluate the child
     return l_child->eval(a_params, a_param_count, a_step_limit, a_size_limit);
+}
+
+std::unique_ptr<model> m(bool a_value)
+{
+    return std::unique_ptr<model>(new model(a_value));
+}
+
+std::unique_ptr<model> m(std::unique_ptr<lambda::expr>&& a_func,
+                         std::unique_ptr<model>&& a_positive_child,
+                         std::unique_ptr<model>&& a_negative_child)
+{
+    return std::unique_ptr<model>(new model(std::move(a_func),
+                                            std::move(a_positive_child),
+                                            std::move(a_negative_child)));
 }
 
 std::ostream& operator<<(std::ostream& a_ostream, const model& a_model)
@@ -224,17 +239,17 @@ build_model(const std::vector<const data_point*>& a_data,
     // if the data is homogenous, return the appropriate
     // constant
     if(l_data_is_homogenous)
-        return std::make_unique<model>(l_homogenous_value);
+        return m(l_homogenous_value);
 
     ////////////////////////////////////////////////////
     /////////////// CREATE BINNING FUNCTION ////////////
     ////////////////////////////////////////////////////
 
-    // construct the negative bin
-    std::vector<const data_point*> l_negative_bin;
-
     // construct the positive bin
     std::vector<const data_point*> l_positive_bin;
+
+    // construct the negative bin
+    std::vector<const data_point*> l_negative_bin;
 
     // declare the binning function body
     std::unique_ptr<lambda::expr> l_binning_function;
@@ -243,12 +258,12 @@ build_model(const std::vector<const data_point*>& a_data,
     bool l_normalization_complex = true;
 
     // loop until we have a contingent, terminating binning function
-    while(l_normalization_complex || l_negative_bin.empty() ||
-          l_positive_bin.empty())
+    while(l_normalization_complex || l_positive_bin.empty() ||
+          l_negative_bin.empty())
     {
         // clear BOTH bins in case one contains items
-        l_negative_bin.clear();
         l_positive_bin.clear();
+        l_negative_bin.clear();
         l_normalization_complex = true;
 
         // construct the binning function
@@ -298,20 +313,19 @@ build_model(const std::vector<const data_point*>& a_data,
     //////////////////////// RECUR /////////////////////
     ////////////////////////////////////////////////////
 
-    // construct the negative child
-    std::unique_ptr<model> l_negative_child =
-        build_model(l_negative_bin, a_helpers, a_step_limit, a_size_limit,
-                    a_arity, a_simulation, a_recursion_limit);
-
     // construct the positive child
     std::unique_ptr<model> l_positive_child =
         build_model(l_positive_bin, a_helpers, a_step_limit, a_size_limit,
                     a_arity, a_simulation, a_recursion_limit);
 
+    // construct the negative child
+    std::unique_ptr<model> l_negative_child =
+        build_model(l_negative_bin, a_helpers, a_step_limit, a_size_limit,
+                    a_arity, a_simulation, a_recursion_limit);
+
     // construct the final node
-    return std::make_unique<model>(std::move(l_binning_function),
-                                   std::move(l_negative_child),
-                                   std::move(l_positive_child));
+    return m(std::move(l_binning_function), std::move(l_positive_child),
+             std::move(l_negative_child));
 }
 
 // template <typename... Params>
@@ -398,201 +412,122 @@ build_model(const std::vector<const data_point*>& a_data,
 
 #ifdef UNIT_TEST
 #include "test_utils.hpp"
+#include <sstream>
 
-// void test_model_eval()
-// {
-//     // immediately homogenous (falsy) model
-//     {
-//         model l_model(false);
+void test_model_construct_and_print()
+{
+    using namespace lambda;
 
-//         // evaluate the model
-//         bool l_result = l_model.eval(nullptr, 0, 1000, 1000).value();
+    // falsy model
+    {
+        std::stringstream l_ss;
+        // falsy model
+        std::unique_ptr<model> l_model = m(false);
+        l_ss << *l_model;
+        assert(l_ss.str() == "false");
+    }
 
-//         // check the result
-//         assert(l_result == false);
-//     }
+    // truthy model
+    {
+        std::stringstream l_ss;
+        // truthy model
+        std::unique_ptr<model> l_model = m(true);
+        l_ss << *l_model;
+        assert(l_ss.str() == "true");
+    }
 
-//     // immediately homogenous (truthy) model
-//     {
-//         model l_model{.m_homogenous_value = true};
+    // var binning function with homogenous children
+    {
+        std::stringstream l_ss;
+        std::stringstream l_expected_ss;
+        std::unique_ptr<lambda::expr> l_binning_function = v(0);
+        // non-homogenous model with homogenous children
+        std::unique_ptr<model> l_model =
+            m(l_binning_function->clone(), m(true), m(false));
+        l_ss << *l_model;
+        std::cout << l_ss.str() << std::endl;
+        l_expected_ss << "[" << *l_binning_function << "] ? {true} : {false}";
+        assert(l_ss.str() == l_expected_ss.str());
+    }
 
-//         // evaluate the model
-//         bool l_result = l_model.eval(nullptr, 0);
+    // func binning function with homogenous children
+    {
+        std::stringstream l_ss;
+        std::stringstream l_expected_ss;
+        std::unique_ptr<lambda::expr> l_binning_function = f(v(0));
+        // non-homogenous model with homogenous children
+        std::unique_ptr<model> l_model =
+            m(l_binning_function->clone(), m(true), m(false));
+        l_ss << *l_model;
+        std::cout << l_ss.str() << std::endl;
+        l_expected_ss << "[" << *l_binning_function << "] ? {true} : {false}";
+        assert(l_ss.str() == l_expected_ss.str());
+    }
 
-//         // check the result
-//         assert(l_result == true);
-//     }
+    // app binning function with homogenous children
+    {
+        std::stringstream l_ss;
+        std::stringstream l_expected_ss;
+        std::unique_ptr<lambda::expr> l_binning_function = a(v(0), v(1));
+        std::unique_ptr<model> l_model =
+            m(l_binning_function->clone(), m(true), m(false));
+        l_ss << *l_model;
+        std::cout << l_ss.str() << std::endl;
+        l_expected_ss << "[" << *l_binning_function << "] ? {true} : {false}";
+        assert(l_ss.str() == l_expected_ss.str());
+    }
 
-//     // model with 1 binning function
-//     {
-//         // construct program
-//         program l_program;
+    // non-homogenous model with non-homogenous children
+    {
+        std::stringstream l_ss;
+        std::stringstream l_expected_ss;
+        std::unique_ptr<lambda::expr> l_binning_function = f(v(0));
+        std::unique_ptr<lambda::expr> l_positive_child_function = v(1);
+        std::unique_ptr<lambda::expr> l_negative_child_function = v(2);
+        std::unique_ptr<model> l_model =
+            m(l_binning_function->clone(),
+              m(l_positive_child_function->clone(), m(true), m(false)),
+              m(l_negative_child_function->clone(), m(false), m(true)));
+        l_ss << *l_model;
+        std::cout << l_ss.str() << std::endl;
+        l_expected_ss << "[" << *l_binning_function << "] ? {["
+                      << *l_positive_child_function
+                      << "] ? {true} : {false}} : {["
+                      << *l_negative_child_function << "] ? {false} : {true}}";
+        assert(l_ss.str() == l_expected_ss.str());
+    }
+}
 
-//         // add a primitive binning function
-//         auto l_func_0 = l_program.add_primitive(
-//             "bin0", std::function([](int a_x) { return a_x > 0; }));
+void test_model_eval()
+{
+    // immediately homogenous (falsy) model
+    {
+        std::unique_ptr<model> l_model = m(false);
 
-//         // construct model
-//         model l_model{.m_func = l_func_0};
+        // evaluate the model
+        bool l_result = l_model->eval(nullptr, 0, 1000, 1000).value();
 
-//         // construct left child
-//         l_model.m_negative_child =
-//             std::make_unique<model>(model{.m_homogenous_value = false});
+        // check the result
+        assert(l_result == false);
+    }
 
-//         // construct right child
-//         l_model.m_positive_child =
-//             std::make_unique<model>(model{.m_homogenous_value = true});
+    // immediately homogenous (truthy) model
+    {
+        std::unique_ptr<model> l_model = m(true);
 
-//         // construct input
-//         std::vector<std::any> l_input;
+        // evaluate the model
+        bool l_result = l_model->eval(nullptr, 0, 1000, 1000).value();
 
-//         // test truthy input
-//         l_input = {10};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // test falsy inputs
-//         l_input = {-10};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == false);
-//     }
-
-//     // model with 1 binning function and a left child
-//     {
-//         // construct program
-//         program l_program;
-
-//         // add a primitive binning function
-//         auto l_func_0 = l_program.add_primitive(
-//             "bin0", std::function([](int a_x) { return a_x > 0; })); //
-//             positive
-
-//         // add another primitive binning function
-//         auto l_func_1 = l_program.add_primitive(
-//             "bin1",
-//             std::function([](int a_x) { return a_x % 2 == 0; })); // even
-
-//         // construct model
-//         model l_model{.m_func = l_func_0};
-
-//         // construct left child
-//         l_model.m_negative_child =
-//             std::make_unique<model>(model{.m_func = l_func_1});
-
-//         // construct left-left child and left-right child
-//         l_model.m_negative_child->m_negative_child =
-//             std::make_unique<model>(model{.m_homogenous_value = false});
-//         l_model.m_negative_child->m_positive_child =
-//             std::make_unique<model>(model{.m_homogenous_value = true});
-
-//         // construct right child
-//         l_model.m_positive_child =
-//             std::make_unique<model>(model{.m_homogenous_value = true});
-
-//         // construct input
-//         std::vector<std::any> l_input;
-
-//         // test input 10 (positive and even)
-//         l_input = {10};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // test input 7 (positive and odd)
-//         l_input = {7};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // test input -10 (negative and even)
-//         l_input = {-10};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // test input -7 (negative and odd)
-//         l_input = {-7};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == false);
-//     }
-
-//     // model with 1 binning function and a left, and right child
-//     {
-//         // construct program
-//         program l_program;
-
-//         // add a primitive binning function
-//         auto l_func_0 = l_program.add_primitive(
-//             "bin0", std::function([](int a_x) { return a_x > 0; })); //
-//             positive
-
-//         // add another primitive binning function
-//         auto l_func_1 = l_program.add_primitive(
-//             "bin1",
-//             std::function([](int a_x) { return a_x % 2 == 0; })); // even
-
-//         // add another primitive binning function
-//         auto l_func_2 = l_program.add_primitive(
-//             "bin2", std::function([](int a_x)
-//                                   { return a_x % 3 == 0; })); // divisible by
-//                                   3
-
-//         // construct model
-//         model l_model{.m_func = l_func_0};
-
-//         // construct left child
-//         l_model.m_negative_child =
-//             std::make_unique<model>(model{.m_func = l_func_1});
-
-//         // construct left-left child and left-right child
-//         l_model.m_negative_child->m_negative_child =
-//             std::make_unique<model>(model{.m_homogenous_value = false});
-//         l_model.m_negative_child->m_positive_child =
-//             std::make_unique<model>(model{.m_homogenous_value = true});
-
-//         // construct right child
-//         l_model.m_positive_child =
-//             std::make_unique<model>(model{.m_func = l_func_2});
-
-//         // construct right-left child and right-right child
-//         l_model.m_positive_child->m_negative_child =
-//             std::make_unique<model>(model{.m_homogenous_value = false});
-//         l_model.m_positive_child->m_positive_child =
-//             std::make_unique<model>(model{.m_homogenous_value = true});
-
-//         // construct input
-//         std::vector<std::any> l_input;
-
-//         // positive, even, divisible by 3
-//         l_input = {6};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // positive, even, not divisible by 3
-//         l_input = {4};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == false);
-
-//         // positive, odd, divisible by 3
-//         l_input = {9};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // positive, odd, not divisible by 3
-//         l_input = {7};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == false);
-
-//         // negative, even, divisible by 3
-//         l_input = {-6};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // negative, even, not divisible by 3
-//         l_input = {-4};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == true);
-
-//         // negative, odd, divisible by 3
-//         l_input = {-9};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == false);
-
-//         // negative, odd, not divisible by 3
-//         l_input = {-7};
-//         assert(l_model.eval(l_input.data(), l_input.size()) == false);
-//     }
-// }
+        // check the result
+        assert(l_result == true);
+    }
+}
 
 void model_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
-    // TEST(test_model_eval);
+    TEST(test_model_construct_and_print);
 }
 
 #endif // UNIT_TEST

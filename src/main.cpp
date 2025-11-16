@@ -13,7 +13,7 @@ void unit_test_main()
     // TEST(scope_test_main);
     // TEST(func_test_main);
     // TEST(program_test_main);
-    // TEST(model_test_main);
+    TEST(model_test_main);
     // TEST(reduce_test_main);
 }
 

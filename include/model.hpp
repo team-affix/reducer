@@ -12,11 +12,11 @@
 
 struct model
 {
-
     // the function to evaluate the model
-    std::optional<bool> eval(const std::unique_ptr<lambda::expr>* a_params,
-                             size_t a_param_count, size_t a_step_limit,
-                             size_t a_size_limit);
+    std::optional<bool>
+    eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+         const std::unique_ptr<lambda::expr>* a_params, size_t a_param_count,
+         size_t a_step_limit, size_t a_size_limit);
 
   private:
     // constructor for homogenous models

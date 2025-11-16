@@ -1,36 +1,6 @@
 #include "../include/model.hpp"
 #include <cassert>
 
-model::model(bool a_homogenous_value)
-    : m_homogenous_value(a_homogenous_value), m_func(nullptr),
-      m_negative_child(nullptr), m_positive_child(nullptr)
-{
-}
-
-model::model(std::unique_ptr<lambda::expr>&& a_func,
-             std::unique_ptr<model>&& a_positive_child,
-             std::unique_ptr<model>&& a_negative_child)
-    : m_homogenous_value(false), m_func(std::move(a_func)),
-      m_positive_child(std::move(a_positive_child)),
-      m_negative_child(std::move(a_negative_child))
-{
-}
-
-// builds an application tower of the binning function and params
-lambda::expr::normalize_result
-call_function(const std::unique_ptr<lambda::expr>& a_function,
-              const std::unique_ptr<lambda::expr>* a_params,
-              size_t a_param_count, size_t a_step_limit, size_t a_size_limit)
-{
-    // construct the application of the binning function to the parameters
-    auto l_app = a_function->clone();
-    for(size_t i = 0; i < a_param_count; ++i)
-        l_app = a(std::move(l_app), a_params[i]->clone());
-
-    // normalize the application
-    return l_app->normalize(a_step_limit, a_size_limit);
-}
-
 bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
 {
     using namespace lambda;
@@ -55,19 +25,23 @@ bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
     }
 }
 
-std::optional<bool> model::eval(const std::unique_ptr<lambda::expr>* a_params,
-                                size_t a_param_count, size_t a_step_limit,
-                                size_t a_size_limit)
+std::optional<bool>
+eval_binning_program(const std::unique_ptr<lambda::expr>& a_binning_program,
+                     const std::unique_ptr<lambda::expr>* a_params,
+                     size_t a_param_count, size_t a_step_limit,
+                     size_t a_size_limit)
 {
     using namespace lambda;
 
-    // if the model is homogenous, then return the homogenous value
-    if(m_func == nullptr)
-        return m_homogenous_value;
+    auto l_norm_operand = a_binning_program->clone();
 
-    // evaluate the binning function
-    auto l_normalize_result = call_function(m_func, a_params, a_param_count,
-                                            a_step_limit, a_size_limit);
+    // build the application tower
+    for(size_t i = 0; i < a_param_count; ++i)
+        l_norm_operand = a(std::move(l_norm_operand), a_params[i]->clone());
+
+    // normalize the application
+    auto l_normalize_result =
+        l_norm_operand->normalize(a_step_limit, a_size_limit);
 
     // if the evaluation is too complex, return std::nullopt
     if(l_normalize_result.m_step_excess || l_normalize_result.m_size_excess)
@@ -76,13 +50,60 @@ std::optional<bool> model::eval(const std::unique_ptr<lambda::expr>* a_params,
     // boolify the result
     bool l_binning_result = boolify(l_normalize_result.m_expr);
 
+    // return the result
+    return l_binning_result;
+}
+
+model::model(bool a_homogenous_value)
+    : m_homogenous_value(a_homogenous_value), m_func(nullptr),
+      m_negative_child(nullptr), m_positive_child(nullptr)
+{
+}
+
+model::model(std::unique_ptr<lambda::expr>&& a_func,
+             std::unique_ptr<model>&& a_positive_child,
+             std::unique_ptr<model>&& a_negative_child)
+    : m_homogenous_value(false), m_func(std::move(a_func)),
+      m_positive_child(std::move(a_positive_child)),
+      m_negative_child(std::move(a_negative_child))
+{
+}
+
+std::optional<bool>
+model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+            const std::unique_ptr<lambda::expr>* a_params, size_t a_param_count,
+            size_t a_step_limit, size_t a_size_limit)
+{
+    using namespace lambda;
+
+    // if the model is homogenous, then return the homogenous value
+    if(m_func == nullptr)
+        return m_homogenous_value;
+
+    // construct the binning program
+    auto l_binning_program =
+        construct_program(a_helpers.begin(), a_helpers.end(), m_func->clone());
+
+    // evaluate the binning program
+    auto l_binning_result = eval_binning_program(
+        l_binning_program, a_params, a_param_count, a_step_limit, a_size_limit);
+
+    // if the binning function evaluation is too complex, return std::nullopt
+    if(!l_binning_result.has_value())
+        return std::nullopt;
+
     // get the appropriate child
     const auto& l_child =
-        l_binning_result ? m_positive_child : m_negative_child;
+        (*l_binning_result) ? m_positive_child : m_negative_child;
 
     // evaluate the child
-    return l_child->eval(a_params, a_param_count, a_step_limit, a_size_limit);
+    return l_child->eval(a_helpers, a_params, a_param_count, a_step_limit,
+                         a_size_limit);
 }
+
+////////////////////////////////////////////////////
+//////////////// FACTORY FUNCTIONS /////////////////
+////////////////////////////////////////////////////
 
 std::unique_ptr<model> m(bool a_value)
 {
@@ -255,16 +276,16 @@ build_model(const std::vector<const data_point*>& a_data,
     std::unique_ptr<lambda::expr> l_binning_function;
 
     // track if the normalization is complex (too many steps or size)
-    bool l_normalization_complex = true;
+    bool l_normalization_complex = false;
 
     // loop until we have a contingent, terminating binning function
-    while(l_normalization_complex || l_positive_bin.empty() ||
-          l_negative_bin.empty())
+    while(l_positive_bin.empty() || l_negative_bin.empty() ||
+          l_normalization_complex)
     {
         // clear BOTH bins in case one contains items
         l_positive_bin.clear();
         l_negative_bin.clear();
-        l_normalization_complex = true;
+        l_normalization_complex = false;
 
         // construct the binning function
         // [create a binning function that will bin (evaluate
@@ -272,9 +293,9 @@ build_model(const std::vector<const data_point*>& a_data,
         l_binning_function = build_function(a_helpers.size(), a_arity,
                                             a_simulation, a_recursion_limit);
 
-        // replace binning function with program given binning function as main
-        l_binning_function = construct_program(
-            a_helpers.begin(), a_helpers.end(), l_binning_function);
+        // construct the binning program
+        auto l_binning_program = construct_program(
+            a_helpers.begin(), a_helpers.end(), l_binning_function->clone());
 
         ////////////////////////////////////////////////////
         ////////////// EVALUATE BINNING FUNCTION ///////////
@@ -285,24 +306,20 @@ build_model(const std::vector<const data_point*>& a_data,
         for(const auto* l_data_point : a_data)
         {
             // evaluate the binning function
-            auto l_normalize_result = call_function(
-                l_binning_function, l_data_point->m_inputs.data(),
+            auto l_normalize_result = eval_binning_program(
+                l_binning_program, l_data_point->m_inputs.data(),
                 l_data_point->m_inputs.size(), a_step_limit, a_size_limit);
 
             // if the evaluation is too complex, set normalization complex flag
             // then break to prevent evaluating any more data points.
-            if(l_normalize_result.m_step_excess ||
-               l_normalize_result.m_size_excess)
+            if(!l_normalize_result.has_value())
             {
                 l_normalization_complex = true;
                 break;
             }
 
-            // boolify the result
-            bool l_binning_result = boolify(l_normalize_result.m_expr);
-
             // store in the appropriate bin
-            if(l_binning_result)
+            if(*l_normalize_result)
                 l_positive_bin.emplace_back(l_data_point);
             else
                 l_negative_bin.emplace_back(l_data_point);
@@ -505,7 +522,7 @@ void test_model_eval()
         std::unique_ptr<model> l_model = m(false);
 
         // evaluate the model
-        bool l_result = l_model->eval(nullptr, 0, 1000, 1000).value();
+        bool l_result = l_model->eval({}, nullptr, 0, 1000, 1000).value();
 
         // check the result
         assert(l_result == false);
@@ -516,7 +533,7 @@ void test_model_eval()
         std::unique_ptr<model> l_model = m(true);
 
         // evaluate the model
-        bool l_result = l_model->eval(nullptr, 0, 1000, 1000).value();
+        bool l_result = l_model->eval({}, nullptr, 0, 1000, 1000).value();
 
         // check the result
         assert(l_result == true);
@@ -528,6 +545,7 @@ void model_test_main()
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
     TEST(test_model_construct_and_print);
+    TEST(test_model_eval);
 }
 
 #endif // UNIT_TEST

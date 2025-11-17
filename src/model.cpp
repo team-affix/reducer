@@ -449,6 +449,14 @@ void test_boolify()
     assert(boolify(a(f(v(2)), v(3))) == true);
     assert(boolify(a(v(2), f(v(3)))) == true);
     assert(boolify(a(f(v(2)), f(v(3)))) == true);
+
+    // church bools
+    assert(boolify(f(f(v(0)))) == true);
+    assert(boolify(f(f(v(1)))) == false);
+
+    // zero and one are falsy and truthy respectively
+    assert(boolify(f(f(v(1)))) == false);
+    assert(boolify(f(f(a(v(0), v(1))))) == true);
 }
 
 void test_eval_binning_program()

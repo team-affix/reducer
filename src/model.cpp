@@ -528,7 +528,7 @@ void test_eval_binning_program()
                 .value() == false);
     }
 
-    // succ of zero, step limit 100, size limit 100, should be easy to eval
+    // zero and one are falsy and truthy respectively
     {
         std::list<std::unique_ptr<lambda::expr>> l_helpers;
 
@@ -564,6 +564,34 @@ void test_eval_binning_program()
         // evaluate the binning program
         assert(eval_binning_program(l_one_binning_program, nullptr, 0, 100, 100)
                    .value() == true);
+    }
+
+    // succ of zero, step limit 4, size limit 100, should be too complex to eval
+    {
+        std::list<std::unique_ptr<lambda::expr>> l_helpers;
+
+        // l() and g() pattern
+        auto l = [&l_helpers](size_t a_index)
+        { return v(a_index + l_helpers.size()); };
+        auto g = [](size_t a_index) { return v(a_index); };
+
+        // construct the helpers
+        // 0
+        const auto ZERO = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(1))));
+
+        // succ
+        const auto SUCC = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
+
+        // construct the binning program (succ of zero)
+        std::unique_ptr<lambda::expr> l_one_binning_program =
+            construct_program(l_helpers.begin(), l_helpers.end(),
+                              a(SUCC->clone(), ZERO->clone()));
+
+        // evaluate the binning program
+        assert(eval_binning_program(l_one_binning_program, nullptr, 0, 4,
+                                    100) == std::nullopt);
     }
 }
 

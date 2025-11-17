@@ -720,6 +720,8 @@ void test_model_construct_and_print()
 
 void test_model_eval()
 {
+    using namespace lambda;
+
     // immediately homogenous (falsy) model
     {
         std::unique_ptr<model> l_model = m(false);
@@ -740,6 +742,142 @@ void test_model_eval()
 
         // check the result
         assert(l_result == true);
+    }
+
+    // unary model (constant fn)
+    {
+        auto l_model = m(f(v(0)), m(true), m(false));
+        // construct arg
+        auto l_truthy_arg = v(54);
+        auto l_falsy_arg = v(55);
+        // evaluate the model
+        bool l_result = l_model->eval({}, &l_truthy_arg, 1, 1000, 1000).value();
+        // check the result
+        assert(l_result == true);
+        // evaluate the model
+        l_result = l_model->eval({}, &l_falsy_arg, 1, 1000, 1000).value();
+        // check the result
+        assert(l_result == false);
+    }
+
+    // unary model (constant fn) (inverted bins)
+    {
+        auto l_model = m(f(v(0)), m(false), m(true));
+        // construct arg
+        auto l_truthy_arg = v(54);
+        auto l_falsy_arg = v(55);
+        // evaluate the model
+        bool l_result = l_model->eval({}, &l_truthy_arg, 1, 1000, 1000).value();
+        // check the result
+        assert(l_result == false);
+        // evaluate the model
+        l_result = l_model->eval({}, &l_falsy_arg, 1, 1000, 1000).value();
+        // check the result
+        assert(l_result == true);
+    }
+
+    // ternary model (selector btw two values)
+    {
+        // takes in condition, branch 0, branch 1
+        auto l_model = m(f(f(f(a(a(v(0), v(1)), v(2))))), m(true), m(false));
+        // define TRUE
+        auto TRUE = f(f(v(0)));
+        // define FALSE
+        auto FALSE = f(f(v(1)));
+        // construct arg
+        std::vector<std::unique_ptr<lambda::expr>> l_truthy_args;
+        l_truthy_args.push_back(TRUE->clone());
+        l_truthy_args.push_back(v(54));
+        l_truthy_args.push_back(v(55));
+        // construct arg
+        std::vector<std::unique_ptr<lambda::expr>> l_falsy_args;
+        l_falsy_args.push_back(FALSE->clone());
+        l_falsy_args.push_back(v(54));
+        l_falsy_args.push_back(v(55));
+        // evaluate the model
+        bool l_result = l_model
+                            ->eval({}, l_truthy_args.data(),
+                                   l_truthy_args.size(), 1000, 1000)
+                            .value();
+        // check the result
+        assert(l_result == true);
+        // evaluate the model
+        l_result =
+            l_model
+                ->eval({}, l_falsy_args.data(), l_falsy_args.size(), 1000, 1000)
+                .value();
+        // check the result
+        assert(l_result == false);
+    }
+
+    // ternary model (simple boolean function)
+    {
+        // takes in condition, branch 0, branch 1
+        auto l_root_bf = f(f(f(v(0))));
+        auto l_left_bf = f(f(f(v(1))));
+        auto l_right_bf = f(f(f(v(2))));
+        // define model
+        auto l_model =
+            m(l_root_bf->clone(), m(l_left_bf->clone(), m(true), m(false)),
+              m(l_right_bf->clone(), m(false), m(true)));
+        // define TRUE
+        auto TRUE = f(f(v(0)));
+        // define FALSE
+        auto FALSE = f(f(v(1)));
+        // construct 8 truth rows
+        std::vector<std::unique_ptr<lambda::expr>> l_row_0;
+        l_row_0.push_back(FALSE->clone());
+        l_row_0.push_back(FALSE->clone());
+        l_row_0.push_back(FALSE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_1;
+        l_row_1.push_back(FALSE->clone());
+        l_row_1.push_back(FALSE->clone());
+        l_row_1.push_back(TRUE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_2;
+        l_row_2.push_back(FALSE->clone());
+        l_row_2.push_back(TRUE->clone());
+        l_row_2.push_back(FALSE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_3;
+        l_row_3.push_back(FALSE->clone());
+        l_row_3.push_back(TRUE->clone());
+        l_row_3.push_back(TRUE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_4;
+        l_row_4.push_back(TRUE->clone());
+        l_row_4.push_back(FALSE->clone());
+        l_row_4.push_back(FALSE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_5;
+        l_row_5.push_back(TRUE->clone());
+        l_row_5.push_back(FALSE->clone());
+        l_row_5.push_back(TRUE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_6;
+        l_row_6.push_back(TRUE->clone());
+        l_row_6.push_back(TRUE->clone());
+        l_row_6.push_back(FALSE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_row_7;
+        l_row_7.push_back(TRUE->clone());
+        l_row_7.push_back(TRUE->clone());
+        l_row_7.push_back(TRUE->clone());
+
+        // evaluate the model
+        auto l_row_result = [&l_model](auto& a_args) -> std::optional<bool>
+        { return l_model->eval({}, a_args.data(), a_args.size(), 1000, 1000); };
+
+        // evaluate the rows
+        assert(l_row_result(l_row_0) == true);
+        assert(l_row_result(l_row_1) == false);
+        assert(l_row_result(l_row_2) == true);
+        assert(l_row_result(l_row_3) == false);
+        assert(l_row_result(l_row_4) == false);
+        assert(l_row_result(l_row_5) == false);
+        assert(l_row_result(l_row_6) == true);
+        assert(l_row_result(l_row_7) == true);
     }
 }
 

@@ -26,18 +26,22 @@ bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
 }
 
 std::optional<bool>
-eval_binning_program(const std::unique_ptr<lambda::expr>& a_binning_program,
-                     const std::unique_ptr<lambda::expr>* a_params,
-                     size_t a_param_count, size_t a_step_limit,
-                     size_t a_size_limit)
+eval_binning_function(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+                      const std::unique_ptr<lambda::expr>& a_binning_function,
+                      const std::unique_ptr<lambda::expr>* a_args,
+                      size_t a_arity, size_t a_step_limit, size_t a_size_limit)
 {
     using namespace lambda;
 
-    auto l_norm_operand = a_binning_program->clone();
+    auto l_norm_operand = a_binning_function->clone();
 
     // build the application tower
-    for(size_t i = 0; i < a_param_count; ++i)
-        l_norm_operand = a(std::move(l_norm_operand), a_params[i]->clone());
+    for(size_t i = 0; i < a_arity; ++i)
+        l_norm_operand = a(std::move(l_norm_operand), a_args[i]->clone());
+
+    // construct the program
+    l_norm_operand =
+        construct_program(a_helpers.begin(), a_helpers.end(), l_norm_operand);
 
     // normalize the application
     auto l_normalize_result =
@@ -71,7 +75,7 @@ model::model(std::unique_ptr<lambda::expr>&& a_func,
 
 std::optional<bool>
 model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
-            const std::unique_ptr<lambda::expr>* a_params, size_t a_param_count,
+            const std::unique_ptr<lambda::expr>* a_args, size_t a_arity,
             size_t a_step_limit, size_t a_size_limit)
 {
     using namespace lambda;
@@ -80,13 +84,9 @@ model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
     if(m_func == nullptr)
         return m_homogenous_value;
 
-    // construct the binning program
-    auto l_binning_program =
-        construct_program(a_helpers.begin(), a_helpers.end(), m_func->clone());
-
-    // evaluate the binning program
-    auto l_binning_result = eval_binning_program(
-        l_binning_program, a_params, a_param_count, a_step_limit, a_size_limit);
+    // evaluate the binning function
+    auto l_binning_result = eval_binning_function(
+        a_helpers, m_func, a_args, a_arity, a_step_limit, a_size_limit);
 
     // if the binning function evaluation is too complex, return std::nullopt
     if(!l_binning_result.has_value())
@@ -97,7 +97,7 @@ model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
         (*l_binning_result) ? m_positive_child : m_negative_child;
 
     // evaluate the child
-    return l_child->eval(a_helpers, a_params, a_param_count, a_step_limit,
+    return l_child->eval(a_helpers, a_args, a_arity, a_step_limit,
                          a_size_limit);
 }
 
@@ -293,10 +293,6 @@ build_model(const std::vector<const data_point*>& a_data,
         l_binning_function = build_function(a_helpers.size(), a_arity,
                                             a_simulation, a_recursion_limit);
 
-        // construct the binning program
-        auto l_binning_program = construct_program(
-            a_helpers.begin(), a_helpers.end(), l_binning_function->clone());
-
         ////////////////////////////////////////////////////
         ////////////// EVALUATE BINNING FUNCTION ///////////
         ////////////////////////////////////////////////////
@@ -306,8 +302,8 @@ build_model(const std::vector<const data_point*>& a_data,
         for(const auto* l_data_point : a_data)
         {
             // evaluate the binning function
-            auto l_normalize_result = eval_binning_program(
-                l_binning_program, l_data_point->m_inputs.data(),
+            auto l_normalize_result = eval_binning_function(
+                a_helpers, l_binning_function, l_data_point->m_inputs.data(),
                 l_data_point->m_inputs.size(), a_step_limit, a_size_limit);
 
             // if the evaluation is too complex, set normalization complex flag
@@ -461,45 +457,49 @@ void test_boolify()
     assert(boolify(f(f(a(v(0), a(v(0), v(1)))))) == true);
 }
 
-void test_eval_binning_program()
+void test_eval_binning_function()
 {
     using namespace lambda;
 
     // var 0, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_program = v(0);
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        std::unique_ptr<lambda::expr> l_binning_function = v(0);
+        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
+                                     1000)
                    .value() == true);
     }
 
     // var 1, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_program = v(1);
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        std::unique_ptr<lambda::expr> l_binning_function = v(1);
+        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
+                                     1000)
                    .value() == false);
     }
 
     // func 0, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_program = f(v(0));
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        std::unique_ptr<lambda::expr> l_binning_function = f(v(0));
+        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
+                                     1000)
                    .value() == true);
     }
 
     // func 1, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_program = f(v(1));
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        std::unique_ptr<lambda::expr> l_binning_function = f(v(1));
+        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
+                                     1000)
                    .value() == false);
     }
 
     // omega (omega combinator), step limit 100, size limit 100, should be too
     // complex to evaluate
     {
-        std::unique_ptr<lambda::expr> l_binning_program =
+        std::unique_ptr<lambda::expr> l_binning_function =
             a(f(a(v(0), v(0))), f(a(v(0), v(0))));
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 100, 100) ==
-               std::nullopt);
+        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 100,
+                                     100) == std::nullopt);
     }
 
     // church bools, (make sure true is truthy and false is falsy)
@@ -517,25 +517,15 @@ void test_eval_binning_program()
         const auto FALSE = g(l_helpers.size());
         l_helpers.push_back(f(f(l(1))));
 
-        // construct the binning program
-        std::unique_ptr<lambda::expr> l_true_binning_program =
-            construct_program(l_helpers.begin(), l_helpers.end(),
-                              TRUE->clone());
+        // evaluate the binning function
+        assert(eval_binning_function(l_helpers, TRUE->clone(), nullptr, 0, 100,
+                                     100)
+                   .value() == true);
 
-        // construct the binning program
-        std::unique_ptr<lambda::expr> l_false_binning_program =
-            construct_program(l_helpers.begin(), l_helpers.end(),
-                              FALSE->clone());
-
-        // evaluate the binning program
-        assert(
-            eval_binning_program(l_true_binning_program, nullptr, 0, 100, 100)
-                .value() == true);
-
-        // evaluate the binning program
-        assert(
-            eval_binning_program(l_false_binning_program, nullptr, 0, 100, 100)
-                .value() == false);
+        // evaluate the binning function
+        assert(eval_binning_function(l_helpers, FALSE->clone(), nullptr, 0, 100,
+                                     100)
+                   .value() == false);
     }
 
     // zero and one are falsy and truthy respectively
@@ -556,23 +546,14 @@ void test_eval_binning_program()
         const auto SUCC = g(l_helpers.size());
         l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
-        // construct the binning program (zero)
-        std::unique_ptr<lambda::expr> l_zero_binning_program =
-            construct_program(l_helpers.begin(), l_helpers.end(),
-                              ZERO->clone());
-
-        // construct the binning program (succ of zero)
-        std::unique_ptr<lambda::expr> l_one_binning_program =
-            construct_program(l_helpers.begin(), l_helpers.end(),
-                              a(SUCC->clone(), ZERO->clone()));
+        // evaluate the binning program
+        assert(eval_binning_function(l_helpers, ZERO->clone(), nullptr, 0, 100,
+                                     100)
+                   .value() == false);
 
         // evaluate the binning program
-        assert(
-            eval_binning_program(l_zero_binning_program, nullptr, 0, 100, 100)
-                .value() == false);
-
-        // evaluate the binning program
-        assert(eval_binning_program(l_one_binning_program, nullptr, 0, 100, 100)
+        assert(eval_binning_function(l_helpers, a(SUCC->clone(), ZERO->clone()),
+                                     nullptr, 0, 100, 100)
                    .value() == true);
     }
 
@@ -594,14 +575,9 @@ void test_eval_binning_program()
         const auto SUCC = g(l_helpers.size());
         l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
-        // construct the binning program (succ of zero)
-        std::unique_ptr<lambda::expr> l_one_binning_program =
-            construct_program(l_helpers.begin(), l_helpers.end(),
-                              a(SUCC->clone(), ZERO->clone()));
-
         // evaluate the binning program
-        assert(eval_binning_program(l_one_binning_program, nullptr, 0, 4,
-                                    100) == std::nullopt);
+        assert(eval_binning_function(l_helpers, a(SUCC->clone(), ZERO->clone()),
+                                     nullptr, 0, 4, 100) == std::nullopt);
     }
 
     // succ of zero, step limit 100, size limit 10, should be too complex to
@@ -623,14 +599,9 @@ void test_eval_binning_program()
         const auto SUCC = g(l_helpers.size());
         l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
-        // construct the binning program (succ of zero)
-        std::unique_ptr<lambda::expr> l_one_binning_program =
-            construct_program(l_helpers.begin(), l_helpers.end(),
-                              a(SUCC->clone(), ZERO->clone()));
-
         // evaluate the binning program
-        assert(eval_binning_program(l_one_binning_program, nullptr, 0, 100,
-                                    10) == std::nullopt);
+        assert(eval_binning_function(l_helpers, a(SUCC->clone(), ZERO->clone()),
+                                     nullptr, 0, 100, 10) == std::nullopt);
     }
 }
 
@@ -879,6 +850,131 @@ void test_model_eval()
         assert(l_row_result(l_row_6) == true);
         assert(l_row_result(l_row_7) == true);
     }
+
+    // unary model (cascading inqeualities)
+    {
+        // define helpers
+        std::list<std::unique_ptr<lambda::expr>> l_helpers;
+
+        // l() and g() pattern
+        auto l = [&l_helpers](size_t a_index)
+        { return v(a_index + l_helpers.size()); };
+        auto g = [](size_t a_index) { return v(a_index); };
+
+        // define TRUE
+        const auto TRUE = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(0))));
+
+        // define FALSE
+        const auto FALSE = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(1))));
+
+        // define NOT
+        const auto NOT = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(a(l(0), FALSE->clone()), TRUE->clone())));
+
+        // define zero
+        const auto ZERO = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(1))));
+
+        // define succ
+        const auto SUCC = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
+
+        // define isZero
+        const auto IS_ZERO = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(a(l(0), f(FALSE->clone())), TRUE->clone())));
+
+        // define pair
+        const auto PAIR = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(f(a(a(l(2), l(0)), l(1))))));
+
+        // define fst
+        const auto FST = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(l(0), TRUE->clone())));
+
+        // define snd
+        const auto SND = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(l(0), FALSE->clone())));
+
+        // define pred
+        const auto PRED = g(l_helpers.size());
+        l_helpers.emplace_back(
+            f(a(FST->clone(),
+                a(a(l(0), // n
+                    f(a(a(PAIR->clone(), a(SND->clone(),
+                                           l(1) // p
+                                           )),
+                        a(SUCC->clone(), a(SND->clone(),
+                                           l(1) // p
+                                           ))))),
+                  a(a(PAIR->clone(), ZERO->clone()), ZERO->clone())))));
+
+        // define sub
+        const auto SUB = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(a(a(l(1), // n
+                                       PRED->clone()),
+                                     l(0) // m
+                                     ))));
+
+        // define lessThan
+        const auto LESS_THAN = g(l_helpers.size());
+        l_helpers.emplace_back(
+            f(f(a(NOT->clone(), a(IS_ZERO->clone(), a(a(SUB->clone(),
+                                                        l(1) // n
+                                                        ),
+                                                      l(0) // m
+                                                      ))))));
+
+        // helper function to make a church numeral
+        const auto l_numeral =
+            [&ZERO, &SUCC](size_t a_numeral) -> std::unique_ptr<lambda::expr>
+        {
+            auto l_result = ZERO->clone();
+            for(size_t i = 0; i < a_numeral; ++i)
+                l_result = a(SUCC->clone(), std::move(l_result));
+            return std::move(l_result);
+        };
+
+        // define the root binning function
+        auto l_root_bf = f(a(a(LESS_THAN->clone(), l(0)), l_numeral(24)));
+
+        // define the model
+        auto l_model = m(l_root_bf->clone(), m(true), m(false));
+
+        // construct sample inputs
+        std::unique_ptr<lambda::expr> l_input_0 = l_numeral(7);
+        std::unique_ptr<lambda::expr> l_input_1 = l_numeral(16);
+        std::unique_ptr<lambda::expr> l_input_2 = l_numeral(42);
+        std::unique_ptr<lambda::expr> l_input_3 = l_numeral(2);
+        std::unique_ptr<lambda::expr> l_input_4 = l_numeral(13);
+        std::unique_ptr<lambda::expr> l_input_5 = l_numeral(99);
+        std::unique_ptr<lambda::expr> l_input_6 = l_numeral(64);
+        std::unique_ptr<lambda::expr> l_input_7 = l_numeral(0);
+        std::unique_ptr<lambda::expr> l_input_8 = l_numeral(27);
+        std::unique_ptr<lambda::expr> l_input_9 = l_numeral(8);
+        std::unique_ptr<lambda::expr> l_input_10 = l_numeral(51);
+        std::unique_ptr<lambda::expr> l_input_11 = l_numeral(31);
+
+        // evaluate the model
+        auto l_row_result = [&l_helpers,
+                             &l_model](const auto& a_arg) -> std::optional<bool>
+        { return l_model->eval(l_helpers, &a_arg, 1, 10000, 10000); };
+
+        // evaluate the rows (is input less than 24?)
+        assert(l_row_result(l_input_0) == true);   // 7 < 24
+        assert(l_row_result(l_input_1) == true);   // 16 < 24
+        assert(l_row_result(l_input_2) == false);  // 42 >= 24
+        assert(l_row_result(l_input_3) == true);   // 2 < 24
+        assert(l_row_result(l_input_4) == true);   // 13 < 24
+        assert(l_row_result(l_input_5) == false);  // 99 >= 24
+        assert(l_row_result(l_input_6) == false);  // 64 >= 24
+        assert(l_row_result(l_input_7) == true);   // 0 < 24
+        assert(l_row_result(l_input_8) == false);  // 27 >= 24
+        assert(l_row_result(l_input_9) == true);   // 8 < 24
+        assert(l_row_result(l_input_10) == false); // 51 >= 24
+        assert(l_row_result(l_input_11) == false); // 31 >= 24
+    }
 }
 
 void model_test_main()
@@ -886,7 +982,7 @@ void model_test_main()
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
     TEST(test_boolify);
-    TEST(test_eval_binning_program);
+    TEST(test_eval_binning_function);
     TEST(test_model_construct_and_print);
     TEST(test_model_eval);
 }

@@ -851,7 +851,7 @@ void test_model_eval()
         assert(l_row_result(l_row_7) == true);
     }
 
-    // unary model (cascading inqeualities)
+    // unary model (single inequality)
     {
         // define helpers
         std::list<std::unique_ptr<lambda::expr>> l_helpers;
@@ -974,6 +974,151 @@ void test_model_eval()
         assert(l_row_result(l_input_9) == true);   // 8 < 24
         assert(l_row_result(l_input_10) == false); // 51 >= 24
         assert(l_row_result(l_input_11) == false); // 31 >= 24
+    }
+
+    // unary model (cascading inqeualities)
+    {
+        // define helpers
+        std::list<std::unique_ptr<lambda::expr>> l_helpers;
+
+        // l() and g() pattern
+        auto l = [&l_helpers](size_t a_index)
+        { return v(a_index + l_helpers.size()); };
+        auto g = [](size_t a_index) { return v(a_index); };
+
+        // define TRUE
+        const auto TRUE = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(0))));
+
+        // define FALSE
+        const auto FALSE = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(1))));
+
+        // define NOT
+        const auto NOT = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(a(l(0), FALSE->clone()), TRUE->clone())));
+
+        // define zero
+        const auto ZERO = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(l(1))));
+
+        // define succ
+        const auto SUCC = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
+
+        // define isZero
+        const auto IS_ZERO = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(a(l(0), f(FALSE->clone())), TRUE->clone())));
+
+        // define pair
+        const auto PAIR = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(f(a(a(l(2), l(0)), l(1))))));
+
+        // define fst
+        const auto FST = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(l(0), TRUE->clone())));
+
+        // define snd
+        const auto SND = g(l_helpers.size());
+        l_helpers.emplace_back(f(a(l(0), FALSE->clone())));
+
+        // define pred
+        const auto PRED = g(l_helpers.size());
+        l_helpers.emplace_back(
+            f(a(FST->clone(),
+                a(a(l(0), // n
+                    f(a(a(PAIR->clone(), a(SND->clone(),
+                                           l(1) // p
+                                           )),
+                        a(SUCC->clone(), a(SND->clone(),
+                                           l(1) // p
+                                           ))))),
+                  a(a(PAIR->clone(), ZERO->clone()), ZERO->clone())))));
+
+        // define sub
+        const auto SUB = g(l_helpers.size());
+        l_helpers.emplace_back(f(f(a(a(l(1), // n
+                                       PRED->clone()),
+                                     l(0) // m
+                                     ))));
+
+        // define lessThan
+        const auto LESS_THAN = g(l_helpers.size());
+        l_helpers.emplace_back(
+            f(f(a(NOT->clone(), a(IS_ZERO->clone(), a(a(SUB->clone(),
+                                                        l(1) // n
+                                                        ),
+                                                      l(0) // m
+                                                      ))))));
+
+        // helper function to make a church numeral
+        const auto l_numeral =
+            [&ZERO, &SUCC](size_t a_numeral) -> std::unique_ptr<lambda::expr>
+        {
+            auto l_result = ZERO->clone();
+            for(size_t i = 0; i < a_numeral; ++i)
+                l_result = a(SUCC->clone(), std::move(l_result));
+            return std::move(l_result);
+        };
+
+        // define the root binning function
+        auto l_root_bf = f(a(a(LESS_THAN->clone(), l(0)), l_numeral(24)));
+
+        // define the left binning function
+        auto l_left_bf = f(a(a(LESS_THAN->clone(), l_numeral(18)), l(0)));
+
+        // define the right binning function
+        auto l_right_bf = f(a(a(LESS_THAN->clone(), l_numeral(28)), l(0)));
+
+        // define the model
+        auto l_model =
+            m(l_root_bf->clone(), m(l_left_bf->clone(), m(true), m(false)),
+              m(l_right_bf->clone(), m(true), m(false)));
+
+        // construct sample inputs
+        std::unique_ptr<lambda::expr> l_input_0 =
+            l_numeral(20); // satisfies (18,24)
+        std::unique_ptr<lambda::expr> l_input_1 =
+            l_numeral(22); // satisfies (18,24)
+        std::unique_ptr<lambda::expr> l_input_2 =
+            l_numeral(29); // satisfies (28 < input)
+        std::unique_ptr<lambda::expr> l_input_3 =
+            l_numeral(31); // satisfies (28 < input)
+        std::unique_ptr<lambda::expr> l_input_4 =
+            l_numeral(19); // satisfies (18,24)
+        std::unique_ptr<lambda::expr> l_input_5 =
+            l_numeral(21); // satisfies (18,24)
+        std::unique_ptr<lambda::expr> l_input_6 =
+            l_numeral(30); // satisfies (28 < input)
+        std::unique_ptr<lambda::expr> l_input_7 =
+            l_numeral(23); // satisfies (18,24)
+        std::unique_ptr<lambda::expr> l_input_8 =
+            l_numeral(24); // does NOT satisfy (edge)
+        std::unique_ptr<lambda::expr> l_input_9 =
+            l_numeral(18); // does NOT satisfy (edge)
+        std::unique_ptr<lambda::expr> l_input_10 =
+            l_numeral(28); // does NOT satisfy (edge)
+        std::unique_ptr<lambda::expr> l_input_11 =
+            l_numeral(25); // does NOT satisfy (in gap [24,28])
+
+        // evaluate the model
+        auto l_row_result = [&l_helpers,
+                             &l_model](const auto& a_arg) -> std::optional<bool>
+        { return l_model->eval(l_helpers, &a_arg, 1, 10000, 10000); };
+
+        // evaluate the rows ((18 < input < 24) || (28 < input))
+        assert(l_row_result(l_input_0) == true);   // 20 ∈ (18,24)
+        assert(l_row_result(l_input_1) == true);   // 22 ∈ (18,24)
+        assert(l_row_result(l_input_2) == true);   // 29 > 28
+        assert(l_row_result(l_input_3) == true);   // 31 > 28
+        assert(l_row_result(l_input_4) == true);   // 19 ∈ (18,24)
+        assert(l_row_result(l_input_5) == true);   // 21 ∈ (18,24)
+        assert(l_row_result(l_input_6) == true);   // 30 > 28
+        assert(l_row_result(l_input_7) == true);   // 23 ∈ (18,24)
+        assert(l_row_result(l_input_8) == false);  // 24 ∉ ranges (edge)
+        assert(l_row_result(l_input_9) == false);  // 18 ∉ ranges (edge)
+        assert(l_row_result(l_input_10) == false); // 28 ∉ ranges (edge)
+        assert(l_row_result(l_input_11) == false); // 25 ∈ [24,28] (gap)
     }
 }
 

@@ -88,8 +88,10 @@ bool operator<(const terminate&, const terminate&);
 // data_point type
 struct data_point
 {
-    const std::vector<std::unique_ptr<lambda::expr>> m_inputs;
-    const bool m_output;
+    data_point(std::vector<std::unique_ptr<lambda::expr>>&& a_inputs,
+               bool a_output);
+    std::vector<std::unique_ptr<lambda::expr>> m_inputs;
+    bool m_output;
 };
 
 // build a model from data

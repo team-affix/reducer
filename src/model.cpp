@@ -155,6 +155,16 @@ bool operator<(const terminate&, const terminate&)
 }
 
 ////////////////////////////////////////////////////
+////////////////////// DATA POINT //////////////////
+////////////////////////////////////////////////////
+
+data_point::data_point(std::vector<std::unique_ptr<lambda::expr>>&& a_inputs,
+                       bool a_output)
+    : m_inputs(std::move(a_inputs)), m_output(a_output)
+{
+}
+
+////////////////////////////////////////////////////
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
 
@@ -1153,6 +1163,76 @@ void test_build_function_body()
     std::cout << "binder depth 5: " << *l_function_12 << std::endl;
 }
 
+void test_build_function()
+{
+    std::mt19937 l_rnd_gen(12);
+    monte_carlo::tree_node<choice> l_root;
+    monte_carlo::simulation<choice, std::mt19937> l_sim(l_root, 5, l_rnd_gen);
+    auto l_function = build_function(0, 1, l_sim, 5);
+    std::cout << "binder depth 0, arity 1: " << *l_function << std::endl;
+    auto l_function_2 = build_function(1, 1, l_sim, 5);
+    std::cout << "binder depth 1, arity 1: " << *l_function_2 << std::endl;
+    auto l_function_3 = build_function(2, 1, l_sim, 5);
+    std::cout << "binder depth 2, arity 1: " << *l_function_3 << std::endl;
+    auto l_function_4 = build_function(3, 1, l_sim, 5);
+    std::cout << "binder depth 3, arity 1: " << *l_function_4 << std::endl;
+    auto l_function_5 = build_function(4, 1, l_sim, 5);
+    std::cout << "binder depth 4, arity 1: " << *l_function_5 << std::endl;
+    auto l_function_6 = build_function(0, 2, l_sim, 5);
+    std::cout << "binder depth 0, arity 2: " << *l_function_6 << std::endl;
+    auto l_function_7 = build_function(1, 2, l_sim, 5);
+    std::cout << "binder depth 1, arity 2: " << *l_function_7 << std::endl;
+    auto l_function_8 = build_function(2, 2, l_sim, 5);
+    std::cout << "binder depth 2, arity 2: " << *l_function_8 << std::endl;
+    auto l_function_9 = build_function(3, 2, l_sim, 5);
+    std::cout << "binder depth 3, arity 2: " << *l_function_9 << std::endl;
+}
+
+void test_build_model()
+{
+    using namespace lambda;
+
+    std::mt19937 l_rnd_gen(17);
+    monte_carlo::tree_node<choice> l_root;
+    monte_carlo::simulation<choice, std::mt19937> l_sim(l_root, 5, l_rnd_gen);
+
+    // no helpers in this example, just data
+
+    // define TRUE
+    const auto TRUE = f(f(v(0)));
+
+    // define FALSE
+    const auto FALSE = f(f(v(1)));
+
+    // define data for binary exor
+    std::vector<std::unique_ptr<lambda::expr>> l_inputs_0;
+    l_inputs_0.push_back(FALSE->clone());
+    l_inputs_0.push_back(FALSE->clone());
+    std::vector<std::unique_ptr<lambda::expr>> l_inputs_1;
+    l_inputs_1.push_back(FALSE->clone());
+    l_inputs_1.push_back(TRUE->clone());
+    std::vector<std::unique_ptr<lambda::expr>> l_inputs_2;
+    l_inputs_2.push_back(TRUE->clone());
+    l_inputs_2.push_back(FALSE->clone());
+    std::vector<std::unique_ptr<lambda::expr>> l_inputs_3;
+    l_inputs_3.push_back(TRUE->clone());
+    l_inputs_3.push_back(TRUE->clone());
+    std::vector<data_point> l_data;
+    l_data.emplace_back(std::move(l_inputs_0), false);
+    l_data.emplace_back(std::move(l_inputs_1), true);
+    l_data.emplace_back(std::move(l_inputs_2), true);
+    l_data.emplace_back(std::move(l_inputs_3), false);
+
+    // define data pointers
+    std::vector<const data_point*> l_data_pointers;
+    std::transform(l_data.begin(), l_data.end(),
+                   std::back_inserter(l_data_pointers),
+                   [](const auto& a_data_point) { return &a_data_point; });
+
+    auto l_model = build_model(l_data_pointers, {}, 1000, 1000, 2, l_sim, 5);
+    std::cout << "model: " << *l_model << std::endl;
+}
+
 void model_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1162,6 +1242,8 @@ void model_test_main()
     // TEST(test_model_construct_and_print);
     // TEST(test_model_eval);
     TEST(test_build_function_body);
+    TEST(test_build_function);
+    TEST(test_build_model);
 }
 
 #endif // UNIT_TEST

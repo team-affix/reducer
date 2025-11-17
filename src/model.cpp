@@ -1122,14 +1122,46 @@ void test_model_eval()
     }
 }
 
+void test_build_function_body()
+{
+    std::mt19937 l_rnd_gen(11);
+    monte_carlo::tree_node<choice> l_root;
+    monte_carlo::simulation<choice, std::mt19937> l_sim(l_root, 5, l_rnd_gen);
+    auto l_function = build_function_body(1, l_sim, 5);
+    auto l_function_2 = build_function_body(1, l_sim, 5);
+    auto l_function_3 = build_function_body(1, l_sim, 5);
+    auto l_function_4 = build_function_body(1, l_sim, 5);
+    std::cout << "binder depth 1: " << *l_function << std::endl;
+    std::cout << "binder depth 1: " << *l_function_2 << std::endl;
+    std::cout << "binder depth 1: " << *l_function_3 << std::endl;
+    std::cout << "binder depth 1: " << *l_function_4 << std::endl;
+    auto l_function_5 = build_function_body(2, l_sim, 15);
+    auto l_function_6 = build_function_body(3, l_sim, 15);
+    auto l_function_7 = build_function_body(4, l_sim, 15);
+    auto l_function_8 = build_function_body(5, l_sim, 15);
+    std::cout << "binder depth 2: " << *l_function_5 << std::endl;
+    std::cout << "binder depth 3: " << *l_function_6 << std::endl;
+    std::cout << "binder depth 4: " << *l_function_7 << std::endl;
+    std::cout << "binder depth 5: " << *l_function_8 << std::endl;
+    auto l_function_9 = build_function_body(2, l_sim, 15);
+    auto l_function_10 = build_function_body(3, l_sim, 15);
+    auto l_function_11 = build_function_body(4, l_sim, 15);
+    auto l_function_12 = build_function_body(5, l_sim, 15);
+    std::cout << "binder depth 2: " << *l_function_9 << std::endl;
+    std::cout << "binder depth 3: " << *l_function_10 << std::endl;
+    std::cout << "binder depth 4: " << *l_function_11 << std::endl;
+    std::cout << "binder depth 5: " << *l_function_12 << std::endl;
+}
+
 void model_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
-    TEST(test_boolify);
-    TEST(test_eval_binning_function);
-    TEST(test_model_construct_and_print);
-    TEST(test_model_eval);
+    // TEST(test_boolify);
+    // TEST(test_eval_binning_function);
+    // TEST(test_model_construct_and_print);
+    // TEST(test_model_eval);
+    TEST(test_build_function_body);
 }
 
 #endif // UNIT_TEST

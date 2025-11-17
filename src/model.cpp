@@ -457,6 +457,8 @@ void test_boolify()
     // zero and one are falsy and truthy respectively
     assert(boolify(f(f(v(1)))) == false);
     assert(boolify(f(f(a(v(0), v(1))))) == true);
+    // two is truthy
+    assert(boolify(f(f(a(v(0), a(v(0), v(1)))))) == true);
 }
 
 void test_eval_binning_program()

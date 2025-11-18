@@ -27,13 +27,13 @@ std::unique_ptr<lambda::expr> church_not()
 // church and
 std::unique_ptr<lambda::expr> church_and()
 {
-    return f(f(a(a(v(0), v(1)), church_false()->lift(1, 0))));
+    return f(f(a(a(v(0), v(1)), church_false()->lift(2, 0))));
 }
 
 // church or
 std::unique_ptr<lambda::expr> church_or()
 {
-    return f(f(a(a(v(0), church_true()->lift(1, 0)), v(1))));
+    return f(f(a(a(v(0), church_true()->lift(2, 0)), v(1))));
 }
 
 // church zero
@@ -96,6 +96,31 @@ void test_church_not()
     assert(l_not_false.m_expr->equals(church_true()));
 }
 
+void test_church_and()
+{
+    using namespace dml::predef;
+    auto l_and = church_and();
+    assert(l_and->equals(f(f(a(a(v(0), v(1)), f(f(v(3))))))));
+    // make sure that and(true, true) = true
+    auto l_true = church_true();
+    auto l_and_true_true =
+        a(a(l_and->clone(), l_true->clone()), l_true->clone())->normalize();
+    assert(l_and_true_true.m_expr->equals(church_true()));
+    // make sure that and(true, false) = false
+    auto l_false = church_false();
+    auto l_and_false_true =
+        a(a(l_and->clone(), l_false->clone()), l_true->clone())->normalize();
+    assert(l_and_false_true.m_expr->equals(church_false()));
+    // make sure that and(false, true) = false
+    auto l_and_true_false =
+        a(a(l_and->clone(), l_true->clone()), l_false->clone())->normalize();
+    assert(l_and_true_false.m_expr->equals(church_false()));
+    // make sure that and(false, false) = false
+    auto l_and_false_false =
+        a(a(l_and->clone(), l_false->clone()), l_false->clone())->normalize();
+    assert(l_and_false_false.m_expr->equals(church_false()));
+}
+
 void test_church_zero()
 {
     using namespace dml::predef;
@@ -137,6 +162,7 @@ void predef_test_main()
     TEST(test_church_true);
     TEST(test_church_false);
     TEST(test_church_not);
+    TEST(test_church_and);
     TEST(test_church_zero);
     TEST(test_church_succ);
     TEST(test_church_pair);

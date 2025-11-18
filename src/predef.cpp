@@ -90,8 +90,7 @@ void test_church_true()
     {
         auto l_true = church_true(depth);
         auto expected = f(f(v(depth)));
-        auto wrapped = wrap_lambdas(std::move(expected), depth);
-        assert(wrap_lambdas(l_true->clone(), depth)->equals(wrapped));
+        assert(l_true->equals(expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -107,8 +106,7 @@ void test_church_false()
     {
         auto l_false = church_false(depth);
         auto expected = f(f(v(depth + 1)));
-        auto wrapped = wrap_lambdas(std::move(expected), depth);
-        assert(wrap_lambdas(l_false->clone(), depth)->equals(wrapped));
+        assert(l_false->equals(expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -123,10 +121,9 @@ void test_church_not()
     auto test_at_depth = [](size_t depth)
     {
         auto l_not = church_not(depth);
-        auto l_not_wrapped = wrap_lambdas(l_not->clone(), depth);
         auto expected =
             f(a(a(v(depth), f(f(v(depth + 2)))), f(f(v(depth + 1)))));
-        assert(l_not_wrapped->equals(wrap_lambdas(std::move(expected), depth)));
+        assert(l_not->equals(expected));
         auto l_true = church_true(depth);
         auto l_not_true =
             wrap_lambdas(a(l_not->clone(), l_true->clone()), depth)
@@ -153,9 +150,8 @@ void test_church_and()
     auto test_at_depth = [](size_t depth)
     {
         auto l_and = church_and(depth);
-        auto l_and_wrapped = wrap_lambdas(l_and->clone(), depth);
         auto expected = f(f(a(a(v(depth), v(depth + 1)), f(f(v(depth + 3))))));
-        assert(l_and_wrapped->equals(wrap_lambdas(std::move(expected), depth)));
+        assert(l_and->equals(expected));
         auto l_true = church_true(depth);
         auto l_false = church_false(depth);
         auto l_and_true_true =
@@ -196,9 +192,8 @@ void test_church_or()
     auto test_at_depth = [](size_t depth)
     {
         auto l_or = church_or(depth);
-        auto l_or_wrapped = wrap_lambdas(l_or->clone(), depth);
         auto expected = f(f(a(a(v(depth), f(f(v(depth + 2)))), v(depth + 1))));
-        assert(l_or_wrapped->equals(wrap_lambdas(std::move(expected), depth)));
+        assert(l_or->equals(expected));
         auto l_true = church_true(depth);
         auto l_false = church_false(depth);
         auto l_or_true_true =
@@ -240,8 +235,7 @@ void test_church_zero()
     {
         auto l_zero = church_zero(depth);
         auto expected = f(f(v(depth + 1)));
-        auto wrapped = wrap_lambdas(std::move(expected), depth);
-        assert(wrap_lambdas(l_zero->clone(), depth)->equals(wrapped));
+        assert(l_zero->equals(expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -256,11 +250,9 @@ void test_church_succ()
     auto test_at_depth = [](size_t depth)
     {
         auto l_succ = church_succ(depth);
-        auto l_succ_wrapped = wrap_lambdas(l_succ->clone(), depth);
         auto expected = f(
             f(f(a(v(depth + 1), a(a(v(depth), v(depth + 1)), v(depth + 2))))));
-        assert(
-            l_succ_wrapped->equals(wrap_lambdas(std::move(expected), depth)));
+        assert(l_succ->equals(expected));
         auto l_zero = church_zero(depth);
         auto l_one = wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth)
                          ->normalize();
@@ -281,11 +273,9 @@ void test_church_is_zero()
     auto test_at_depth = [](size_t depth)
     {
         auto l_is_zero = church_is_zero(depth);
-        auto l_is_zero_wrapped = wrap_lambdas(l_is_zero->clone(), depth);
         auto expected =
             f(a(a(v(depth), f(f(f(v(depth + 3))))), f(f(v(depth + 1)))));
-        assert(l_is_zero_wrapped->equals(
-            wrap_lambdas(std::move(expected), depth)));
+        assert(l_is_zero->equals(expected));
         auto l_zero = church_zero(depth);
         auto l_is_zero_zero =
             wrap_lambdas(a(l_is_zero->clone(), l_zero->clone()), depth)
@@ -312,10 +302,8 @@ void test_church_pair()
     auto test_at_depth = [](size_t depth)
     {
         auto l_pair = church_pair(depth);
-        auto l_pair_wrapped = wrap_lambdas(l_pair->clone(), depth);
         auto expected = f(f(f(a(a(v(depth + 2), v(depth)), v(depth + 1)))));
-        assert(
-            l_pair_wrapped->equals(wrap_lambdas(std::move(expected), depth)));
+        assert(l_pair->equals(expected));
         auto l_first = wrap_lambdas(a(a(a(l_pair->clone(), church_false(depth)),
                                         church_true(depth)),
                                       church_true(depth)),

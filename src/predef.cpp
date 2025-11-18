@@ -77,6 +77,40 @@ std::unique_ptr<lambda::expr> church_snd(size_t a_binder_depth)
     return f(a(L(0), church_false(a_binder_depth + 1)));
 }
 
+// church pred (predecessor)
+// λn. fst (n (λp. pair (snd p) (succ (snd p))) (pair 0 0))
+std::unique_ptr<lambda::expr> church_pred(size_t a_binder_depth)
+{
+    return f(a(
+        church_fst(a_binder_depth + 1),
+        a(a(L(0), // n
+            f(a(a(church_pair(a_binder_depth + 2),
+                  a(church_snd(a_binder_depth + 2), L(1))), // p
+                a(church_succ(a_binder_depth + 2),
+                  a(church_snd(a_binder_depth + 2), L(1)))))), // p
+          a(a(church_pair(a_binder_depth + 1), church_zero(a_binder_depth + 1)),
+            church_zero(a_binder_depth + 1)))));
+}
+
+// church sub (subtraction)
+// λn.λm. n pred m
+std::unique_ptr<lambda::expr> church_sub(size_t a_binder_depth)
+{
+    return f(f(a(a(L(1), // n
+                   church_pred(a_binder_depth + 2)),
+                 L(0)))); // m
+}
+
+// church less_than
+// λn.λm. not (is_zero (sub n m))
+std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth)
+{
+    return f(f(a(church_not(a_binder_depth + 2),
+                 a(church_is_zero(a_binder_depth + 2),
+                   a(a(church_sub(a_binder_depth + 2), L(1)), // n
+                     L(0))))));                               // m
+}
+
 } // namespace predef
 } // namespace dml
 
@@ -391,6 +425,168 @@ void test_church_snd()
     }
 }
 
+void test_church_pred()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        // Test pred(0) = 0
+        auto l_zero = church_zero(depth);
+        auto l_pred = church_pred(depth);
+        auto l_pred_zero =
+            wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth)
+                ->normalize();
+        assert(l_pred_zero.m_expr->equals(
+            wrap_lambdas(church_zero(depth), depth)));
+
+        // Test pred(1) = 0
+        auto l_one = f(f(a(v(depth), v(depth + 1))));
+        auto l_pred_one =
+            wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth)
+                ->normalize();
+        assert(
+            l_pred_one.m_expr->equals(wrap_lambdas(church_zero(depth), depth)));
+
+        // Test pred(2) = 1
+        auto l_two = f(f(a(v(depth), a(v(depth), v(depth + 1)))));
+        auto l_pred_two =
+            wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth)
+                ->normalize();
+        assert(l_pred_two.m_expr->equals(wrap_lambdas(l_one->clone(), depth)));
+
+        // Test pred(3) = 2
+        auto l_three =
+            f(f(a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))));
+        auto l_pred_three =
+            wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth)
+                ->normalize();
+        assert(
+            l_pred_three.m_expr->equals(wrap_lambdas(l_two->clone(), depth)));
+
+        // Test pred(4) = 3
+        auto l_four = f(f(
+            a(v(depth), a(v(depth), a(v(depth), a(v(depth), v(depth + 1)))))));
+        auto l_pred_four =
+            wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth)
+                ->normalize();
+        assert(
+            l_pred_four.m_expr->equals(wrap_lambdas(l_three->clone(), depth)));
+
+        // Test pred(5) = 4
+        auto l_five = f(f(a(
+            v(depth),
+            a(v(depth), a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))))));
+        auto l_pred_five =
+            wrap_lambdas(a(l_pred->clone(), l_five->clone()), depth)
+                ->normalize();
+        assert(
+            l_pred_five.m_expr->equals(wrap_lambdas(l_four->clone(), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_church_sub()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_sub = church_sub(depth);
+        auto l_zero = church_zero(depth);
+        auto l_one = f(f(a(v(depth), v(depth + 1))));
+        auto l_two = f(f(a(v(depth), a(v(depth), v(depth + 1)))));
+        auto l_three =
+            f(f(a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))));
+
+        // Test sub(3, 1) = 2
+        auto l_sub_3_1 =
+            wrap_lambdas(a(a(l_sub->clone(), l_three->clone()), l_one->clone()),
+                         depth)
+                ->normalize();
+        assert(l_sub_3_1.m_expr->equals(wrap_lambdas(l_two->clone(), depth)));
+
+        // Test sub(3, 2) = 1
+        auto l_sub_3_2 =
+            wrap_lambdas(a(a(l_sub->clone(), l_three->clone()), l_two->clone()),
+                         depth)
+                ->normalize();
+        assert(l_sub_3_2.m_expr->equals(wrap_lambdas(l_one->clone(), depth)));
+
+        // Test sub(2, 2) = 0
+        auto l_sub_2_2 =
+            wrap_lambdas(a(a(l_sub->clone(), l_two->clone()), l_two->clone()),
+                         depth)
+                ->normalize();
+        assert(
+            l_sub_2_2.m_expr->equals(wrap_lambdas(church_zero(depth), depth)));
+
+        // Test sub(1, 2) = 0 (clamped at 0)
+        auto l_sub_1_2 =
+            wrap_lambdas(a(a(l_sub->clone(), l_one->clone()), l_two->clone()),
+                         depth)
+                ->normalize();
+        assert(
+            l_sub_1_2.m_expr->equals(wrap_lambdas(church_zero(depth), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_church_less_than()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_less_than = church_less_than(depth);
+        auto l_zero = church_zero(depth);
+        auto l_one = f(f(a(v(depth), v(depth + 1))));
+        auto l_two = f(f(a(v(depth), a(v(depth), v(depth + 1)))));
+
+        // Test less_than(1, 2) = true
+        auto l_lt_1_2 = wrap_lambdas(a(a(l_less_than->clone(), l_one->clone()),
+                                       l_two->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_1_2.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+
+        // Test less_than(2, 1) = false
+        auto l_lt_2_1 = wrap_lambdas(a(a(l_less_than->clone(), l_two->clone()),
+                                       l_one->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_2_1.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+
+        // Test less_than(2, 2) = false
+        auto l_lt_2_2 = wrap_lambdas(a(a(l_less_than->clone(), l_two->clone()),
+                                       l_two->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_2_2.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+
+        // Test less_than(0, 1) = true
+        auto l_lt_0_1 = wrap_lambdas(a(a(l_less_than->clone(), l_zero->clone()),
+                                       l_one->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_0_1.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -405,6 +601,9 @@ void predef_test_main()
     TEST(test_church_pair);
     TEST(test_church_fst);
     TEST(test_church_snd);
+    TEST(test_church_pred);
+    TEST(test_church_sub);
+    TEST(test_church_less_than);
 }
 
 #endif // UNIT_TEST

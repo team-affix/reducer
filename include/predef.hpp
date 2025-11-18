@@ -41,6 +41,15 @@ std::unique_ptr<lambda::expr> church_fst(size_t a_binder_depth);
 // church snd
 std::unique_ptr<lambda::expr> church_snd(size_t a_binder_depth);
 
+// church pred (predecessor)
+std::unique_ptr<lambda::expr> church_pred(size_t a_binder_depth);
+
+// church sub (subtraction)
+std::unique_ptr<lambda::expr> church_sub(size_t a_binder_depth);
+
+// church less_than
+std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth);
+
 } // namespace predef
 } // namespace dml
 

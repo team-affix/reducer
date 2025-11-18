@@ -579,6 +579,70 @@ void test_church_less_than()
                             ->normalize();
         assert(
             l_lt_0_1.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+
+        // Tests involving 3
+        auto l_three =
+            f(f(a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))));
+
+        // Test less_than(0, 3) = true
+        auto l_lt_0_3 = wrap_lambdas(a(a(l_less_than->clone(), l_zero->clone()),
+                                       l_three->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_0_3.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+
+        // Test less_than(1, 3) = true
+        auto l_lt_1_3 = wrap_lambdas(a(a(l_less_than->clone(), l_one->clone()),
+                                       l_three->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_1_3.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+
+        // Test less_than(2, 3) = true
+        auto l_lt_2_3 = wrap_lambdas(a(a(l_less_than->clone(), l_two->clone()),
+                                       l_three->clone()),
+                                     depth)
+                            ->normalize();
+        assert(
+            l_lt_2_3.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+
+        // Test less_than(3, 0) = false
+        auto l_lt_3_0 =
+            wrap_lambdas(
+                a(a(l_less_than->clone(), l_three->clone()), l_zero->clone()),
+                depth)
+                ->normalize();
+        assert(
+            l_lt_3_0.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+
+        // Test less_than(3, 1) = false
+        auto l_lt_3_1 =
+            wrap_lambdas(
+                a(a(l_less_than->clone(), l_three->clone()), l_one->clone()),
+                depth)
+                ->normalize();
+        assert(
+            l_lt_3_1.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+
+        // Test less_than(3, 2) = false
+        auto l_lt_3_2 =
+            wrap_lambdas(
+                a(a(l_less_than->clone(), l_three->clone()), l_two->clone()),
+                depth)
+                ->normalize();
+        assert(
+            l_lt_3_2.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+
+        // Test less_than(3, 3) = false
+        auto l_lt_3_3 =
+            wrap_lambdas(
+                a(a(l_less_than->clone(), l_three->clone()), l_three->clone()),
+                depth)
+                ->normalize();
+        assert(
+            l_lt_3_3.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

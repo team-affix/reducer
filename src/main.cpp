@@ -6,6 +6,7 @@ extern void program_test_main();
 extern void model_test_main();
 extern void reduce_test_main();
 extern void encode_test_main();
+extern void predef_test_main();
 
 void unit_test_main()
 {
@@ -15,7 +16,8 @@ void unit_test_main()
     // TEST(func_test_main);
     // TEST(program_test_main);
     // TEST(model_test_main);
-    TEST(encode_test_main);
+    // TEST(encode_test_main);
+    TEST(predef_test_main);
     // TEST(reduce_test_main);
 }
 

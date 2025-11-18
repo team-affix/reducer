@@ -121,6 +121,31 @@ void test_church_and()
     assert(l_and_false_false.m_expr->equals(church_false()));
 }
 
+void test_church_or()
+{
+    using namespace dml::predef;
+    auto l_or = church_or();
+    assert(l_or->equals(f(f(a(a(v(0), f(f(v(2)))), v(1))))));
+    // make sure that or(true, true) = true
+    auto l_true = church_true();
+    auto l_or_true_true =
+        a(a(l_or->clone(), l_true->clone()), l_true->clone())->normalize();
+    assert(l_or_true_true.m_expr->equals(church_true()));
+    // make sure that or(true, false) = true
+    auto l_false = church_false();
+    auto l_or_true_false =
+        a(a(l_or->clone(), l_true->clone()), l_false->clone())->normalize();
+    assert(l_or_true_false.m_expr->equals(church_true()));
+    // make sure that or(false, true) = true
+    auto l_or_false_true =
+        a(a(l_or->clone(), l_false->clone()), l_true->clone())->normalize();
+    assert(l_or_false_true.m_expr->equals(church_true()));
+    // make sure that or(false, false) = false
+    auto l_or_false_false =
+        a(a(l_or->clone(), l_false->clone()), l_false->clone())->normalize();
+    assert(l_or_false_false.m_expr->equals(church_false()));
+}
+
 void test_church_zero()
 {
     using namespace dml::predef;
@@ -163,6 +188,7 @@ void predef_test_main()
     TEST(test_church_false);
     TEST(test_church_not);
     TEST(test_church_and);
+    TEST(test_church_or);
     TEST(test_church_zero);
     TEST(test_church_succ);
     TEST(test_church_pair);

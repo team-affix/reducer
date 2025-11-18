@@ -51,7 +51,8 @@ std::unique_ptr<lambda::expr> church_succ()
 // church is_zero
 std::unique_ptr<lambda::expr> church_is_zero()
 {
-    return f(a(a(v(0), f(church_false())), church_true()));
+    return f(
+        a(a(v(0), f(church_false()->lift(2, 0))), church_true()->lift(1, 0)));
 }
 
 // church pair
@@ -164,6 +165,25 @@ void test_church_succ()
     assert(l_one.m_expr->equals(f(f(a(v(0), v(1))))));
 }
 
+void test_church_is_zero()
+{
+    using namespace dml::predef;
+    auto l_is_zero = church_is_zero();
+    assert(l_is_zero->equals(f(a(a(v(0), f(f(f(v(3))))), f(f(v(1)))))));
+    // make sure that is_zero(zero) = true
+    auto l_zero = church_zero();
+    auto l_is_zero_zero = a(l_is_zero->clone(), l_zero->clone())->normalize();
+    assert(l_is_zero_zero.m_expr->equals(church_true()));
+    // make sure that is_zero(one) = false
+    auto l_one = f(f(a(v(0), v(1))));
+    auto l_is_zero_one = a(l_is_zero->clone(), l_one->clone())->normalize();
+    assert(l_is_zero_one.m_expr->equals(church_false()));
+    // make sure that is_zero(two) = false
+    auto l_two = f(f(a(v(0), a(v(0), v(1)))));
+    auto l_is_zero_two = a(l_is_zero->clone(), l_two->clone())->normalize();
+    assert(l_is_zero_two.m_expr->equals(church_false()));
+}
+
 void test_church_pair()
 {
     using namespace dml::predef;
@@ -191,6 +211,7 @@ void predef_test_main()
     TEST(test_church_or);
     TEST(test_church_zero);
     TEST(test_church_succ);
+    TEST(test_church_is_zero);
     TEST(test_church_pair);
 }
 

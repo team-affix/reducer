@@ -35,6 +35,12 @@ std::unique_ptr<lambda::expr> church_is_zero(size_t a_binder_depth);
 // church pair
 std::unique_ptr<lambda::expr> church_pair(size_t a_binder_depth);
 
+// church fst
+std::unique_ptr<lambda::expr> church_fst(size_t a_binder_depth);
+
+// church snd
+std::unique_ptr<lambda::expr> church_snd(size_t a_binder_depth);
+
 } // namespace predef
 } // namespace dml
 

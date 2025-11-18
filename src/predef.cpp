@@ -65,6 +65,18 @@ std::unique_ptr<lambda::expr> church_pair(size_t a_binder_depth)
     return f(f(f(a(a(L(2), L(0)), L(1)))));
 }
 
+// church fst
+std::unique_ptr<lambda::expr> church_fst(size_t a_binder_depth)
+{
+    return f(a(L(0), church_true(a_binder_depth + 1)));
+}
+
+// church snd
+std::unique_ptr<lambda::expr> church_snd(size_t a_binder_depth)
+{
+    return f(a(L(0), church_false(a_binder_depth + 1)));
+}
+
 } // namespace predef
 } // namespace dml
 
@@ -327,6 +339,58 @@ void test_church_pair()
     }
 }
 
+void test_church_fst()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_fst = church_fst(depth);
+        auto expected = f(a(v(depth), church_true(depth + 1)));
+        assert(l_fst->equals(expected));
+        // Create a pair (false, true)
+        auto l_pair_ft = church_pair(depth);
+        auto l_pair_created =
+            a(a(l_pair_ft->clone(), church_false(depth)), church_true(depth));
+        // Apply fst to the pair
+        auto l_result =
+            wrap_lambdas(a(l_fst->clone(), std::move(l_pair_created)), depth)
+                ->normalize();
+        assert(
+            l_result.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_church_snd()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_snd = church_snd(depth);
+        auto expected = f(a(v(depth), church_false(depth + 1)));
+        assert(l_snd->equals(expected));
+        // Create a pair (false, true)
+        auto l_pair_ft = church_pair(depth);
+        auto l_pair_created =
+            a(a(l_pair_ft->clone(), church_false(depth)), church_true(depth));
+        // Apply snd to the pair
+        auto l_result =
+            wrap_lambdas(a(l_snd->clone(), std::move(l_pair_created)), depth)
+                ->normalize();
+        assert(
+            l_result.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -339,6 +403,8 @@ void predef_test_main()
     TEST(test_church_succ);
     TEST(test_church_is_zero);
     TEST(test_church_pair);
+    TEST(test_church_fst);
+    TEST(test_church_snd);
 }
 
 #endif // UNIT_TEST

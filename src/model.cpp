@@ -1,5 +1,7 @@
 #include "../include/model.hpp"
+#include <algorithm>
 #include <cassert>
+#include <iostream>
 
 bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
 {
@@ -164,6 +166,17 @@ data_point::data_point(std::vector<std::unique_ptr<lambda::expr>>&& a_inputs,
 {
 }
 
+// gets pointers to the data points
+std::vector<const data_point*>
+data_pointers(const std::vector<data_point>& a_data)
+{
+    std::vector<const data_point*> l_pointers;
+    std::transform(a_data.begin(), a_data.end(), std::back_inserter(l_pointers),
+                   [](const data_point& a_data_point)
+                   { return &a_data_point; });
+    return l_pointers;
+}
+
 ////////////////////////////////////////////////////
 //////////////// FUNCTION GENERATION ///////////////
 ////////////////////////////////////////////////////
@@ -239,8 +252,8 @@ build_function(const size_t a_binder_depth, const size_t a_arity,
 }
 
 std::unique_ptr<model>
-build_model(const std::vector<const data_point*>& a_data,
-            const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+            const std::vector<const data_point*>& a_data,
             const size_t& a_step_limit, const size_t& a_size_limit,
             const size_t& a_arity,
             monte_carlo::simulation<choice, std::mt19937>& a_simulation,
@@ -338,12 +351,12 @@ build_model(const std::vector<const data_point*>& a_data,
 
     // construct the positive child
     std::unique_ptr<model> l_positive_child =
-        build_model(l_positive_bin, a_helpers, a_step_limit, a_size_limit,
+        build_model(a_helpers, l_positive_bin, a_step_limit, a_size_limit,
                     a_arity, a_simulation, a_recursion_limit);
 
     // construct the negative child
     std::unique_ptr<model> l_negative_child =
-        build_model(l_negative_bin, a_helpers, a_step_limit, a_size_limit,
+        build_model(a_helpers, l_negative_bin, a_step_limit, a_size_limit,
                     a_arity, a_simulation, a_recursion_limit);
 
     // construct the final node
@@ -351,87 +364,56 @@ build_model(const std::vector<const data_point*>& a_data,
              std::move(l_negative_child));
 }
 
-// template <typename... Params>
-// model learn_model(
-//     program& a_program, scope& a_scope,
-//     const std::vector<std::pair<std::vector<std::any>, bool>>& a_data,
-//     const size_t& a_iterations, const size_t& a_recursion_limit,
-//     const double& a_exploration_constant)
-// {
-//     std::mt19937 l_rnd_gen(27);
-//     monte_carlo::tree_node<choice> l_root;
+std::unique_ptr<model>
+learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+            const std::vector<const data_point*>& a_data,
+            const size_t& a_step_limit, const size_t& a_size_limit,
+            const size_t& a_arity, const size_t& a_iterations,
+            const size_t& a_recursion_limit,
+            const double& a_exploration_constant)
+{
+    std::mt19937 l_rnd_gen(27);
+    monte_carlo::tree_node<choice> l_root;
 
-//     // get the parameter types
-//     std::vector<std::type_index> l_param_types_list = {typeid(Params)...};
+    // initialize the best reward to the lowest possible
+    // value
+    double l_best_reward = -std::numeric_limits<double>::infinity();
+    std::unique_ptr<model> l_best_model;
 
-//     // convert the parameter types to a multimap
-//     std::multimap<std::type_index, size_t> l_param_types;
-//     for(size_t i = 0; i < l_param_types_list.size(); ++i)
-//         l_param_types.emplace(l_param_types_list[i], i);
+    for(int i = 0; i < a_iterations; ++i)
+    {
+        // construct the simulation
+        monte_carlo::simulation<choice, std::mt19937> l_sim(
+            l_root, a_exploration_constant, l_rnd_gen);
 
-//     // initialize the best reward to the lowest possible
-//     // value
-//     double l_best_reward = -std::numeric_limits<double>::infinity();
-//     model l_best_model;
+        // construct the model
+        std::unique_ptr<model> l_model =
+            build_model(a_helpers, a_data, a_step_limit, a_size_limit, a_arity,
+                        l_sim, a_recursion_limit);
 
-//     // save the original program and scope
-//     program l_original_program = a_program;
-//     scope l_original_scope = a_scope;
+        // compute the reward (negative descriptive length)
+        double l_reward = -static_cast<double>(l_sim.length());
 
-//     for(int i = 0; i < a_iterations; ++i)
-//     {
-//         // construct the simulation
-//         monte_carlo::simulation<choice, std::mt19937> l_sim(
-//             l_root, a_exploration_constant, l_rnd_gen);
+        std::cout << "model: " << *l_model << std::endl;
+        std::cout << "reward: " << l_reward << std::endl;
 
-//         // restore the original program and scope
-//         program l_program = l_original_program;
-//         scope l_scope = l_original_scope;
+        // save best model
+        if(l_reward > l_best_reward)
+        {
+            l_best_reward = l_reward;
+            l_best_model = std::move(l_model);
 
-//         // construct the model
-//         model l_model = build_model(l_program, l_scope, l_param_types,
-//         a_data,
-//                                     l_sim, a_recursion_limit);
+            std::cout << "best model: " << *l_best_model << std::endl;
+            std::cout << "best reward: " << l_best_reward << std::endl;
+            std::cout << std::endl;
+        }
 
-//         // compute the number of nodes in the whole program
-//         size_t l_program_node_count =
-//             std::accumulate(l_program.m_funcs.begin(),
-//             l_program.m_funcs.end(),
-//                             size_t{0}, [](size_t a_acc, const auto& a_func)
-//                             { return a_acc + a_func->m_body.node_count(); });
+        // terminate the simulation
+        l_sim.terminate(l_reward);
+    }
 
-//         // compute the number of nodes in the model
-//         size_t l_model_node_count = l_model.node_count();
-
-//         // compute the reward (negative number of nodes)
-//         double l_reward =
-//             -static_cast<double>(l_program_node_count + l_model_node_count);
-
-//         // save best model
-//         if(l_reward > l_best_reward)
-//         {
-//             l_best_reward = l_reward;
-//             a_program = l_program;
-//             a_scope = l_scope;
-//             l_best_model = l_model;
-
-//             std::cout << l_program_node_count << " " << l_reward <<
-//             std::endl;
-
-//             std::cout << "program: " << std::endl;
-//             for(const auto& l_func : l_program.m_funcs)
-//                 std::cout << "    " << l_func->m_repr << std::endl;
-
-//             std::cout << "model: " << l_model.repr() << std::endl;
-//             std::cout << std::endl;
-//         }
-
-//         // terminate the simulation
-//         l_sim.terminate(l_reward);
-//     }
-
-//     return l_best_model;
-// }
+    return l_best_model;
+}
 
 #ifdef UNIT_TEST
 #include "test_utils.hpp"
@@ -1192,7 +1174,7 @@ void test_build_model()
 {
     using namespace lambda;
 
-    std::mt19937 l_rnd_gen(17);
+    std::mt19937 l_rnd_gen(21);
     monte_carlo::tree_node<choice> l_root;
     monte_carlo::simulation<choice, std::mt19937> l_sim(l_root, 5, l_rnd_gen);
 
@@ -1229,8 +1211,119 @@ void test_build_model()
                    std::back_inserter(l_data_pointers),
                    [](const auto& a_data_point) { return &a_data_point; });
 
-    auto l_model = build_model(l_data_pointers, {}, 1000, 1000, 2, l_sim, 5);
+    auto l_model = build_model({}, l_data_pointers, 1000, 1000, 2, l_sim, 5);
     std::cout << "model: " << *l_model << std::endl;
+}
+
+void test_learn_model()
+{
+    using namespace lambda;
+
+    // binary exor
+    {
+        // no helpers in this example, just data
+
+        // define TRUE
+        const auto TRUE = f(f(v(0)));
+
+        // define FALSE
+        const auto FALSE = f(f(v(1)));
+
+        // define data for binary exor
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_0;
+        l_inputs_0.push_back(FALSE->clone());
+        l_inputs_0.push_back(FALSE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_1;
+        l_inputs_1.push_back(FALSE->clone());
+        l_inputs_1.push_back(TRUE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_2;
+        l_inputs_2.push_back(TRUE->clone());
+        l_inputs_2.push_back(FALSE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_3;
+        l_inputs_3.push_back(TRUE->clone());
+        l_inputs_3.push_back(TRUE->clone());
+        std::vector<data_point> l_data;
+        l_data.emplace_back(std::move(l_inputs_0), false);
+        l_data.emplace_back(std::move(l_inputs_1), true);
+        l_data.emplace_back(std::move(l_inputs_2), true);
+        l_data.emplace_back(std::move(l_inputs_3), false);
+
+        // define data pointers
+        std::vector<const data_point*> l_data_pointers;
+        std::transform(l_data.begin(), l_data.end(),
+                       std::back_inserter(l_data_pointers),
+                       [](const auto& a_data_point) { return &a_data_point; });
+
+        auto l_model =
+            learn_model({}, l_data_pointers, 1000, 1000, 2, 1000, 5, 5);
+        std::cout << "model: " << *l_model << std::endl;
+    }
+
+    // ternary nested exor
+    {
+        // no helpers in this example, just data
+
+        // define TRUE
+        const auto TRUE = f(f(v(0)));
+
+        // define FALSE
+        const auto FALSE = f(f(v(1)));
+
+        // define data for binary exor
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_0;
+        l_inputs_0.push_back(FALSE->clone());
+        l_inputs_0.push_back(FALSE->clone());
+        l_inputs_0.push_back(FALSE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_1;
+        l_inputs_1.push_back(FALSE->clone());
+        l_inputs_1.push_back(FALSE->clone());
+        l_inputs_1.push_back(TRUE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_2;
+        l_inputs_2.push_back(FALSE->clone());
+        l_inputs_2.push_back(TRUE->clone());
+        l_inputs_2.push_back(FALSE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_3;
+        l_inputs_3.push_back(FALSE->clone());
+        l_inputs_3.push_back(TRUE->clone());
+        l_inputs_3.push_back(TRUE->clone());
+
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_4;
+        l_inputs_4.push_back(TRUE->clone());
+        l_inputs_4.push_back(FALSE->clone());
+        l_inputs_4.push_back(FALSE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_5;
+        l_inputs_5.push_back(TRUE->clone());
+        l_inputs_5.push_back(FALSE->clone());
+        l_inputs_5.push_back(TRUE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_6;
+        l_inputs_6.push_back(TRUE->clone());
+        l_inputs_6.push_back(TRUE->clone());
+        l_inputs_6.push_back(FALSE->clone());
+        std::vector<std::unique_ptr<lambda::expr>> l_inputs_7;
+        l_inputs_7.push_back(TRUE->clone());
+        l_inputs_7.push_back(TRUE->clone());
+        l_inputs_7.push_back(TRUE->clone());
+
+        std::vector<data_point> l_data;
+        l_data.emplace_back(std::move(l_inputs_0), false);
+        l_data.emplace_back(std::move(l_inputs_1), true);
+        l_data.emplace_back(std::move(l_inputs_2), true);
+        l_data.emplace_back(std::move(l_inputs_3), false);
+        l_data.emplace_back(std::move(l_inputs_4), true);
+        l_data.emplace_back(std::move(l_inputs_5), false);
+        l_data.emplace_back(std::move(l_inputs_6), false);
+        l_data.emplace_back(std::move(l_inputs_7), true);
+
+        // define data pointers
+        std::vector<const data_point*> l_data_pointers;
+        std::transform(l_data.begin(), l_data.end(),
+                       std::back_inserter(l_data_pointers),
+                       [](const auto& a_data_point) { return &a_data_point; });
+
+        auto l_model =
+            learn_model({}, l_data_pointers, 1000, 1000, 2, 10000, 5, 20);
+        std::cout << "model: " << *l_model << std::endl;
+    }
 }
 
 void model_test_main()
@@ -1244,6 +1337,7 @@ void model_test_main()
     TEST(test_build_function_body);
     TEST(test_build_function);
     TEST(test_build_model);
+    TEST(test_learn_model);
 }
 
 #endif // UNIT_TEST

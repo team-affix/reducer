@@ -94,13 +94,17 @@ struct data_point
     bool m_output;
 };
 
-// build a model from data
+// pointers
+std::vector<const data_point*>
+data_pointers(const std::vector<data_point>& a_data);
+
+// learn a model from data
 std::unique_ptr<model>
-build_model(const std::vector<const data_point*>& a_data,
-            const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
+            const std::vector<const data_point*>& a_data,
             const size_t& a_step_limit, const size_t& a_size_limit,
-            const size_t& a_arity,
-            monte_carlo::simulation<choice, std::mt19937>& a_simulation,
-            const size_t& a_recursion_limit);
+            const size_t& a_arity, const size_t& a_iterations,
+            const size_t& a_recursion_limit,
+            const double& a_exploration_constant);
 
 #endif // MODEL_HPP

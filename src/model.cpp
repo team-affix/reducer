@@ -37,13 +37,13 @@ eval_binning_function(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 
     auto l_norm_operand = a_binning_function->clone();
 
-    // build the application tower
-    for(size_t i = 0; i < a_arity; ++i)
-        l_norm_operand = a(std::move(l_norm_operand), a_args[i]->clone());
-
-    // construct the program
+    // construct the program FIRST
     l_norm_operand =
         construct_program(a_helpers.begin(), a_helpers.end(), l_norm_operand);
+
+    // THEN build the application tower
+    for(size_t i = 0; i < a_arity; ++i)
+        l_norm_operand = a(std::move(l_norm_operand), a_args[i]->clone());
 
     // normalize the application
     auto l_normalize_result =
@@ -843,6 +843,16 @@ void test_model_eval()
         assert(l_row_result(l_row_7) == true);
     }
 
+    // helper function to make a church numeral
+    const auto l_numeral = [](size_t a_binder_depth,
+                              size_t a_numeral) -> std::unique_ptr<lambda::expr>
+    {
+        auto l_result = v(a_binder_depth + 1);
+        for(size_t i = 0; i < a_numeral; ++i)
+            l_result = a(v(a_binder_depth + 0), std::move(l_result));
+        return f(f(std::move(l_result)));
+    };
+
     // unary model (single inequality)
     {
         // define helpers
@@ -918,35 +928,39 @@ void test_model_eval()
                                                       l(0) // m
                                                       ))))));
 
-        // helper function to make a church numeral
-        const auto l_numeral =
-            [&ZERO, &SUCC](size_t a_numeral) -> std::unique_ptr<lambda::expr>
-        {
-            auto l_result = ZERO->clone();
-            for(size_t i = 0; i < a_numeral; ++i)
-                l_result = a(SUCC->clone(), std::move(l_result));
-            return std::move(l_result);
-        };
-
         // define the root binning function
-        auto l_root_bf = f(a(a(LESS_THAN->clone(), l(0)), l_numeral(24)));
+        auto l_root_bf = f(a(a(LESS_THAN->clone(), l(0)),
+                             l_numeral(l_helpers.size() + 1, 24)));
 
         // define the model
         auto l_model = m(l_root_bf->clone(), m(true), m(false));
 
         // construct sample inputs
-        std::unique_ptr<lambda::expr> l_input_0 = l_numeral(7);
-        std::unique_ptr<lambda::expr> l_input_1 = l_numeral(16);
-        std::unique_ptr<lambda::expr> l_input_2 = l_numeral(42);
-        std::unique_ptr<lambda::expr> l_input_3 = l_numeral(2);
-        std::unique_ptr<lambda::expr> l_input_4 = l_numeral(13);
-        std::unique_ptr<lambda::expr> l_input_5 = l_numeral(99);
-        std::unique_ptr<lambda::expr> l_input_6 = l_numeral(64);
-        std::unique_ptr<lambda::expr> l_input_7 = l_numeral(0);
-        std::unique_ptr<lambda::expr> l_input_8 = l_numeral(27);
-        std::unique_ptr<lambda::expr> l_input_9 = l_numeral(8);
-        std::unique_ptr<lambda::expr> l_input_10 = l_numeral(51);
-        std::unique_ptr<lambda::expr> l_input_11 = l_numeral(31);
+        std::unique_ptr<lambda::expr> l_input_0 = l_numeral(0, 7);
+        std::unique_ptr<lambda::expr> l_input_1 = l_numeral(0, 16);
+        std::unique_ptr<lambda::expr> l_input_2 = l_numeral(0, 42);
+        std::unique_ptr<lambda::expr> l_input_3 = l_numeral(0, 2);
+        std::unique_ptr<lambda::expr> l_input_4 = l_numeral(0, 13);
+        std::unique_ptr<lambda::expr> l_input_5 = l_numeral(0, 99);
+        std::unique_ptr<lambda::expr> l_input_6 = l_numeral(0, 64);
+        std::unique_ptr<lambda::expr> l_input_7 = l_numeral(0, 0);
+        std::unique_ptr<lambda::expr> l_input_8 = l_numeral(0, 27);
+        std::unique_ptr<lambda::expr> l_input_9 = l_numeral(0, 8);
+        std::unique_ptr<lambda::expr> l_input_10 = l_numeral(0, 51);
+        std::unique_ptr<lambda::expr> l_input_11 = l_numeral(0, 31);
+
+        std::cout << "input 0: " << *l_input_0 << std::endl;
+        std::cout << "input 1: " << *l_input_1 << std::endl;
+        std::cout << "input 2: " << *l_input_2 << std::endl;
+        std::cout << "input 3: " << *l_input_3 << std::endl;
+        std::cout << "input 4: " << *l_input_4 << std::endl;
+        std::cout << "input 5: " << *l_input_5 << std::endl;
+        std::cout << "input 6: " << *l_input_6 << std::endl;
+        std::cout << "input 7: " << *l_input_7 << std::endl;
+        std::cout << "input 8: " << *l_input_8 << std::endl;
+        std::cout << "input 9: " << *l_input_9 << std::endl;
+        std::cout << "input 10: " << *l_input_10 << std::endl;
+        std::cout << "input 11: " << *l_input_11 << std::endl;
 
         // evaluate the model
         auto l_row_result = [&l_helpers,
@@ -1043,24 +1057,17 @@ void test_model_eval()
                                                       l(0) // m
                                                       ))))));
 
-        // helper function to make a church numeral
-        const auto l_numeral =
-            [&ZERO, &SUCC](size_t a_numeral) -> std::unique_ptr<lambda::expr>
-        {
-            auto l_result = ZERO->clone();
-            for(size_t i = 0; i < a_numeral; ++i)
-                l_result = a(SUCC->clone(), std::move(l_result));
-            return std::move(l_result);
-        };
-
         // define the root binning function
-        auto l_root_bf = f(a(a(LESS_THAN->clone(), l(0)), l_numeral(24)));
+        auto l_root_bf = f(a(a(LESS_THAN->clone(), l(0)),
+                             l_numeral(l_helpers.size() + 1, 24)));
 
         // define the left binning function
-        auto l_left_bf = f(a(a(LESS_THAN->clone(), l_numeral(18)), l(0)));
+        auto l_left_bf = f(a(
+            a(LESS_THAN->clone(), l_numeral(l_helpers.size() + 1, 18)), l(0)));
 
         // define the right binning function
-        auto l_right_bf = f(a(a(LESS_THAN->clone(), l_numeral(28)), l(0)));
+        auto l_right_bf = f(a(
+            a(LESS_THAN->clone(), l_numeral(l_helpers.size() + 1, 28)), l(0)));
 
         // define the model
         auto l_model =
@@ -1069,29 +1076,29 @@ void test_model_eval()
 
         // construct sample inputs
         std::unique_ptr<lambda::expr> l_input_0 =
-            l_numeral(20); // satisfies (18,24)
+            l_numeral(0, 20); // satisfies (18,24)
         std::unique_ptr<lambda::expr> l_input_1 =
-            l_numeral(22); // satisfies (18,24)
+            l_numeral(0, 22); // satisfies (18,24)
         std::unique_ptr<lambda::expr> l_input_2 =
-            l_numeral(29); // satisfies (28 < input)
+            l_numeral(0, 29); // satisfies (28 < input)
         std::unique_ptr<lambda::expr> l_input_3 =
-            l_numeral(31); // satisfies (28 < input)
+            l_numeral(0, 31); // satisfies (28 < input)
         std::unique_ptr<lambda::expr> l_input_4 =
-            l_numeral(19); // satisfies (18,24)
+            l_numeral(0, 19); // satisfies (18,24)
         std::unique_ptr<lambda::expr> l_input_5 =
-            l_numeral(21); // satisfies (18,24)
+            l_numeral(0, 21); // satisfies (18,24)
         std::unique_ptr<lambda::expr> l_input_6 =
-            l_numeral(30); // satisfies (28 < input)
+            l_numeral(0, 30); // satisfies (28 < input)
         std::unique_ptr<lambda::expr> l_input_7 =
-            l_numeral(23); // satisfies (18,24)
+            l_numeral(0, 23); // satisfies (18,24)
         std::unique_ptr<lambda::expr> l_input_8 =
-            l_numeral(24); // does NOT satisfy (edge)
+            l_numeral(0, 24); // does NOT satisfy (edge)
         std::unique_ptr<lambda::expr> l_input_9 =
-            l_numeral(18); // does NOT satisfy (edge)
+            l_numeral(0, 18); // does NOT satisfy (edge)
         std::unique_ptr<lambda::expr> l_input_10 =
-            l_numeral(28); // does NOT satisfy (edge)
+            l_numeral(0, 28); // does NOT satisfy (edge)
         std::unique_ptr<lambda::expr> l_input_11 =
-            l_numeral(25); // does NOT satisfy (in gap [24,28])
+            l_numeral(0, 25); // does NOT satisfy (in gap [24,28])
 
         // evaluate the model
         auto l_row_result = [&l_helpers,
@@ -1333,7 +1340,7 @@ void model_test_main()
     // TEST(test_boolify);
     // TEST(test_eval_binning_function);
     // TEST(test_model_construct_and_print);
-    // TEST(test_model_eval);
+    TEST(test_model_eval);
     TEST(test_build_function_body);
     TEST(test_build_function);
     TEST(test_build_model);

@@ -9,31 +9,31 @@ namespace predef
 {
 
 // church true
-std::unique_ptr<lambda::expr> church_true();
+std::unique_ptr<lambda::expr> church_true(size_t a_binder_depth);
 
 // church false
-std::unique_ptr<lambda::expr> church_false();
+std::unique_ptr<lambda::expr> church_false(size_t a_binder_depth);
 
 // church not
-std::unique_ptr<lambda::expr> church_not();
+std::unique_ptr<lambda::expr> church_not(size_t a_binder_depth);
 
 // church and
-std::unique_ptr<lambda::expr> church_and();
+std::unique_ptr<lambda::expr> church_and(size_t a_binder_depth);
 
 // church or
-std::unique_ptr<lambda::expr> church_or();
+std::unique_ptr<lambda::expr> church_or(size_t a_binder_depth);
 
 // church zero
-std::unique_ptr<lambda::expr> church_zero();
+std::unique_ptr<lambda::expr> church_zero(size_t a_binder_depth);
 
 // church succ
-std::unique_ptr<lambda::expr> church_succ();
+std::unique_ptr<lambda::expr> church_succ(size_t a_binder_depth);
 
 // church is_zero
-std::unique_ptr<lambda::expr> church_is_zero();
+std::unique_ptr<lambda::expr> church_is_zero(size_t a_binder_depth);
 
 // church pair
-std::unique_ptr<lambda::expr> church_pair();
+std::unique_ptr<lambda::expr> church_pair(size_t a_binder_depth);
 
 } // namespace predef
 } // namespace dml

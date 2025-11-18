@@ -1,5 +1,8 @@
 #include "../include/predef.hpp"
 
+// local variable macro
+#define L(x) v(a_binder_depth + x)
+
 using namespace lambda;
 
 namespace dml
@@ -7,58 +10,59 @@ namespace dml
 namespace predef
 {
 // church true
-std::unique_ptr<lambda::expr> church_true()
+std::unique_ptr<lambda::expr> church_true(size_t a_binder_depth)
 {
-    return f(f(v(0)));
+    return f(f(L(0)));
 }
 
 // church false
-std::unique_ptr<lambda::expr> church_false()
+std::unique_ptr<lambda::expr> church_false(size_t a_binder_depth)
 {
-    return f(f(v(1)));
+    return f(f(L(1)));
 }
 
 // church not
-std::unique_ptr<lambda::expr> church_not()
+std::unique_ptr<lambda::expr> church_not(size_t a_binder_depth)
 {
-    return f(a(a(v(0), church_false()->lift(1, 0)), church_true()->lift(1, 0)));
+    return f(a(a(L(0), church_false(a_binder_depth + 1)),
+               church_true(a_binder_depth + 1)));
 }
 
 // church and
-std::unique_ptr<lambda::expr> church_and()
+std::unique_ptr<lambda::expr> church_and(size_t a_binder_depth)
 {
-    return f(f(a(a(v(0), v(1)), church_false()->lift(2, 0))));
+    return f(f(a(a(L(0), L(1)), church_false(a_binder_depth + 2))));
 }
 
 // church or
-std::unique_ptr<lambda::expr> church_or()
+std::unique_ptr<lambda::expr> church_or(size_t a_binder_depth)
 {
-    return f(f(a(a(v(0), church_true()->lift(2, 0)), v(1))));
+    return f(f(a(a(L(0), church_true(a_binder_depth + 2)), L(1))));
 }
 
 // church zero
-std::unique_ptr<lambda::expr> church_zero()
+std::unique_ptr<lambda::expr> church_zero(size_t a_binder_depth)
 {
-    return f(f(v(1)));
+    return f(f(L(1)));
 }
 
 // church succ
-std::unique_ptr<lambda::expr> church_succ()
+std::unique_ptr<lambda::expr> church_succ(size_t a_binder_depth)
 {
-    return f(f(f(a(v(1), a(a(v(0), v(1)), v(2))))));
+    return f(f(f(a(L(1), a(a(L(0), L(1)), L(2))))));
 }
 
 // church is_zero
-std::unique_ptr<lambda::expr> church_is_zero()
+std::unique_ptr<lambda::expr> church_is_zero(size_t a_binder_depth)
 {
-    return f(
-        a(a(v(0), f(church_false()->lift(2, 0))), church_true()->lift(1, 0)));
+    return f(a(a(L(0), f(church_false(a_binder_depth + 2))),
+               church_true(a_binder_depth + 1)));
 }
 
 // church pair
-std::unique_ptr<lambda::expr> church_pair()
+std::unique_ptr<lambda::expr> church_pair(size_t a_binder_depth)
 {
-    return f(f(f(a(a(v(2), v(0)), v(1)))));
+    return f(f(f(a(a(L(2), L(0)), L(1)))));
 }
 
 } // namespace predef

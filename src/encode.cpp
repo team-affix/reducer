@@ -62,63 +62,55 @@ void test_encode_church_boolean()
         test_at_depth(depth, false);
     }
 
-    // Test behavior with NOT operation
+    // Test behavior with NOT operation at depth 0
+    auto test_not = [](bool value)
     {
-        auto l_true = church_boolean(0, true);
-        auto l_not = church_not(0);
-        auto l_not_true = a(std::move(l_not), std::move(l_true))->normalize();
-        auto l_expected_false = church_false(0);
-        assert(l_not_true.m_expr->equals(l_expected_false));
-
-        auto l_false = church_boolean(0, false);
-        auto l_not2 = church_not(0);
-        auto l_not_false =
-            a(std::move(l_not2), std::move(l_false))->normalize();
-        auto l_expected_true = church_true(0);
-        assert(l_not_false.m_expr->equals(l_expected_true));
-    }
-
-    // Test behavior with AND operation
-    {
-        auto l_true1 = church_boolean(0, true);
-        auto l_true2 = church_boolean(0, true);
-        auto l_and = church_and(0);
-        auto l_result =
-            a(a(std::move(l_and), std::move(l_true1)), std::move(l_true2))
-                ->normalize();
-        auto l_expected = church_true(0);
+        constexpr size_t depth = 0;
+        auto l_input = church_boolean(depth, value);
+        auto l_not = church_not(depth);
+        auto l_result = a(std::move(l_not), std::move(l_input))->normalize();
+        auto l_expected = church_boolean(depth, !value);
         assert(l_result.m_expr->equals(l_expected));
+    };
 
-        auto l_true3 = church_boolean(0, true);
-        auto l_false1 = church_boolean(0, false);
-        auto l_and2 = church_and(0);
-        auto l_result2 =
-            a(a(std::move(l_and2), std::move(l_true3)), std::move(l_false1))
-                ->normalize();
-        auto l_expected2 = church_false(0);
-        assert(l_result2.m_expr->equals(l_expected2));
-    }
+    test_not(true);
+    test_not(false);
 
-    // Test behavior with OR operation
+    // Test behavior with AND operation at depth 0
+    auto test_and = [](bool a_val, bool b_val)
     {
-        auto l_false1 = church_boolean(0, false);
-        auto l_false2 = church_boolean(0, false);
-        auto l_or = church_or(0);
+        constexpr size_t depth = 0;
+        auto l_a = church_boolean(depth, a_val);
+        auto l_b = church_boolean(depth, b_val);
+        auto l_and = church_and(depth);
         auto l_result =
-            a(a(std::move(l_or), std::move(l_false1)), std::move(l_false2))
-                ->normalize();
-        auto l_expected = church_false(0);
+            a(a(std::move(l_and), std::move(l_a)), std::move(l_b))->normalize();
+        auto l_expected = church_boolean(depth, a_val && b_val);
         assert(l_result.m_expr->equals(l_expected));
+    };
 
-        auto l_true1 = church_boolean(0, true);
-        auto l_false3 = church_boolean(0, false);
-        auto l_or2 = church_or(0);
-        auto l_result2 =
-            a(a(std::move(l_or2), std::move(l_true1)), std::move(l_false3))
-                ->normalize();
-        auto l_expected2 = church_true(0);
-        assert(l_result2.m_expr->equals(l_expected2));
-    }
+    test_and(true, true);
+    test_and(true, false);
+    test_and(false, true);
+    test_and(false, false);
+
+    // Test behavior with OR operation at depth 0
+    auto test_or = [](bool a_val, bool b_val)
+    {
+        constexpr size_t depth = 0;
+        auto l_a = church_boolean(depth, a_val);
+        auto l_b = church_boolean(depth, b_val);
+        auto l_or = church_or(depth);
+        auto l_result =
+            a(a(std::move(l_or), std::move(l_a)), std::move(l_b))->normalize();
+        auto l_expected = church_boolean(depth, a_val || b_val);
+        assert(l_result.m_expr->equals(l_expected));
+    };
+
+    test_or(true, true);
+    test_or(true, false);
+    test_or(false, true);
+    test_or(false, false);
 }
 
 void test_encode_church_numeral()
@@ -149,51 +141,51 @@ void test_encode_church_numeral()
         }
     }
 
-    // Test behavior with IS_ZERO
+    // Test behavior with IS_ZERO at depth 0
+    auto test_is_zero = [](size_t numeral)
     {
-        auto l_zero = church_numeral(0, 0);
-        auto l_is_zero = church_is_zero(0);
-        auto l_result = a(std::move(l_is_zero), std::move(l_zero))->normalize();
-        auto l_expected = church_true(0);
+        constexpr size_t depth = 0;
+        auto l_numeral = church_numeral(depth, numeral);
+        auto l_is_zero = church_is_zero(depth);
+        auto l_result =
+            a(std::move(l_is_zero), std::move(l_numeral))->normalize();
+        auto l_expected = church_boolean(depth, numeral == 0);
         assert(l_result.m_expr->equals(l_expected));
+    };
 
-        auto l_one = church_numeral(0, 1);
-        auto l_is_zero2 = church_is_zero(0);
-        auto l_result2 =
-            a(std::move(l_is_zero2), std::move(l_one))->normalize();
-        auto l_expected2 = church_false(0);
-        assert(l_result2.m_expr->equals(l_expected2));
-    }
+    test_is_zero(0);
+    test_is_zero(1);
+    test_is_zero(3);
 
-    // Test behavior with SUCC
+    // Test behavior with SUCC at depth 0
+    auto test_succ = [](size_t numeral)
     {
-        auto l_zero = church_numeral(0, 0);
-        auto l_succ = church_succ(0);
-        auto l_result = a(std::move(l_succ), std::move(l_zero))->normalize();
-        auto l_expected = church_numeral(0, 1);
+        constexpr size_t depth = 0;
+        auto l_numeral = church_numeral(depth, numeral);
+        auto l_succ = church_succ(depth);
+        auto l_result = a(std::move(l_succ), std::move(l_numeral))->normalize();
+        auto l_expected = church_numeral(depth, numeral + 1);
         assert(l_result.m_expr->equals(l_expected));
+    };
 
-        auto l_two = church_numeral(0, 2);
-        auto l_succ2 = church_succ(0);
-        auto l_result2 = a(std::move(l_succ2), std::move(l_two))->normalize();
-        auto l_expected2 = church_numeral(0, 3);
-        assert(l_result2.m_expr->equals(l_expected2));
-    }
+    test_succ(0);
+    test_succ(1);
+    test_succ(2);
 
-    // Test behavior with PRED
+    // Test behavior with PRED at depth 0
+    auto test_pred = [](size_t numeral)
     {
-        auto l_one = church_numeral(0, 1);
-        auto l_pred = church_pred(0);
-        auto l_result = a(std::move(l_pred), std::move(l_one))->normalize();
-        auto l_expected = church_numeral(0, 0);
+        constexpr size_t depth = 0;
+        auto l_numeral = church_numeral(depth, numeral);
+        auto l_pred = church_pred(depth);
+        auto l_result = a(std::move(l_pred), std::move(l_numeral))->normalize();
+        auto l_expected = church_numeral(depth, numeral > 0 ? numeral - 1 : 0);
         assert(l_result.m_expr->equals(l_expected));
+    };
 
-        auto l_three = church_numeral(0, 3);
-        auto l_pred2 = church_pred(0);
-        auto l_result2 = a(std::move(l_pred2), std::move(l_three))->normalize();
-        auto l_expected2 = church_numeral(0, 2);
-        assert(l_result2.m_expr->equals(l_expected2));
-    }
+    test_pred(0);
+    test_pred(1);
+    test_pred(3);
 }
 
 void test_encode_church_pair()

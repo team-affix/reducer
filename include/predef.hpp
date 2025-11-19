@@ -8,6 +8,9 @@ namespace dml
 namespace predef
 {
 
+// Y combinator
+std::unique_ptr<lambda::expr> y_combinator(size_t a_binder_depth);
+
 // church true
 std::unique_ptr<lambda::expr> church_true(size_t a_binder_depth);
 

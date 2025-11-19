@@ -9,6 +9,14 @@ namespace dml
 {
 namespace predef
 {
+
+// Y combinator
+std::unique_ptr<lambda::expr> y_combinator(size_t a_binder_depth)
+{
+    // Y ≡ λf. (λx. f (x x)) (λx. f (x x))
+    return f(a(f(a(L(0), a(L(1), L(1)))), f(a(L(0), a(L(1), L(1))))));
+}
+
 // church true
 std::unique_ptr<lambda::expr> church_true(size_t a_binder_depth)
 {
@@ -146,6 +154,110 @@ std::unique_ptr<lambda::expr> wrap_lambdas(std::unique_ptr<lambda::expr>&& expr,
         expr = f(std::move(expr));
     }
     return std::move(expr);
+}
+
+void test_y_combinator()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_y = y_combinator(depth);
+        auto expected = f(a(f(a(v(depth), a(v(depth + 1), v(depth + 1)))),
+                            f(a(v(depth), a(v(depth + 1), v(depth + 1))))));
+        assert(l_y->equals(expected));
+
+        // apply Y to v(10) (MUST have step limit or will run forever)
+        // this should build a tower of applications of v(10) basically
+        auto l_y_of_v10_result =
+            wrap_lambdas(a(l_y->clone(), v(depth + 10)), depth)
+                ->normalize(
+                    4, std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>& a_expr)
+                        -> void { /* std::cout << *a_expr << std::endl;*/ });
+        assert(l_y_of_v10_result.m_expr->equals(
+            wrap_lambdas(a(v(depth + 10),
+                           a(v(depth + 10),
+                             a(v(depth + 10),
+                               a(f(a(v(depth + 11), a(v(depth), v(depth)))),
+                                 f(a(v(depth + 11), a(v(depth), v(depth)))))))),
+                         depth)));
+        {
+            // try something that terminates
+            // take a number, and if it is zero, return v(22), else decrement
+            // F ≡ λself. λn.
+            //     if isZero n
+            //         then v(22)
+            //         else self (pred n)
+            auto l_F =
+                f(f(a(a(a(church_is_zero(depth + 2), v(depth + 1)),
+                        v(depth + 2 + 22)),
+                      a(v(depth), a(church_pred(depth + 2), v(depth + 1))))));
+
+            // G ≡ Y F
+            auto l_G = a(l_y->clone(), l_F->clone());
+
+            // construct number 10
+            auto l_ten = v(depth + 1);
+            for(size_t i = 0; i < 10; ++i)
+                l_ten = a(v(depth), std::move(l_ten));
+            l_ten = f(f(std::move(l_ten)));
+
+            // apply G to 10 (should terminate)
+            auto l_G_result =
+                wrap_lambdas(a(l_G->clone(), l_ten->clone()), depth)
+                    ->normalize(
+                        std::numeric_limits<size_t>::max(),
+                        std::numeric_limits<size_t>::max(),
+                        [](const std::unique_ptr<lambda::expr>& a_expr)
+                            -> void { /* std::cout << *a_expr << std::endl;*/ });
+            assert(
+                l_G_result.m_expr->equals(wrap_lambdas(v(depth + 22), depth)));
+        }
+
+        // try computing a tower of applications of size n
+        {
+            // F ≡ λself. λf. λx. λn.
+            //     if isZero n
+            //         then x
+            //         else f (self f x (pred n))
+            auto l_F = f(f(f(
+                f(a(a(a(church_is_zero(depth + 4), v(depth + 3)), v(depth + 2)),
+                    a(v(depth + 1),
+                      a(a(a(v(depth), v(depth + 1)), v(depth + 2)),
+                        a(church_pred(depth + 4), v(depth + 3)))))))));
+
+            // G ≡ Y F
+            auto l_G = a(l_y->clone(), l_F->clone());
+
+            // construct number 5
+            auto l_five = v(depth + 1);
+            for(size_t i = 0; i < 5; ++i)
+                l_five = a(v(depth), std::move(l_five));
+            l_five = f(f(std::move(l_five)));
+
+            // apply G to v(33), v(44), and 5
+            auto l_G_result =
+                wrap_lambdas(a(a(a(l_G->clone(), v(depth + 33)), v(depth + 44)),
+                               l_five->clone()),
+                             depth)
+                    ->normalize(
+                        std::numeric_limits<size_t>::max(),
+                        std::numeric_limits<size_t>::max(),
+                        [](const std::unique_ptr<lambda::expr>& a_expr)
+                            -> void { /* std::cout << *a_expr << std::endl;*/ });
+            assert(l_G_result.m_expr->equals(wrap_lambdas(
+                a(v(33 + depth),
+                  a(v(33 + depth),
+                    a(v(33 + depth),
+                      a(v(33 + depth), a(v(33 + depth), v(44 + depth)))))),
+                depth)));
+        }
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
 }
 
 void test_church_true()
@@ -784,6 +896,7 @@ void test_scott_cons()
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
+    TEST(test_y_combinator);
     TEST(test_church_true);
     TEST(test_church_false);
     TEST(test_church_not);

@@ -23,6 +23,9 @@ std::unique_ptr<lambda::expr> church_and(size_t a_binder_depth);
 // church or
 std::unique_ptr<lambda::expr> church_or(size_t a_binder_depth);
 
+// church xor
+std::unique_ptr<lambda::expr> church_xor(size_t a_binder_depth);
+
 // church zero
 std::unique_ptr<lambda::expr> church_zero(size_t a_binder_depth);
 

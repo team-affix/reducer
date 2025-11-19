@@ -40,6 +40,12 @@ std::unique_ptr<lambda::expr> church_or(size_t a_binder_depth)
     return f(f(a(a(L(0), church_true(a_binder_depth + 2)), L(1))));
 }
 
+// church xor
+std::unique_ptr<lambda::expr> church_xor(size_t a_binder_depth)
+{
+    return f(f(a(a(L(0), a(church_not(a_binder_depth + 2), L(1))), L(1))));
+}
+
 // church zero
 std::unique_ptr<lambda::expr> church_zero(size_t a_binder_depth)
 {
@@ -266,6 +272,62 @@ void test_church_or()
                 ->normalize();
         assert(l_or_false_false.m_expr->equals(
             wrap_lambdas(church_false(depth), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_church_xor()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_xor = church_xor(depth);
+        auto expected =
+            f(f(a(a(v(depth), a(church_not(depth + 2), v(depth + 1))),
+                  v(depth + 1))));
+        assert(l_xor->equals(expected));
+
+        // true
+        auto l_true = church_true(depth);
+
+        // false
+        auto l_false = church_false(depth);
+
+        // Test xor(true, true) = false
+        auto l_xor_true_true =
+            wrap_lambdas(a(a(l_xor->clone(), l_true->clone()), l_true->clone()),
+                         depth)
+                ->normalize();
+        assert(l_xor_true_true.m_expr->equals(
+            wrap_lambdas(l_false->clone(), depth)));
+
+        // Test xor(true, false) = true
+        auto l_xor_true_false =
+            wrap_lambdas(
+                a(a(l_xor->clone(), l_true->clone()), l_false->clone()), depth)
+                ->normalize();
+        assert(l_xor_true_false.m_expr->equals(
+            wrap_lambdas(l_true->clone(), depth)));
+
+        // Test xor(false, true) = true
+        auto l_xor_false_true =
+            wrap_lambdas(
+                a(a(l_xor->clone(), l_false->clone()), l_true->clone()), depth)
+                ->normalize();
+        assert(l_xor_false_true.m_expr->equals(
+            wrap_lambdas(l_true->clone(), depth)));
+
+        // Test xor(false, false) = false
+        auto l_xor_false_false =
+            wrap_lambdas(
+                a(a(l_xor->clone(), l_false->clone()), l_false->clone()), depth)
+                ->normalize();
+        assert(l_xor_false_false.m_expr->equals(
+            wrap_lambdas(l_false->clone(), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -659,6 +721,7 @@ void predef_test_main()
     TEST(test_church_not);
     TEST(test_church_and);
     TEST(test_church_or);
+    TEST(test_church_xor);
     TEST(test_church_zero);
     TEST(test_church_succ);
     TEST(test_church_is_zero);

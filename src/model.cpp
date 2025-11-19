@@ -28,18 +28,13 @@ bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
 }
 
 std::optional<bool>
-eval_binning_function(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
-                      const std::unique_ptr<lambda::expr>& a_binning_function,
-                      const std::unique_ptr<lambda::expr>* a_args,
-                      size_t a_arity, size_t a_step_limit, size_t a_size_limit)
+eval_binning_program(const std::unique_ptr<lambda::expr>& a_binning_program,
+                     const std::unique_ptr<lambda::expr>* a_args,
+                     size_t a_arity, size_t a_step_limit, size_t a_size_limit)
 {
     using namespace lambda;
 
-    auto l_norm_operand = a_binning_function->clone();
-
-    // construct the program FIRST
-    l_norm_operand =
-        construct_program(a_helpers.begin(), a_helpers.end(), l_norm_operand);
+    auto l_norm_operand = a_binning_program->clone();
 
     // THEN build the application tower
     for(size_t i = 0; i < a_arity; ++i)
@@ -86,11 +81,15 @@ model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
     if(m_func == nullptr)
         return m_homogenous_value;
 
-    // evaluate the binning function
-    auto l_binning_result = eval_binning_function(
-        a_helpers, m_func, a_args, a_arity, a_step_limit, a_size_limit);
+    // construct the program
+    auto l_program =
+        construct_program(a_helpers.begin(), a_helpers.end(), m_func->clone());
 
-    // if the binning function evaluation is too complex, return std::nullopt
+    // evaluate the binning program
+    auto l_binning_result = eval_binning_program(l_program, a_args, a_arity,
+                                                 a_step_limit, a_size_limit);
+
+    // if the binning program evaluation is too complex, return std::nullopt
     if(!l_binning_result.has_value())
         return std::nullopt;
 
@@ -316,18 +315,22 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
         l_binning_function = build_function(a_helpers.size(), a_arity,
                                             a_simulation, a_recursion_limit);
 
+        // construct the program
+        auto l_program = construct_program(a_helpers.begin(), a_helpers.end(),
+                                           l_binning_function->clone());
+
         ////////////////////////////////////////////////////
-        ////////////// EVALUATE BINNING FUNCTION ///////////
+        ////////////// EVALUATE BINNING PROGRAM ////////////
         ////////////////////////////////////////////////////
 
-        // evaluate the binning function on all of the
+        // evaluate the binning program on all of the
         // data points
         for(const auto* l_data_point : a_data)
         {
-            // evaluate the binning function
-            auto l_normalize_result = eval_binning_function(
-                a_helpers, l_binning_function, l_data_point->m_inputs.data(),
-                l_data_point->m_inputs.size(), a_step_limit, a_size_limit);
+            // evaluate the binning program
+            auto l_normalize_result =
+                eval_binning_program(l_program, l_data_point->m_inputs.data(),
+                                     a_arity, a_step_limit, a_size_limit);
 
             // if the evaluation is too complex, set normalization complex flag
             // then break to prevent evaluating any more data points.
@@ -449,49 +452,45 @@ void test_boolify()
     assert(boolify(f(f(a(v(0), a(v(0), v(1)))))) == true);
 }
 
-void test_eval_binning_function()
+void test_eval_binning_program()
 {
     using namespace lambda;
 
     // var 0, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_function = v(0);
-        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
-                                     1000)
+        std::unique_ptr<lambda::expr> l_binning_program = v(0);
+        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
                    .value() == true);
     }
 
     // var 1, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_function = v(1);
-        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
-                                     1000)
+        std::unique_ptr<lambda::expr> l_binning_program = v(1);
+        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
                    .value() == false);
     }
 
     // func 0, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_function = f(v(0));
-        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
-                                     1000)
+        std::unique_ptr<lambda::expr> l_binning_program = f(v(0));
+        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
                    .value() == true);
     }
 
     // func 1, step limit 1000, size limit 1000
     {
-        std::unique_ptr<lambda::expr> l_binning_function = f(v(1));
-        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 1000,
-                                     1000)
+        std::unique_ptr<lambda::expr> l_binning_program = f(v(1));
+        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
                    .value() == false);
     }
 
     // omega (omega combinator), step limit 100, size limit 100, should be too
     // complex to evaluate
     {
-        std::unique_ptr<lambda::expr> l_binning_function =
+        std::unique_ptr<lambda::expr> l_binning_program =
             a(f(a(v(0), v(0))), f(a(v(0), v(0))));
-        assert(eval_binning_function({}, l_binning_function, nullptr, 0, 100,
-                                     100) == std::nullopt);
+        assert(eval_binning_program(l_binning_program, nullptr, 0, 100, 100) ==
+               std::nullopt);
     }
 
     // church bools, (make sure true is truthy and false is falsy)
@@ -509,14 +508,20 @@ void test_eval_binning_function()
         const auto FALSE = g(l_helpers.size());
         l_helpers.push_back(f(f(l(1))));
 
+        // construct the program
+        auto l_true_program = construct_program(l_helpers.begin(),
+                                                l_helpers.end(), TRUE->clone());
+
+        // construct the program
+        auto l_false_program = construct_program(
+            l_helpers.begin(), l_helpers.end(), FALSE->clone());
+
         // evaluate the binning function
-        assert(eval_binning_function(l_helpers, TRUE->clone(), nullptr, 0, 100,
-                                     100)
+        assert(eval_binning_program(l_true_program, nullptr, 0, 100, 100)
                    .value() == true);
 
         // evaluate the binning function
-        assert(eval_binning_function(l_helpers, FALSE->clone(), nullptr, 0, 100,
-                                     100)
+        assert(eval_binning_program(l_false_program, nullptr, 0, 100, 100)
                    .value() == false);
     }
 
@@ -538,15 +543,21 @@ void test_eval_binning_function()
         const auto SUCC = g(l_helpers.size());
         l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
+        // construct the program
+        auto l_zero_program = construct_program(l_helpers.begin(),
+                                                l_helpers.end(), ZERO->clone());
+        auto l_one_program =
+            construct_program(l_helpers.begin(), l_helpers.end(),
+                              a(SUCC->clone(), ZERO->clone()));
+
         // evaluate the binning program
-        assert(eval_binning_function(l_helpers, ZERO->clone(), nullptr, 0, 100,
-                                     100)
+        assert(eval_binning_program(l_zero_program, nullptr, 0, 100, 100)
                    .value() == false);
 
         // evaluate the binning program
-        assert(eval_binning_function(l_helpers, a(SUCC->clone(), ZERO->clone()),
-                                     nullptr, 0, 100, 100)
-                   .value() == true);
+        assert(
+            eval_binning_program(l_one_program, nullptr, 0, 100, 100).value() ==
+            true);
     }
 
     // succ of zero, step limit 4, size limit 100, should be too complex to eval
@@ -567,9 +578,14 @@ void test_eval_binning_function()
         const auto SUCC = g(l_helpers.size());
         l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
+        // construct the program
+        auto l_succ_zero_program =
+            construct_program(l_helpers.begin(), l_helpers.end(),
+                              a(SUCC->clone(), ZERO->clone()));
+
         // evaluate the binning program
-        assert(eval_binning_function(l_helpers, a(SUCC->clone(), ZERO->clone()),
-                                     nullptr, 0, 4, 100) == std::nullopt);
+        assert(eval_binning_program(l_succ_zero_program, nullptr, 0, 4, 100) ==
+               std::nullopt);
     }
 
     // succ of zero, step limit 100, size limit 10, should be too complex to
@@ -591,9 +607,14 @@ void test_eval_binning_function()
         const auto SUCC = g(l_helpers.size());
         l_helpers.emplace_back(f(f(f(a(l(1), a(a(l(0), l(1)), l(2)))))));
 
+        // construct the program
+        auto l_succ_zero_program =
+            construct_program(l_helpers.begin(), l_helpers.end(),
+                              a(SUCC->clone(), ZERO->clone()));
+
         // evaluate the binning program
-        assert(eval_binning_function(l_helpers, a(SUCC->clone(), ZERO->clone()),
-                                     nullptr, 0, 100, 10) == std::nullopt);
+        assert(eval_binning_program(l_succ_zero_program, nullptr, 0, 100, 10) ==
+               std::nullopt);
     }
 }
 
@@ -1328,7 +1349,7 @@ void test_learn_model()
                        [](const auto& a_data_point) { return &a_data_point; });
 
         auto l_model =
-            learn_model({}, l_data_pointers, 1000, 1000, 2, 10000, 5, 20);
+            learn_model({}, l_data_pointers, 1000, 1000, 3, 1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 }
@@ -1337,9 +1358,9 @@ void model_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
-    // TEST(test_boolify);
-    // TEST(test_eval_binning_function);
-    // TEST(test_model_construct_and_print);
+    TEST(test_boolify);
+    TEST(test_eval_binning_program);
+    TEST(test_model_construct_and_print);
     TEST(test_model_eval);
     TEST(test_build_function_body);
     TEST(test_build_function);

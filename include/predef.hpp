@@ -53,6 +53,12 @@ std::unique_ptr<lambda::expr> church_sub(size_t a_binder_depth);
 // church less_than
 std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth);
 
+// scott nil
+std::unique_ptr<lambda::expr> scott_nil(size_t a_binder_depth);
+
+// scott cons
+std::unique_ptr<lambda::expr> scott_cons(size_t a_binder_depth);
+
 } // namespace predef
 } // namespace dml
 

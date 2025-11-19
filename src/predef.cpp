@@ -117,6 +117,19 @@ std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth)
                      L(0))))));                               // m
 }
 
+// scott nil
+std::unique_ptr<lambda::expr> scott_nil(size_t a_binder_depth)
+{
+    return f(f(L(0)));
+}
+
+// scott cons
+std::unique_ptr<lambda::expr> scott_cons(size_t a_binder_depth)
+{
+    // λh. λt. λnilCase. λconsCase. consCase h t
+    return f(f(f(f(a(a(L(3), L(0)), L(1))))));
+}
+
 } // namespace predef
 } // namespace dml
 
@@ -713,6 +726,61 @@ void test_church_less_than()
     }
 }
 
+void test_scott_nil()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_nil = scott_nil(depth);
+        auto expected = f(f(v(depth)));
+        assert(l_nil->equals(expected));
+
+        // check if nil (supply v(10) and v(11)) to see what it resolves to
+        auto l_nil_result =
+            wrap_lambdas(a(a(l_nil->clone(), v(depth + 10)), v(depth + 11)),
+                         depth)
+                ->normalize();
+
+        // nil returns the first argument
+        assert(l_nil_result.m_expr->equals(wrap_lambdas(v(depth + 10), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_scott_cons()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_cons = scott_cons(depth);
+        auto expected =
+            f(f(f(f(a(a(v(depth + 3), v(depth + 0)), v(depth + 1))))));
+        assert(l_cons->equals(expected));
+
+        // construct cons (v(10), v(11))
+        auto l_cons_created =
+            a(a(l_cons->clone(), v(depth + 10)), v(depth + 11));
+
+        // interrogate cons with (v(12), v(13)) to see what it resolves to
+        auto l_cons_result =
+            wrap_lambdas(
+                a(a(std::move(l_cons_created), v(depth + 12)), v(depth + 13)),
+                depth)
+                ->normalize();
+        assert(l_cons_result.m_expr->equals(wrap_lambdas(
+            a(a(v(depth + 13), v(depth + 10)), v(depth + 11)), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -731,6 +799,8 @@ void predef_test_main()
     TEST(test_church_pred);
     TEST(test_church_sub);
     TEST(test_church_less_than);
+    TEST(test_scott_nil);
+    TEST(test_scott_cons);
 }
 
 #endif // UNIT_TEST

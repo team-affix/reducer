@@ -283,6 +283,120 @@ void test_encode_church_pair()
     // implementation. The structural tests above verify correct encoding.
 }
 
+void test_encode_scott_list()
+{
+    using namespace dml::encode;
+    using namespace dml::predef;
+
+    // Test empty list (nil) at various depths
+    auto test_nil = [](size_t depth)
+    {
+        std::list<std::unique_ptr<lambda::expr>> l_empty_list;
+        auto l_nil = scott_list(depth, l_empty_list);
+        auto l_expected = scott_nil(depth);
+        assert(l_nil->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_nil(depth);
+    }
+
+    // Test single element list at various depths
+    auto test_single = [](size_t depth)
+    {
+        std::list<std::unique_ptr<lambda::expr>> l_list;
+        l_list.push_back(church_boolean(depth, true));
+        auto l_result = scott_list(depth, l_list);
+
+        // Expected: cons (church_boolean true) nil
+        auto l_expected = a(a(scott_cons(depth), church_boolean(depth, true)),
+                            scott_nil(depth));
+        assert(l_result->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_single(depth);
+    }
+
+    // Test multi-element list at various depths
+    auto test_multi = [](size_t depth)
+    {
+        std::list<std::unique_ptr<lambda::expr>> l_list;
+        l_list.push_back(church_boolean(depth, true));
+        l_list.push_back(church_boolean(depth, false));
+        l_list.push_back(church_numeral(depth, 2));
+        auto l_result = scott_list(depth, l_list);
+
+        // Expected: cons true (cons false (cons 2 nil))
+        auto l_expected =
+            a(a(scott_cons(depth), church_boolean(depth, true)),
+              a(a(scott_cons(depth), church_boolean(depth, false)),
+                a(a(scott_cons(depth), church_numeral(depth, 2)),
+                  scott_nil(depth))));
+        assert(l_result->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_multi(depth);
+    }
+
+    // Note: Behavioral tests with normalized extractions omitted due to De
+    // Bruijn level complexity during normalization. The structural tests above
+    // and the is-empty test below verify correct Scott list encoding behavior.
+
+    // Test behavioral: check if list is empty using case analysis
+    auto test_is_empty_check = [](size_t depth)
+    {
+        // Test with empty list - should return nilCase (true)
+        std::list<std::unique_ptr<lambda::expr>> l_empty;
+        auto l_empty_list = scott_list(depth, l_empty);
+
+        auto l_nil_case = church_boolean(depth, true);
+        auto l_cons_case = f(f(church_boolean(depth + 2, false)));
+
+        auto l_result_empty =
+            wrap_lambdas(a(a(std::move(l_empty_list), l_nil_case->clone()),
+                           l_cons_case->clone()),
+                         depth)
+                ->normalize(std::numeric_limits<size_t>::max(),
+                            std::numeric_limits<size_t>::max(),
+                            [](const std::unique_ptr<lambda::expr>& a_expr)
+                            { std::cout << *a_expr << std::endl; });
+
+        auto l_expected_empty = wrap_lambdas(church_boolean(depth, true), depth)
+                                    ->normalize()
+                                    .m_expr;
+        assert(l_result_empty.m_expr->equals(l_expected_empty));
+
+        // Test with non-empty list - should return consCase result (false)
+        std::list<std::unique_ptr<lambda::expr>> l_nonempty;
+        l_nonempty.push_back(
+            v(depth + 5)); // Simple variable adjusted for depth
+        auto l_nonempty_list = scott_list(depth, l_nonempty);
+
+        auto l_result_nonempty =
+            wrap_lambdas(a(a(std::move(l_nonempty_list), l_nil_case->clone()),
+                           l_cons_case->clone()),
+                         depth)
+                ->normalize();
+
+        auto l_expected_nonempty =
+            wrap_lambdas(church_boolean(depth, false), depth)
+                ->normalize()
+                .m_expr;
+        assert(l_result_nonempty.m_expr->equals(l_expected_nonempty));
+    };
+
+    // Test at depth 0 only due to normalization complexity
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_is_empty_check(depth);
+    }
+}
+
 void encode_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -290,6 +404,7 @@ void encode_test_main()
     TEST(test_encode_church_boolean);
     TEST(test_encode_church_numeral);
     TEST(test_encode_church_pair);
+    TEST(test_encode_scott_list);
 }
 
 #endif // UNIT_TEST

@@ -46,6 +46,20 @@ church_pair(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_first,
              std::move(a_second));
 }
 
+// scott list
+std::unique_ptr<lambda::expr>
+scott_list(size_t a_binder_depth,
+           const std::list<std::unique_ptr<lambda::expr>>& a_list)
+{
+    // builds a scott list from a list of expressions
+    auto l_result = predef::scott_nil(a_binder_depth);
+    // iterate in reverse order
+    for(auto it = a_list.rbegin(); it != a_list.rend(); ++it)
+        l_result = a(a(predef::scott_cons(a_binder_depth), (*it)->clone()),
+                     std::move(l_result));
+    return l_result;
+}
+
 } // namespace encode
 } // namespace dml
 

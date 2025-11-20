@@ -2,6 +2,7 @@
 #define ENCODE_HPP
 
 #include "lambda.hpp"
+#include <list>
 
 namespace dml
 {
@@ -20,6 +21,11 @@ std::unique_ptr<lambda::expr> church_numeral(size_t a_binder_depth,
 std::unique_ptr<lambda::expr>
 church_pair(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_first,
             std::unique_ptr<lambda::expr>&& a_second);
+
+// scott list
+std::unique_ptr<lambda::expr>
+scott_list(size_t a_binder_depth,
+           const std::list<std::unique_ptr<lambda::expr>>& a_list);
 
 } // namespace encode
 } // namespace dml

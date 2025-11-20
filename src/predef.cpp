@@ -883,6 +883,7 @@ void test_scott_cons()
                 a(a(std::move(l_cons_created), v(depth + 12)), v(depth + 13)),
                 depth)
                 ->normalize();
+        // cons returns the second argument applied to the head and tail
         assert(l_cons_result.m_expr->equals(wrap_lambdas(
             a(a(v(depth + 13), v(depth + 10)), v(depth + 11)), depth)));
     };

@@ -1,8 +1,17 @@
 #include "../include/encode.hpp"
 #include "../include/predef.hpp"
 
+#define L(x) v(a_binder_depth + x)
+
 using namespace lambda;
 using namespace dml::predef;
+
+////////////////////////////////////////
+//// NOTE: the symmetry between predef and encode is the following:
+////       predef defines the fundamental concepts (can define functions).
+////       Encode on the other hand, can ONLY apply those concepts to
+////       one another. Lambda abstractions are forbidden in encode.cpp,
+////       only applications of concepts defined in predef are allowed.
 
 namespace dml
 {
@@ -21,10 +30,11 @@ std::unique_ptr<lambda::expr> church_boolean(size_t a_binder_depth,
 std::unique_ptr<lambda::expr> church_numeral(size_t a_binder_depth,
                                              size_t a_numeral)
 {
-    auto l_result = v(a_binder_depth + 1);
+    // builds a succ tower on zero
+    auto l_result = church_zero(a_binder_depth);
     for(size_t i = 0; i < a_numeral; ++i)
-        l_result = a(v(a_binder_depth), std::move(l_result));
-    return f(f(std::move(l_result)));
+        l_result = a(church_succ(a_binder_depth), std::move(l_result));
+    return l_result;
 }
 
 // church pair
@@ -32,7 +42,8 @@ std::unique_ptr<lambda::expr>
 church_pair(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_first,
             std::unique_ptr<lambda::expr>&& a_second)
 {
-    return f(a(a(v(a_binder_depth), std::move(a_first)), std::move(a_second)));
+    return a(a(predef::church_pair(a_binder_depth), std::move(a_first)),
+             std::move(a_second));
 }
 
 } // namespace encode
@@ -41,6 +52,10 @@ church_pair(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_first,
 #ifdef UNIT_TEST
 #include "test_utils.hpp"
 using namespace dml::encode;
+
+// Helper to wrap expression with n lambdas
+std::unique_ptr<lambda::expr> wrap_lambdas(std::unique_ptr<lambda::expr>&& expr,
+                                           size_t n);
 
 void test_encode_church_boolean()
 {
@@ -123,13 +138,19 @@ void test_encode_church_numeral()
     {
         auto l_numeral = church_numeral(depth, numeral);
 
+        // normalize the numeral
+        auto l_normalized =
+            wrap_lambdas(std::move(l_numeral), depth)->normalize().m_expr;
+
         // Build expected: λf.λx. f^n(x) where f=depth, x=depth+1
         auto expected_body = v(depth + 1);
         for(size_t i = 0; i < numeral; ++i)
             expected_body = a(v(depth), std::move(expected_body));
-        auto expected = f(f(std::move(expected_body)));
+        auto expected = wrap_lambdas(f(f(std::move(expected_body))), depth);
 
-        assert(l_numeral->equals(expected));
+        std::cout << *l_normalized << std::endl;
+
+        assert(l_normalized->equals(expected));
     };
 
     // Test at multiple binder depths and numerals
@@ -164,7 +185,8 @@ void test_encode_church_numeral()
         auto l_numeral = church_numeral(depth, numeral);
         auto l_succ = church_succ(depth);
         auto l_result = a(std::move(l_succ), std::move(l_numeral))->normalize();
-        auto l_expected = church_numeral(depth, numeral + 1);
+        auto l_expected =
+            church_numeral(depth, numeral + 1)->normalize().m_expr;
         assert(l_result.m_expr->equals(l_expected));
     };
 
@@ -179,7 +201,9 @@ void test_encode_church_numeral()
         auto l_numeral = church_numeral(depth, numeral);
         auto l_pred = church_pred(depth);
         auto l_result = a(std::move(l_pred), std::move(l_numeral))->normalize();
-        auto l_expected = church_numeral(depth, numeral > 0 ? numeral - 1 : 0);
+        auto l_expected = church_numeral(depth, numeral > 0 ? numeral - 1 : 0)
+                              ->normalize()
+                              .m_expr;
         assert(l_result.m_expr->equals(l_expected));
     };
 
@@ -198,10 +222,25 @@ void test_encode_church_pair()
                             const std::unique_ptr<lambda::expr>& first,
                             const std::unique_ptr<lambda::expr>& second)
     {
-        auto l_pair = church_pair(depth, first->clone(), second->clone());
+        auto l_first = wrap_lambdas(first->clone(), depth)->normalize().m_expr;
+        auto l_second =
+            wrap_lambdas(second->clone(), depth)->normalize().m_expr;
+
+        auto l_pair =
+            wrap_lambdas(
+                church_pair(depth, l_first->clone(), l_second->clone()), depth)
+                ->normalize()
+                .m_expr;
+
+        std::cout << *l_first << std::endl;
+        std::cout << *l_second << std::endl;
+
+        std::cout << *l_pair << std::endl;
 
         // Expected: λf. ((f first) second) where f is at index depth
-        auto expected = f(a(a(v(depth), first->clone()), second->clone()));
+        auto expected = wrap_lambdas(
+            f(a(a(v(depth), l_first->lift(1, 0)), l_second->lift(1, 0))),
+            depth);
 
         assert(l_pair->equals(expected));
     };
@@ -210,18 +249,18 @@ void test_encode_church_pair()
     for(size_t depth = 0; depth <= 5; ++depth)
     {
         // Test with church booleans as elements
-        auto first_bool = church_boolean(depth + 1, true);
-        auto second_bool = church_boolean(depth + 1, false);
+        auto first_bool = church_boolean(depth, true);
+        auto second_bool = church_boolean(depth, false);
         test_at_depth(depth, first_bool, second_bool);
 
         // Test with church numerals as elements
-        auto first_num = church_numeral(depth + 1, 0);
-        auto second_num = church_numeral(depth + 1, 1);
+        auto first_num = church_numeral(depth, 0);
+        auto second_num = church_numeral(depth, 1);
         test_at_depth(depth, first_num, second_num);
 
         // Test with variables as elements
-        auto first_var = v(depth + 2);
-        auto second_var = v(depth + 3);
+        auto first_var = v(depth + 22);
+        auto second_var = v(depth + 33);
         test_at_depth(depth, first_var, second_var);
     }
 

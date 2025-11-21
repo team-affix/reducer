@@ -1,9 +1,24 @@
 #include "../include/predef.hpp"
+#include <list>
 
 // local variable macro
 #define L(x) v(a_binder_depth + x)
 
 using namespace lambda;
+
+// helper to apply something to a bunch of expressions
+template <typename... ARGS>
+std::unique_ptr<lambda::expr> a_twr(std::unique_ptr<lambda::expr>&& a_func,
+                                    std::unique_ptr<lambda::expr>&& a_arg,
+                                    ARGS&&... a_rest)
+{
+    // start with function
+    auto l_result = a(std::move(a_func), std::move(a_arg));
+    if constexpr(sizeof...(ARGS) == 0)
+        return l_result;
+    else
+        return a_twr(std::move(l_result), std::move(a_rest)...);
+}
 
 namespace dml
 {
@@ -52,6 +67,34 @@ std::unique_ptr<lambda::expr> church_or(size_t a_binder_depth)
 std::unique_ptr<lambda::expr> church_xor(size_t a_binder_depth)
 {
     return f(f(a(a(L(0), a(church_not(a_binder_depth + 2), L(1))), L(1))));
+}
+
+// full adder
+std::unique_ptr<lambda::expr> church_full_adder(size_t a_binder_depth)
+{
+    // NOTE: in sum and carry exprs, a,b,c are **captured** from the final
+    // expr which introduces them.
+
+    // bitSum   ≡
+    //              XOR a (XOR b c)
+    auto l_bit_sum = a_twr(church_xor(a_binder_depth + 3), L(0),
+                           a_twr(church_xor(a_binder_depth + 3), L(1), L(2)));
+
+    // bitCarry ≡
+    //              OR (AND a b)
+    //                 (OR (AND a c)
+    //                     (AND b c))
+    auto l_bit_carry =
+        a_twr(church_or(a_binder_depth + 3),
+              a_twr(church_and(a_binder_depth + 3), L(0), L(1)),
+              a_twr(church_or(a_binder_depth + 3),
+                    a_twr(church_and(a_binder_depth + 3), L(0), L(2)),
+                    a_twr(church_and(a_binder_depth + 3), L(1), L(2))));
+
+    // BIT_ADD3 ≡ λa. λb. λc.
+    //              PAIR (bitSum a b c) (bitCarry a b c)
+    return f(f(f(a_twr(church_pair(a_binder_depth + 3), l_bit_sum->clone(),
+                       l_bit_carry->clone()))));
 }
 
 // church zero

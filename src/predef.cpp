@@ -188,6 +188,35 @@ std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth)
                                    ))))))));
 }
 
+// binary pred
+std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
+{
+    //     PRED_LOG ≡
+    //         Y (λrec. λn.
+    //              n
+    //                NIL                             ; pred 0 = 0 (saturating)
+    //                (λh. λt.
+    //                   h
+    //                     (CONS BIT0 t)              ; h = 1 → 0 :: t
+    //                     (CONS BIT1 (rec t))))      ; h = 0 → 1 :: pred t
+    return a(y_combinator(a_binder_depth),
+             f(                // rec
+                 f(            // n
+                     a(a(L(1), // n
+                         scott_nil(a_binder_depth + 2)),
+                       f(     // h
+                           f( // t
+                               a(a(L(2), a(a(scott_cons(a_binder_depth + 4),
+                                             church_false(a_binder_depth + 4)),
+                                           L(3) // t
+                                           )),
+                                 a(a(scott_cons(a_binder_depth + 4),
+                                     church_true(a_binder_depth + 4)),
+                                   a(L(0), // rec
+                                     L(3)  // t
+                                     )))))))));
+}
+
 } // namespace predef
 } // namespace dml
 

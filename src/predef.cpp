@@ -138,6 +138,44 @@ std::unique_ptr<lambda::expr> scott_cons(size_t a_binder_depth)
     return f(f(f(f(a(a(L(3), L(0)), L(1))))));
 }
 
+// binary zero
+std::unique_ptr<lambda::expr> binary_zero(size_t a_binder_depth)
+{
+    return scott_nil(a_binder_depth);
+}
+
+// binary succ
+std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth)
+{
+    // SUCC_LOG ≡
+    //   Y (λrec. λn.
+    //     n
+    //       (CONS BIT1 NIL)                 ; [] → [1]
+    //       (λh. λt.
+    //          h
+    //            (CONS BIT0 (rec t))        ; h = 1 → 0 :: succ t
+    //            (CONS BIT1 t)))            ; h = 0 → 1 :: t
+    return a(y_combinator(a_binder_depth),
+             f(                // self
+                 f(            // n
+                     a(a(L(1), // n
+                         a(a(scott_cons(a_binder_depth + 2),
+                             church_true(a_binder_depth + 2)),
+                           scott_nil(a_binder_depth + 2))),
+                       f(                // h
+                           f(            // t
+                               a(a(L(2), // h
+                                   a(a(scott_cons(a_binder_depth + 4),
+                                       church_false(a_binder_depth + 4)),
+                                     a(L(0), // self
+                                       L(3)  // t
+                                       ))),
+                                 a(a(scott_cons(a_binder_depth + 4),
+                                     church_true(a_binder_depth + 4)),
+                                   L(3) // t
+                                   ))))))));
+}
+
 } // namespace predef
 } // namespace dml
 

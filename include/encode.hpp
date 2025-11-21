@@ -27,6 +27,10 @@ std::unique_ptr<lambda::expr>
 scott_list(size_t a_binder_depth,
            const std::list<std::unique_ptr<lambda::expr>>& a_list);
 
+// binary numeral
+std::unique_ptr<lambda::expr> binary_numeral(size_t a_binder_depth,
+                                             size_t a_numeral);
+
 } // namespace encode
 } // namespace dml
 

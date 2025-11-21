@@ -60,11 +60,23 @@ scott_list(size_t a_binder_depth,
     return l_result;
 }
 
+// binary numeral
+std::unique_ptr<lambda::expr> binary_numeral(size_t a_binder_depth,
+                                             size_t a_numeral)
+{
+    // builds a tower of binary successors from a binary zero
+    auto l_result = binary_zero(a_binder_depth);
+    for(size_t i = 0; i < a_numeral; ++i)
+        l_result = a(binary_succ(a_binder_depth), std::move(l_result));
+    return l_result;
+}
+
 } // namespace encode
 } // namespace dml
 
 #ifdef UNIT_TEST
 #include "test_utils.hpp"
+#include <limits>
 using namespace dml::encode;
 
 // Helper to wrap expression with n lambdas
@@ -397,6 +409,40 @@ void test_encode_scott_list()
     }
 }
 
+void test_encode_binary_numeral()
+{
+    using namespace dml::encode;
+    using namespace dml::predef;
+
+    auto l_test = [](size_t depth, size_t numeral)
+    {
+        // construct numeral
+        auto l_numeral = binary_numeral(depth, numeral);
+
+        // compute the succ
+        auto l_succ =
+            wrap_lambdas(a(binary_succ(depth), l_numeral->clone()), depth)
+                ->normalize()
+                .m_expr;
+
+        // compute the expected
+        auto l_expected =
+            wrap_lambdas(binary_numeral(depth, numeral + 1), depth)
+                ->normalize()
+                .m_expr;
+        assert(l_succ->equals(l_expected));
+    };
+
+    // Test on various depths and numeral values
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        for(size_t numeral = 0; numeral <= 1000; ++numeral)
+        {
+            l_test(depth, numeral);
+        }
+    }
+}
+
 void encode_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -405,6 +451,7 @@ void encode_test_main()
     TEST(test_encode_church_numeral);
     TEST(test_encode_church_pair);
     TEST(test_encode_scott_list);
+    TEST(test_encode_binary_numeral);
 }
 
 #endif // UNIT_TEST

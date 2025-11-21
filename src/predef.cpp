@@ -1126,6 +1126,97 @@ void test_binary_succ()
     }
 }
 
+void test_binary_pred()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_pred = binary_pred(depth);
+
+        // Test behavioral: pred([]) = [] (saturating, 0 stays 0)
+        auto l_zero = binary_zero(depth);
+        auto l_pred_zero =
+            wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth)
+                ->normalize();
+        // Expected: [] = NIL
+        auto l_expected_zero = wrap_lambdas(scott_nil(depth), depth);
+        assert(l_pred_zero.m_expr->equals(l_expected_zero));
+
+        // Test behavioral: pred([1]) = [0]
+        // [1] = CONS BIT1 NIL
+        auto l_one =
+            a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
+        auto l_pred_one =
+            wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth)
+                ->normalize();
+        // [0] = CONS FALSE NIL in beta-normal form:
+        // λnilCase.λconsCase. consCase FALSE NIL
+        auto l_expected_one =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                               scott_nil(depth + 2)))),
+                         depth);
+        assert(l_pred_one.m_expr->equals(l_expected_one));
+
+        // Test behavioral: pred([0,1]) = [1,0]
+        // [0,1] = CONS BIT0 (CONS BIT1 NIL), represents 2
+        auto l_two =
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
+        auto l_pred_two =
+            wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth)
+                ->normalize();
+        // [1,0] = CONS TRUE (CONS FALSE NIL) in beta-normal form:
+        // λnilCase.λconsCase. consCase TRUE [0]
+        auto l_expected_two =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_false(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+        assert(l_pred_two.m_expr->equals(l_expected_two));
+
+        // Test behavioral: pred([1,1]) = [0,1]
+        // [1,1] = CONS BIT1 (CONS BIT1 NIL), represents 3
+        auto l_three =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
+        auto l_pred_three =
+            wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth)
+                ->normalize();
+        // [0,1] = CONS FALSE (CONS TRUE NIL) in beta-normal form:
+        // λnilCase.λconsCase. consCase FALSE [1]
+        auto l_expected_three =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+        assert(l_pred_three.m_expr->equals(l_expected_three));
+
+        // Test behavioral: pred([0,0,1]) = [1,1,0]
+        // [0,0,1] = CONS BIT0 (CONS BIT0 (CONS BIT1 NIL)), represents 4
+        auto l_four =
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)), scott_nil(depth))));
+        auto l_pred_four =
+            wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth)
+                ->normalize();
+        // [1,1,0] = CONS TRUE (CONS TRUE (CONS FALSE NIL)) in beta-normal form:
+        // λnilCase.λconsCase. consCase TRUE [1,0]
+        auto l_expected_four = wrap_lambdas(
+            f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                  f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                        f(f(a(a(v(depth + 5), church_false(depth + 6)),
+                              scott_nil(depth + 6)))))))))),
+            depth);
+        assert(l_pred_four.m_expr->equals(l_expected_four));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1150,6 +1241,7 @@ void predef_test_main()
     TEST(test_binary_zero);
     TEST(test_binary_is_zero);
     TEST(test_binary_succ);
+    TEST(test_binary_pred);
 }
 
 #endif // UNIT_TEST

@@ -144,6 +144,18 @@ std::unique_ptr<lambda::expr> binary_zero(size_t a_binder_depth)
     return scott_nil(a_binder_depth);
 }
 
+// binary is zero
+std::unique_ptr<lambda::expr> binary_is_zero(size_t a_binder_depth)
+{
+    // λn. n TRUE (λh. λt. FALSE)
+    // If n is NIL → returns TRUE
+    // If n is CONS h t → returns FALSE
+    return f(
+        a(a(L(0),                                   // n
+            church_true(a_binder_depth + 1)),       // nilCase: TRUE
+          f(f(church_false(a_binder_depth + 3))))); // consCase: λh.λt.FALSE
+}
+
 // binary succ
 std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth)
 {
@@ -932,6 +944,159 @@ void test_scott_cons()
     }
 }
 
+void test_binary_zero()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_zero = binary_zero(depth);
+        // binary_zero is scott_nil
+        auto expected = f(f(v(depth)));
+        assert(l_zero->equals(expected));
+
+        // Test behavioral: binary_zero interrogated should return nilCase
+        auto l_result =
+            wrap_lambdas(a(a(l_zero->clone(), v(depth + 10)), v(depth + 11)),
+                         depth)
+                ->normalize();
+        // Should return the nilCase (first argument)
+        assert(l_result.m_expr->equals(wrap_lambdas(v(depth + 10), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_binary_is_zero()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_is_zero = binary_is_zero(depth);
+        // Structure: λn. n TRUE (λh. λt. FALSE)
+        auto expected = f(a(a(v(depth + 0), church_true(depth + 1)),
+                            f(f(church_false(depth + 3)))));
+        assert(l_is_zero->equals(expected));
+
+        // Test behavioral: is_zero(binary_zero) = true
+        // Apply binary_is_zero to binary_zero - it should return church_true
+        auto l_zero = binary_zero(depth);
+
+        // Now apply the result to two test values to check if it's TRUE
+        // TRUE v(10) v(11) should return v(10)
+        auto l_result = wrap_lambdas(a(a(a(l_is_zero->clone(), l_zero->clone()),
+                                         v(depth + 10)),
+                                       v(depth + 11)),
+                                     depth)
+                            ->normalize();
+
+        // Should return the first argument (v(depth + 10)) since it's TRUE
+        assert(l_result.m_expr->equals(wrap_lambdas(v(depth + 10), depth)));
+
+        // Test behavioral: is_zero([1]) = false
+        // [1] = CONS BIT1 NIL
+        auto l_one =
+            a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
+
+        // Now apply the result to two test values to check if it's FALSE
+        // FALSE v(10) v(11) should return v(11)
+        auto l_result_one =
+            wrap_lambdas(
+                a(a(a(l_is_zero->clone(), l_one->clone()), v(depth + 10)),
+                  v(depth + 11)),
+                depth)
+                ->normalize();
+
+        // Should return the second argument (v(depth + 11)) since it's FALSE
+        assert(l_result_one.m_expr->equals(wrap_lambdas(v(depth + 11), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_binary_succ()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_succ = binary_succ(depth);
+
+        // Test behavioral: succ([]) = [1]
+        auto l_zero = binary_zero(depth);
+        auto l_succ_zero =
+            wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth)
+                ->normalize();
+        // [1] = CONS BIT1 NIL
+        auto l_expected_one =
+            wrap_lambdas(
+                a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)),
+                depth)
+                ->normalize();
+        assert(l_succ_zero.m_expr->equals(l_expected_one.m_expr));
+
+        // Test behavioral: succ([1]) = [0,1]
+        // [1] = CONS BIT1 NIL
+        auto l_one =
+            a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
+        auto l_succ_one =
+            wrap_lambdas(a(l_succ->clone(), l_one->clone()), depth)
+                ->normalize();
+        // [0,1] = CONS BIT0 (CONS BIT1 NIL)
+        auto l_expected_two =
+            wrap_lambdas(a(a(scott_cons(depth), church_false(depth)),
+                           a(a(scott_cons(depth), church_true(depth)),
+                             scott_nil(depth))),
+                         depth)
+                ->normalize();
+        assert(l_succ_one.m_expr->equals(l_expected_two.m_expr));
+
+        // Test behavioral: succ([0,1]) = [1,1]
+        // [0,1] = CONS BIT0 (CONS BIT1 NIL)
+        auto l_two =
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
+        auto l_succ_two =
+            wrap_lambdas(a(l_succ->clone(), l_two->clone()), depth)
+                ->normalize();
+        // [1,1] = CONS BIT1 (CONS BIT1 NIL)
+        auto l_expected_three =
+            wrap_lambdas(a(a(scott_cons(depth), church_true(depth)),
+                           a(a(scott_cons(depth), church_true(depth)),
+                             scott_nil(depth))),
+                         depth)
+                ->normalize();
+        assert(l_succ_two.m_expr->equals(l_expected_three.m_expr));
+
+        // Test behavioral: succ([1,1]) = [0,0,1]
+        // [1,1] = CONS BIT1 (CONS BIT1 NIL)
+        auto l_three =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
+        auto l_succ_three =
+            wrap_lambdas(a(l_succ->clone(), l_three->clone()), depth)
+                ->normalize();
+        // [0,0,1] = CONS BIT0 (CONS BIT0 (CONS BIT1 NIL))
+        auto l_expected_four =
+            wrap_lambdas(a(a(scott_cons(depth), church_false(depth)),
+                           a(a(scott_cons(depth), church_false(depth)),
+                             a(a(scott_cons(depth), church_true(depth)),
+                               scott_nil(depth)))),
+                         depth)
+                ->normalize();
+        assert(l_succ_three.m_expr->equals(l_expected_four.m_expr));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -953,6 +1118,9 @@ void predef_test_main()
     TEST(test_church_less_than);
     TEST(test_scott_nil);
     TEST(test_scott_cons);
+    TEST(test_binary_zero);
+    TEST(test_binary_is_zero);
+    TEST(test_binary_succ);
 }
 
 #endif // UNIT_TEST

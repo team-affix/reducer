@@ -65,6 +65,9 @@ std::unique_ptr<lambda::expr> scott_cons(size_t a_binder_depth);
 // binary zero
 std::unique_ptr<lambda::expr> binary_zero(size_t a_binder_depth);
 
+// binary is zero
+std::unique_ptr<lambda::expr> binary_is_zero(size_t a_binder_depth);
+
 // binary succ
 std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth);
 

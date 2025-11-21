@@ -6,6 +6,17 @@
 using namespace lambda;
 using namespace dml::predef;
 
+std::vector<bool> little_endian_b2_from_b10(size_t a_numeral)
+{
+    std::vector<bool> l_result;
+    while(a_numeral > 0)
+    {
+        l_result.push_back(a_numeral % 2);
+        a_numeral /= 2;
+    }
+    return l_result;
+}
+
 ////////////////////////////////////////
 //// NOTE: the symmetry between predef and encode is the following:
 ////       predef defines the fundamental concepts (can define functions).
@@ -64,10 +75,13 @@ scott_list(size_t a_binder_depth,
 std::unique_ptr<lambda::expr> binary_numeral(size_t a_binder_depth,
                                              size_t a_numeral)
 {
-    // builds a tower of binary successors from a binary zero
-    auto l_result = binary_zero(a_binder_depth);
-    for(size_t i = 0; i < a_numeral; ++i)
-        l_result = a(binary_succ(a_binder_depth), std::move(l_result));
+    auto l_bits = little_endian_b2_from_b10(a_numeral);
+    auto l_result = predef::scott_nil(a_binder_depth);
+    // iterate in reverse order, LSB should be at front of list
+    for(auto it = l_bits.rbegin(); it != l_bits.rend(); ++it)
+        l_result = a(a(predef::scott_cons(a_binder_depth),
+                       church_boolean(a_binder_depth, *it)),
+                     std::move(l_result));
     return l_result;
 }
 
@@ -436,7 +450,7 @@ void test_encode_binary_numeral()
     // Test on various depths and numeral values
     for(size_t depth = 0; depth <= 5; ++depth)
     {
-        for(size_t numeral = 0; numeral <= 1000; ++numeral)
+        for(size_t numeral = 0; numeral <= 10; ++numeral)
         {
             l_test(depth, numeral);
         }

@@ -1031,13 +1031,13 @@ void test_binary_succ()
         auto l_succ_zero =
             wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth)
                 ->normalize();
-        // [1] = CONS BIT1 NIL
+        // [1] = CONS BIT1 NIL in beta-normal form:
+        // λnilCase.λconsCase. consCase TRUE NIL
         auto l_expected_one =
-            wrap_lambdas(
-                a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)),
-                depth)
-                ->normalize();
-        assert(l_succ_zero.m_expr->equals(l_expected_one.m_expr));
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               scott_nil(depth + 2)))),
+                         depth);
+        assert(l_succ_zero.m_expr->equals(l_expected_one));
 
         // Test behavioral: succ([1]) = [0,1]
         // [1] = CONS BIT1 NIL
@@ -1046,14 +1046,14 @@ void test_binary_succ()
         auto l_succ_one =
             wrap_lambdas(a(l_succ->clone(), l_one->clone()), depth)
                 ->normalize();
-        // [0,1] = CONS BIT0 (CONS BIT1 NIL)
+        // [0,1] = CONS FALSE (CONS TRUE NIL) in beta-normal form:
+        // λnilCase.λconsCase. consCase FALSE [1]
         auto l_expected_two =
-            wrap_lambdas(a(a(scott_cons(depth), church_false(depth)),
-                           a(a(scott_cons(depth), church_true(depth)),
-                             scott_nil(depth))),
-                         depth)
-                ->normalize();
-        assert(l_succ_one.m_expr->equals(l_expected_two.m_expr));
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+        assert(l_succ_one.m_expr->equals(l_expected_two));
 
         // Test behavioral: succ([0,1]) = [1,1]
         // [0,1] = CONS BIT0 (CONS BIT1 NIL)
@@ -1063,14 +1063,14 @@ void test_binary_succ()
         auto l_succ_two =
             wrap_lambdas(a(l_succ->clone(), l_two->clone()), depth)
                 ->normalize();
-        // [1,1] = CONS BIT1 (CONS BIT1 NIL)
+        // [1,1] = CONS TRUE (CONS TRUE NIL) in beta-normal form:
+        // λnilCase.λconsCase. consCase TRUE [1]
         auto l_expected_three =
-            wrap_lambdas(a(a(scott_cons(depth), church_true(depth)),
-                           a(a(scott_cons(depth), church_true(depth)),
-                             scott_nil(depth))),
-                         depth)
-                ->normalize();
-        assert(l_succ_two.m_expr->equals(l_expected_three.m_expr));
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+        assert(l_succ_two.m_expr->equals(l_expected_three));
 
         // Test behavioral: succ([1,1]) = [0,0,1]
         // [1,1] = CONS BIT1 (CONS BIT1 NIL)
@@ -1080,15 +1080,15 @@ void test_binary_succ()
         auto l_succ_three =
             wrap_lambdas(a(l_succ->clone(), l_three->clone()), depth)
                 ->normalize();
-        // [0,0,1] = CONS BIT0 (CONS BIT0 (CONS BIT1 NIL))
-        auto l_expected_four =
-            wrap_lambdas(a(a(scott_cons(depth), church_false(depth)),
-                           a(a(scott_cons(depth), church_false(depth)),
-                             a(a(scott_cons(depth), church_true(depth)),
-                               scott_nil(depth)))),
-                         depth)
-                ->normalize();
-        assert(l_succ_three.m_expr->equals(l_expected_four.m_expr));
+        // [0,0,1] = CONS FALSE (CONS FALSE (CONS TRUE NIL)) in beta-normal
+        // form: λnilCase.λconsCase. consCase FALSE [0,1]
+        auto l_expected_four = wrap_lambdas(
+            f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                  f(f(a(a(v(depth + 3), church_false(depth + 4)),
+                        f(f(a(a(v(depth + 5), church_true(depth + 6)),
+                              scott_nil(depth + 6)))))))))),
+            depth);
+        assert(l_succ_three.m_expr->equals(l_expected_four));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

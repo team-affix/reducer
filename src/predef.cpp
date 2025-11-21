@@ -1260,6 +1260,94 @@ void test_binary_pred()
     }
 }
 
+void test_church_full_adder()
+{
+    using namespace dml::predef;
+
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_full_adder = church_full_adder(depth);
+
+        // Test structure: λa.λb.λc. PAIR (sum) (carry)
+        // sum = a XOR (b XOR c)
+        auto sum_expr =
+            a(a(church_xor(depth + 3), v(depth)),
+              a(a(church_xor(depth + 3), v(depth + 1)), v(depth + 2)));
+
+        // carry = (a AND b) OR ((a AND c) OR (b AND c))
+        auto carry_expr =
+            a(a(church_or(depth + 3),
+                a(a(church_and(depth + 3), v(depth)), v(depth + 1))),
+              a(a(church_or(depth + 3),
+                  a(a(church_and(depth + 3), v(depth)), v(depth + 2))),
+                a(a(church_and(depth + 3), v(depth + 1)), v(depth + 2))));
+
+        auto expected = f(f(f(a(a(church_pair(depth + 3), sum_expr->clone()),
+                                carry_expr->clone()))));
+        assert(l_full_adder->equals(expected));
+
+        // Test all 8 combinations of (a, b, carry_in)
+        // Full adder truth table:
+        // a b c | sum carry
+        // 0 0 0 |  0    0
+        // 0 0 1 |  1    0
+        // 0 1 0 |  1    0
+        // 0 1 1 |  0    1
+        // 1 0 0 |  1    0
+        // 1 0 1 |  0    1
+        // 1 1 0 |  0    1
+        // 1 1 1 |  1    1
+
+        auto test_case = [&](bool a_val, bool b_val, bool c_val,
+                             bool expected_sum, bool expected_carry)
+        {
+            auto bool_to_church = [&](bool val)
+            { return val ? church_true(depth) : church_false(depth); };
+
+            // Apply full_adder to three booleans (don't wrap, apply directly)
+            auto l_result = a(a(a(l_full_adder->clone(), bool_to_church(a_val)),
+                                bool_to_church(b_val)),
+                              bool_to_church(c_val));
+
+            // Extract sum using FST and wrap for normalization
+            auto l_sum =
+                wrap_lambdas(a(church_fst(depth), l_result->clone()), depth)
+                    ->normalize();
+
+            auto l_expected_sum =
+                wrap_lambdas(bool_to_church(expected_sum), depth)->normalize();
+
+            assert(l_sum.m_expr->equals(l_expected_sum.m_expr));
+
+            // Extract carry using SND and wrap for normalization
+            auto l_carry =
+                wrap_lambdas(a(church_snd(depth), l_result->clone()), depth)
+                    ->normalize();
+
+            auto l_expected_carry =
+                wrap_lambdas(bool_to_church(expected_carry), depth)
+                    ->normalize();
+
+            assert(l_carry.m_expr->equals(l_expected_carry.m_expr));
+        };
+
+        // Test all 8 cases
+        test_case(false, false, false, false, false); // 0 + 0 + 0 = 0, carry 0
+        test_case(false, false, true, true, false);   // 0 + 0 + 1 = 1, carry 0
+        test_case(false, true, false, true, false);   // 0 + 1 + 0 = 1, carry 0
+        test_case(false, true, true, false, true);    // 0 + 1 + 1 = 0, carry 1
+        test_case(true, false, false, true, false);   // 1 + 0 + 0 = 1, carry 0
+        test_case(true, false, true, false, true);    // 1 + 0 + 1 = 0, carry 1
+        test_case(true, true, false, false, true);    // 1 + 1 + 0 = 0, carry 1
+        test_case(true, true, true, true, true);      // 1 + 1 + 1 = 1, carry 1
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1285,6 +1373,7 @@ void predef_test_main()
     TEST(test_binary_is_zero);
     TEST(test_binary_succ);
     TEST(test_binary_pred);
+    TEST(test_church_full_adder);
 }
 
 #endif // UNIT_TEST

@@ -97,6 +97,39 @@ std::unique_ptr<lambda::expr> church_full_adder(size_t a_binder_depth)
                        l_bit_carry->clone()))));
 }
 
+// full subtractor
+std::unique_ptr<lambda::expr> church_full_subtractor(size_t a_binder_depth)
+{
+    return f(  // X
+        f(     // Y
+            f( // Bin
+                a_twr(church_pair(a_binder_depth + 3),
+                      a_twr( // diff
+                          church_xor(a_binder_depth + 3),
+                          L(0), // X
+                          a_twr(church_xor(a_binder_depth + 3),
+                                L(1), // Y
+                                L(2)  // Bin
+                                )),
+                      a_twr( // Bout
+                          church_or(a_binder_depth + 3),
+                          a_twr(church_and(a_binder_depth + 3),
+                                a(church_not(a_binder_depth + 3), L(0)), L(1)),
+                          a_twr(church_or(a_binder_depth + 3),
+                                a_twr(church_and(a_binder_depth + 3),
+                                      a(church_not(a_binder_depth + 3),
+                                        L(0) // X
+                                        ),
+                                      L(2) // Bin
+                                      ),
+                                a_twr(church_and(a_binder_depth + 3),
+                                      L(1), // Y
+                                      L(2)  // Bin
+                                      )))
+
+                          ))));
+}
+
 // church zero
 std::unique_ptr<lambda::expr> church_zero(size_t a_binder_depth)
 {
@@ -1410,6 +1443,72 @@ void test_church_full_adder()
     }
 }
 
+void test_church_full_subtractor()
+{
+    using namespace dml::predef;
+
+    auto test_at_depth = [](size_t depth)
+    {
+        // get the full subtractor function
+        auto l_full_subtractor = church_full_subtractor(depth);
+
+        // Test all 8 combinations of (a, b, carry_in)
+        // Full adder truth table:
+        // a b c | difference borrow
+        // 0 0 0 |   0           0
+        // 0 0 1 |   1           1
+        // 0 1 0 |   1           1
+        // 0 1 1 |   0           1
+        // 1 0 0 |   1           0
+        // 1 0 1 |   0           0
+        // 1 1 0 |   0           0
+        // 1 1 1 |   1           1
+
+        auto test_case = [&](bool a_val, bool b_val, bool c_val,
+                             bool expected_difference, bool expected_borrow)
+        {
+            auto bool_to_church = [&](bool val)
+            { return val ? church_true(depth) : church_false(depth); };
+
+            // apply the full subtractor to the three booleans
+            auto l_result =
+                wrap_lambdas(a_twr(l_full_subtractor->clone(),
+                                   bool_to_church(a_val), bool_to_church(b_val),
+                                   bool_to_church(c_val)),
+                             depth)
+                    ->normalize()
+                    .m_expr;
+
+            auto l_expected =
+                wrap_lambdas(a_twr(church_pair(depth),
+                                   bool_to_church(expected_difference),
+                                   bool_to_church(expected_borrow)),
+                             depth)
+                    ->normalize()
+                    .m_expr;
+
+            // std::cout << *l_result << std::endl;
+            // std::cout << *l_expected << std::endl;
+            assert(l_result->equals(l_expected));
+        };
+
+        // Test all 8 cases
+        test_case(false, false, false, false, false); // 0 - 0 - 0 = 0, borrow 0
+        test_case(false, false, true, true, true);    // 0 - 0 - 1 = 1, borrow 1
+        test_case(false, true, false, true, true);    // 0 - 1 - 0 = 1, borrow 1
+        test_case(false, true, true, false, true);    // 0 - 1 - 1 = 0, borrow 1
+        test_case(true, false, false, true, false);   // 1 - 0 - 0 = 1, borrow 0
+        test_case(true, false, true, false, false);   // 1 - 0 - 1 = 0, borrow 0
+        test_case(true, true, false, false, false);   // 1 - 1 - 0 = 0, borrow 0
+        test_case(true, true, true, true, true);      // 1 - 1 - 1 = 1, borrow 1
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void test_binary_add()
 {
     using namespace dml::predef;
@@ -1612,14 +1711,15 @@ void test_binary_add()
             wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
                                l_two->clone(), church_true(a_depth)),
                          a_depth)
-                ->normalize(std::numeric_limits<size_t>::max(),
-                            std::numeric_limits<size_t>::max(),
-                            [](const std::unique_ptr<lambda::expr>& a_expr)
-                            { std::cout << *a_expr << std::endl; })
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
                 .m_expr;
         auto l_two_plus_two_plus_carry_expected =
             wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
-        std::cout << *l_two_plus_two_plus_carry_expected << std::endl;
+        // std::cout << *l_two_plus_two_plus_carry_expected << std::endl;
         assert(l_two_plus_two_plus_carry->equals(
             l_two_plus_two_plus_carry_expected));
     };
@@ -1640,6 +1740,8 @@ void predef_test_main()
     TEST(test_church_and);
     TEST(test_church_or);
     TEST(test_church_xor);
+    TEST(test_church_full_adder);
+    TEST(test_church_full_subtractor);
     TEST(test_church_zero);
     TEST(test_church_succ);
     TEST(test_church_is_zero);
@@ -1655,7 +1757,6 @@ void predef_test_main()
     TEST(test_binary_is_zero);
     TEST(test_binary_succ);
     TEST(test_binary_pred);
-    TEST(test_church_full_adder);
     TEST(test_binary_add);
 }
 

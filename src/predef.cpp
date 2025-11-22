@@ -1,5 +1,5 @@
 #include "../include/predef.hpp"
-#include <list>
+#include <limits>
 
 // local variable macro
 #define L(x) v(a_binder_depth + x)
@@ -171,6 +171,7 @@ std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth)
 // scott nil
 std::unique_ptr<lambda::expr> scott_nil(size_t a_binder_depth)
 {
+    // λnilCase. λconsCase. nilCase
     return f(f(L(0)));
 }
 
@@ -258,6 +259,67 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
                                    a(L(0), // rec
                                      L(3)  // t
                                      )))))))));
+}
+
+std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
+{
+    return a(
+        y_combinator(a_binder_depth),
+        f(             // self
+            f(         // x
+                f(     // y
+                    f( // c
+                        a_twr(
+                            L(1),             // x
+                            a_twr(L(3),       // c
+                                  a_twr(L(0), // self
+                                        a_twr(scott_cons(a_binder_depth + 4),
+                                              church_true(a_binder_depth + 4),
+                                              scott_nil(a_binder_depth + 4)),
+                                        L(2), // y
+                                        church_false(a_binder_depth + 4)),
+                                  L(2) // y
+                                  ),
+                            f(     // xh
+                                f( // xt
+                                    a_twr(
+                                        L(2), // y
+                                        a_twr(
+                                            L(3), // c
+                                            a_twr(
+                                                L(0), // self
+                                                L(1), // x
+                                                a_twr(scott_cons(
+                                                          a_binder_depth + 6),
+                                                      church_true(
+                                                          a_binder_depth + 6),
+                                                      scott_nil(a_binder_depth +
+                                                                6)),
+                                                church_false(a_binder_depth +
+                                                             6)),
+                                            L(1) // x
+                                            ),
+                                        f(     // yh
+                                            f( // yt
+                                                a(a_twr(church_full_adder(
+                                                            a_binder_depth + 8),
+                                                        L(4), // xh
+                                                        L(6), // yh
+                                                        L(3)  // c
+                                                        ),
+                                                  f(     // sum
+                                                      f( // cout
+                                                          a_twr(
+                                                              scott_cons(
+                                                                  a_binder_depth +
+                                                                  10),
+                                                              L(8), // sum
+                                                              a_twr(
+                                                                  L(0), // self
+                                                                  L(5), // xt
+                                                                  L(7), // yt
+                                                                  L(9)  // cout
+                                                                  ))))))))))))))));
 }
 
 } // namespace predef
@@ -1348,6 +1410,210 @@ void test_church_full_adder()
     }
 }
 
+void test_binary_add()
+{
+    using namespace dml::predef;
+
+    auto l_test_at_depth = [](size_t a_depth)
+    {
+        auto l_zero = binary_zero(a_depth);
+        auto l_one = a(binary_succ(a_depth), l_zero->clone());
+        auto l_two = a(binary_succ(a_depth), l_one->clone());
+        auto l_three = a(binary_succ(a_depth), l_two->clone());
+        auto l_four = a(binary_succ(a_depth), l_three->clone());
+        auto l_five = a(binary_succ(a_depth), l_four->clone());
+
+        auto l_norm_number_0 =
+            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_norm_number_0 << std::endl;
+
+        auto l_norm_number_1 =
+            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_norm_number_1 << std::endl;
+
+        auto l_norm_number_2 =
+            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_norm_number_2 << std::endl;
+
+        auto l_norm_number_3 =
+            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_norm_number_3 << std::endl;
+
+        auto l_norm_number_4 =
+            wrap_lambdas(l_four->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_norm_number_4 << std::endl;
+
+        auto l_norm_number_5 =
+            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_norm_number_5 << std::endl;
+
+        // compute 0+0
+        auto l_zero_plus_zero =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
+                               l_zero->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_zero_plus_zero_expected =
+            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_zero << std::endl;
+        assert(l_zero_plus_zero->equals(l_zero_plus_zero_expected));
+
+        // compute 0+1
+        auto l_zero_plus_one =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
+                               l_one->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_zero_plus_one_expected =
+            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_zero_plus_one_expected << std::endl;
+        assert(l_zero_plus_one->equals(l_zero_plus_one_expected));
+
+        // compute 0+2
+        auto l_zero_plus_two =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
+                               l_two->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_zero_plus_two_expected =
+            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_zero_plus_two_expected << std::endl;
+        assert(l_zero_plus_two->equals(l_zero_plus_two_expected));
+
+        // compute 0+3
+        auto l_zero_plus_three =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
+                               l_three->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_zero_plus_three_expected =
+            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_zero_plus_three_expected << std::endl;
+        assert(l_zero_plus_three->equals(l_zero_plus_three_expected));
+
+        // compute 1+1
+        auto l_one_plus_one =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
+                               l_one->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_one_plus_one_expected =
+            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_one_plus_one_expected << std::endl;
+        assert(l_one_plus_one->equals(l_one_plus_one_expected));
+
+        // compute 1+2
+        auto l_one_plus_two =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
+                               l_two->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_one_plus_two_expected =
+            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_one_plus_two_expected << std::endl;
+        assert(l_one_plus_two->equals(l_one_plus_two_expected));
+
+        // compute 1+0
+        auto l_one_plus_zero =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
+                               l_zero->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_one_plus_zero_expected =
+            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_one_plus_zero_expected << std::endl;
+        assert(l_one_plus_zero->equals(l_one_plus_zero_expected));
+
+        // compute 2+1
+        auto l_two_plus_one =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
+                               l_one->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_two_plus_one_expected =
+            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_two_plus_one_expected << std::endl;
+        assert(l_two_plus_one->equals(l_two_plus_one_expected));
+
+        // compute 2+3
+        auto l_two_plus_three =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
+                               l_three->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_two_plus_three_expected =
+            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_two_plus_three_expected << std::endl;
+        assert(l_two_plus_three->equals(l_two_plus_three_expected));
+
+        // compute 3+2
+        auto l_three_plus_two =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_three->clone(),
+                               l_two->clone(), church_false(a_depth)),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_three_plus_two_expected =
+            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        // std::cout << *l_three_plus_two_expected << std::endl;
+        assert(l_three_plus_two->equals(l_three_plus_two_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        l_test_at_depth(depth);
+    }
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -1374,6 +1640,7 @@ void predef_test_main()
     TEST(test_binary_succ);
     TEST(test_binary_pred);
     TEST(test_church_full_adder);
+    TEST(test_binary_add);
 }
 
 #endif // UNIT_TEST

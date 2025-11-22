@@ -1606,6 +1606,22 @@ void test_binary_add()
             wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
         // std::cout << *l_three_plus_two_expected << std::endl;
         assert(l_three_plus_two->equals(l_three_plus_two_expected));
+
+        // compute 2+2 + carry
+        auto l_two_plus_two_plus_carry =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
+                               l_two->clone(), church_true(a_depth)),
+                         a_depth)
+                ->normalize(std::numeric_limits<size_t>::max(),
+                            std::numeric_limits<size_t>::max(),
+                            [](const std::unique_ptr<lambda::expr>& a_expr)
+                            { std::cout << *a_expr << std::endl; })
+                .m_expr;
+        auto l_two_plus_two_plus_carry_expected =
+            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        std::cout << *l_two_plus_two_plus_carry_expected << std::endl;
+        assert(l_two_plus_two_plus_carry->equals(
+            l_two_plus_two_plus_carry_expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

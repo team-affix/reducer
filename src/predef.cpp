@@ -1469,6 +1469,24 @@ void test_binary_canonicalize()
                               scott_nil(depth + 6)))))))))),
             depth);
 
+        auto l_expected_five = wrap_lambdas(
+            f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                  f(f(a(a(v(depth + 3), church_false(depth + 4)),
+                        f(f(a(a(v(depth + 5), church_true(depth + 6)),
+                              scott_nil(depth + 6)))))))))),
+            depth);
+
+        auto l_expected_twenty = wrap_lambdas(
+            f(f(a(
+                a(v(depth + 1), church_false(depth + 2)),
+                f(f(a(
+                    a(v(depth + 3), church_false(depth + 4)),
+                    f(f(a(a(v(depth + 5), church_true(depth + 6)),
+                          f(f(a(a(v(depth + 7), church_false(depth + 8)),
+                                f(f(a(a(v(depth + 9), church_true(depth + 10)),
+                                      scott_nil(depth + 10)))))))))))))))),
+            depth);
+
         // Test case 1: [] -> [] (zero stays zero)
         auto l_empty = scott_nil(depth);
         auto l_result_empty =
@@ -1568,6 +1586,98 @@ void test_binary_canonicalize()
                 a(l_canonicalize->clone(), l_four_two_trailing->clone()), depth)
                 ->normalize();
         assert(l_result_four_two_trailing.m_expr->equals(l_expected_four));
+
+        // Test case 11: [1, 0, 1] -> [1, 0, 1] (five, already canonical - non-
+        // trailing zero preserved)
+        auto l_five =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)), scott_nil(depth))));
+        auto l_result_five =
+            wrap_lambdas(a(l_canonicalize->clone(), l_five->clone()), depth)
+                ->normalize();
+        assert(l_result_five.m_expr->equals(l_expected_five));
+
+        // Test case 12: [1, 0, 1, 0] -> [1, 0, 1] (five with one trailing zero)
+        auto l_five_trailing =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)),
+                  a(a(scott_cons(depth), church_false(depth)),
+                    scott_nil(depth)))));
+        auto l_result_five_trailing =
+            wrap_lambdas(a(l_canonicalize->clone(), l_five_trailing->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_five_trailing.m_expr->equals(l_expected_five));
+
+        // Test case 13: [1, 0, 1, 0, 0] -> [1, 0, 1] (five with two trailing
+        // zeros)
+        auto l_five_two_trailing =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)),
+                  a(a(scott_cons(depth), church_false(depth)),
+                    a(a(scott_cons(depth), church_false(depth)),
+                      scott_nil(depth))))));
+        auto l_result_five_two_trailing =
+            wrap_lambdas(
+                a(l_canonicalize->clone(), l_five_two_trailing->clone()), depth)
+                ->normalize();
+        assert(l_result_five_two_trailing.m_expr->equals(l_expected_five));
+
+        // Test case 14: [0, 0, 1, 0, 1] -> [0, 0, 1, 0, 1] (twenty, already
+        // canonical)
+        auto l_twenty = a(a(scott_cons(depth), church_false(depth)),
+                          a(a(scott_cons(depth), church_false(depth)),
+                            a(a(scott_cons(depth), church_true(depth)),
+                              a(a(scott_cons(depth), church_false(depth)),
+                                a(a(scott_cons(depth), church_true(depth)),
+                                  scott_nil(depth))))));
+        auto l_result_twenty =
+            wrap_lambdas(a(l_canonicalize->clone(), l_twenty->clone()), depth)
+                ->normalize();
+        assert(l_result_twenty.m_expr->equals(l_expected_twenty));
+
+        // Test case 15: [0, 0, 1, 0, 1, 0] -> [0, 0, 1, 0, 1] (twenty with
+        // trailing zero)
+        auto l_twenty_trailing =
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)),
+                  a(a(scott_cons(depth), church_false(depth)),
+                    a(a(scott_cons(depth), church_true(depth)),
+                      a(a(scott_cons(depth), church_false(depth)),
+                        scott_nil(depth)))))));
+        auto l_result_twenty_trailing =
+            wrap_lambdas(a(l_canonicalize->clone(), l_twenty_trailing->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_twenty_trailing.m_expr->equals(l_expected_twenty));
+
+        // Test case 16: [0, 0, 0] -> [] (all zeros trim to empty)
+        auto l_all_zeros = a(
+            a(scott_cons(depth), church_false(depth)),
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
+        auto l_result_all_zeros =
+            wrap_lambdas(a(l_canonicalize->clone(), l_all_zeros->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_all_zeros.m_expr->equals(l_expected_empty));
+
+        // Test case 17: [0, 0, 0, 0, 0] -> [] (many zeros trim to empty)
+        auto l_many_zeros = a(a(scott_cons(depth), church_false(depth)),
+                              a(a(scott_cons(depth), church_false(depth)),
+                                a(a(scott_cons(depth), church_false(depth)),
+                                  a(a(scott_cons(depth), church_false(depth)),
+                                    a(a(scott_cons(depth), church_false(depth)),
+                                      scott_nil(depth))))));
+        auto l_result_many_zeros =
+            wrap_lambdas(a(l_canonicalize->clone(), l_many_zeros->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_many_zeros.m_expr->equals(l_expected_empty));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

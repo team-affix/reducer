@@ -328,26 +328,31 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
     //                   h
     //                     (CONS BIT0 t)              ; h = 1 → 0 :: t
     //                     (CONS BIT1 (rec t))))      ; h = 0 → 1 :: pred t
-    return f( // n_original
-        a(binary_canonicalize(a_binder_depth + 1),
-          a(a(y_combinator(a_binder_depth + 1),
-              f(                // rec
-                  f(            // n
-                      a(a(L(2), // n
-                          scott_nil(a_binder_depth + 3)),
-                        f(     // h
-                            f( // t
-                                a(a(L(3), a(a(scott_cons(a_binder_depth + 5),
-                                              church_false(a_binder_depth + 5)),
-                                            L(4) // t
-                                            )),
-                                  a(a(scott_cons(a_binder_depth + 5),
-                                      church_true(a_binder_depth + 5)),
-                                    a(L(1), // rec
-                                      L(4)  // t
-                                      ))))))))),
-            L(0) // n_original
-            )));
+    return a(
+        y_combinator(a_binder_depth),
+        f(                  // self
+            f(              // n
+                a_twr(L(1), // n
+                      scott_nil(a_binder_depth + 2),
+                      f(                        // nh
+                          f(                    // nt
+                              a_twr(L(2),       // nh
+                                    a_twr(L(3), // nt
+                                          scott_nil(a_binder_depth + 4),
+                                          f(     // nth (unused)
+                                              f( // ntt (unused)
+                                                  a_twr(scott_cons(
+                                                            a_binder_depth + 6),
+                                                        church_false(
+                                                            a_binder_depth + 6),
+                                                        L(3) // nt
+                                                        )))),
+                                    a_twr(scott_cons(a_binder_depth + 4),
+                                          church_true(a_binder_depth + 4),
+                                          a(L(0), // self
+                                            L(3)  // nt
+
+                                            )))))))));
 }
 
 std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
@@ -1917,7 +1922,12 @@ void test_binary_pred()
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_pred_three =
             wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth)
-                ->normalize();
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ });
+        // std::cout << *l_pred_three.m_expr << std::endl;
         assert(l_pred_three.m_expr->equals(l_expected_two));
 
         // Test 5: pred(4) = 3 (canonicalized)

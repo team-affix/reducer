@@ -201,6 +201,23 @@ std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth)
                      L(0))))));                               // m
 }
 
+// some constructor for Maybe
+std::unique_ptr<lambda::expr> some(size_t a_binder_depth)
+{
+    return f(  // x
+        f(     // somecase
+            f( // nonecase
+                a(L(1), L(0)))));
+}
+
+// none constructor for Maybe
+std::unique_ptr<lambda::expr> none(size_t a_binder_depth)
+{
+    return f( // somecase
+        f(    // nonecase
+            L(1)));
+}
+
 // scott nil
 std::unique_ptr<lambda::expr> scott_nil(size_t a_binder_depth)
 {
@@ -355,60 +372,66 @@ std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
                                                                   ))))))))))))))));
 }
 
-// binary sub
-std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth)
-{
-    return a(
-        y_combinator(a_binder_depth),
-        f(             // self
-            f(         // x
-                f(     // y
-                    f( // b
-                        a_twr(
-                            L(1), // x
-                            scott_nil(a_binder_depth + 4),
-                            f(     // xh
-                                f( // xt
-                                    a_twr(
-                                        L(2),            // y
-                                        a_twr(L(3),      // b
-                                              a_twr(     // b is true
-                                                  L(0),  // self
-                                                  L(1),  // x
-                                                  a_twr( // cons true nil
-                                                      scott_cons(
-                                                          a_binder_depth + 6),
-                                                      church_true(
-                                                          a_binder_depth + 6),
-                                                      scott_nil(a_binder_depth +
-                                                                6)),
-                                                  church_false(a_binder_depth +
-                                                               6)),
-                                              L(1) // x, if y is nil and b is
-                                                   // false
-                                              ),
-                                        f(     // yh
-                                            f( // yt
-                                                a(a_twr(church_full_subtractor(
-                                                            a_binder_depth + 8),
-                                                        L(4), // xh
-                                                        L(6), // yh
-                                                        L(3)  // b
-                                                        ),
-                                                  f(     // diff
-                                                      f( // bout
-                                                          a_twr(
-                                                              scott_cons(
-                                                                  a_binder_depth +
-                                                                  10),
-                                                              L(8), // diff
-                                                              a_twr(
-                                                                  L(0), // self
-                                                                  L(5), // xt
-                                                                  L(7), // yt
-                                                                  L(9)  // bout
-                                                                  ))))))))))))))));
-}
+// // binary sub
+// std::unique_ptr<lambda::expr> binary_try_subtract(size_t a_binder_depth)
+// {
+//     return a(
+//         y_combinator(a_binder_depth),
+//         f(             // self
+//             f(         // x
+//                 f(     // y
+//                     f( // b
+//                         a_twr(
+//                             L(1), // x
+//                             scott_nil(a_binder_depth + 4),
+//                             f(     // xh
+//                                 f( // xt
+//                                     a_twr(
+//                                         L(2),            // y
+//                                         a_twr(L(3),      // b
+//                                               a_twr(     // b is true
+//                                                   L(0),  // self
+//                                                   L(1),  // x
+//                                                   a_twr( // cons true nil
+//                                                       scott_cons(
+//                                                           a_binder_depth +
+//                                                           6),
+//                                                       church_true(
+//                                                           a_binder_depth +
+//                                                           6),
+//                                                       scott_nil(a_binder_depth
+//                                                       +
+//                                                                 6)),
+//                                                   church_false(a_binder_depth
+//                                                   +
+//                                                                6)),
+//                                               L(1) // x, if y is nil and b is
+//                                                    // false
+//                                               ),
+//                                         f(     // yh
+//                                             f( // yt
+//                                                 a(a_twr(church_full_subtractor(
+//                                                             a_binder_depth +
+//                                                             8),
+//                                                         L(4), // xh
+//                                                         L(6), // yh
+//                                                         L(3)  // b
+//                                                         ),
+//                                                   f(     // diff
+//                                                       f( // bout
+//                                                           a_twr(
+//                                                               scott_cons(
+//                                                                   a_binder_depth
+//                                                                   + 10),
+//                                                               L(8), // diff
+//                                                               a_twr(
+//                                                                   L(0), //
+//                                                                   self L(5),
+//                                                                   // xt L(7),
+//                                                                   // yt L(9)
+//                                                                   // bout
+//                                                                   ))))))))))))))));
+// }
 
 } // namespace predef
 } // namespace dml
@@ -1110,6 +1133,65 @@ void test_church_less_than()
     }
 }
 
+void test_some()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_some = some(depth);
+        // Structure: λx. λsomeCase. λnoneCase. someCase x
+        auto expected = f(f(f(a(v(depth + 1), v(depth + 0)))));
+        assert(l_some->equals(expected));
+
+        // Test behavior: construct (some v(10))
+        // When applied to someCase=v(20) and noneCase=v(30),
+        // it should reduce to: someCase v(10) = v(20) v(10)
+        auto l_some_x = a(l_some->clone(), v(depth + 10));
+
+        // Apply to someCase and noneCase
+        auto l_result =
+            wrap_lambdas(a(a(l_some_x->clone(), v(depth + 20)), v(depth + 30)),
+                         depth)
+                ->normalize();
+
+        // Expected: v(20) applied to v(10)
+        assert(l_result.m_expr->equals(
+            wrap_lambdas(a(v(depth + 20), v(depth + 10)), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_none()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_none = none(depth);
+        // Structure: λsomeCase. λnoneCase. noneCase
+        auto expected = f(f(v(depth + 1)));
+        assert(l_none->equals(expected));
+
+        // Test behavior: none applied to someCase=v(20) and noneCase=v(30)
+        // should reduce to: noneCase = v(30)
+        auto l_result =
+            wrap_lambdas(a(a(l_none->clone(), v(depth + 20)), v(depth + 30)),
+                         depth)
+                ->normalize();
+
+        // Expected: v(30) (the noneCase)
+        assert(l_result.m_expr->equals(wrap_lambdas(v(depth + 30), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void test_scott_nil()
 {
     using namespace dml::predef;
@@ -1785,124 +1867,150 @@ void test_binary_add()
     }
 }
 
-void test_binary_subtract()
-{
-    using namespace dml::predef;
+// void test_binary_subtract()
+// {
+//     using namespace dml::predef;
 
-    auto l_test_at_depth = [](size_t a_depth)
-    {
-        auto l_zero = binary_zero(a_depth);
-        auto l_one = a(binary_succ(a_depth), l_zero->clone());
-        auto l_two = a(binary_succ(a_depth), l_one->clone());
-        auto l_three = a(binary_succ(a_depth), l_two->clone());
-        auto l_four = a(binary_succ(a_depth), l_three->clone());
-        auto l_five = a(binary_succ(a_depth), l_four->clone());
+//     auto l_test_at_depth = [](size_t a_depth)
+//     {
+//         auto l_zero = binary_zero(a_depth);
+//         auto l_one = a(binary_succ(a_depth), l_zero->clone());
+//         auto l_two = a(binary_succ(a_depth), l_one->clone());
+//         auto l_three = a(binary_succ(a_depth), l_two->clone());
+//         auto l_four = a(binary_succ(a_depth), l_three->clone());
+//         auto l_five = a(binary_succ(a_depth), l_four->clone());
 
-        // compute 0-0
-        auto l_zero_minus_zero =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_zero->clone(), church_false(a_depth)),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_minus_zero_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
-        // std::cout << *l_zero_minus_zero_expected << std::endl;
-        assert(l_zero_minus_zero->equals(l_zero_minus_zero_expected));
+//         // compute 0-0
+//         auto l_zero_minus_zero =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
+//                                l_zero->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(
+//                     std::numeric_limits<size_t>::max(),
+//                     std::numeric_limits<size_t>::max(),
+//                     [](const std::unique_ptr<lambda::expr>&
+//                            a_expr) { /*std::cout << *a_expr << std::endl;*/
+//                            })
+//                 .m_expr;
+//         auto l_zero_minus_zero_expected =
+//             wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+//         // std::cout << *l_zero_minus_zero_expected << std::endl;
+//         assert(l_zero_minus_zero->equals(l_zero_minus_zero_expected));
 
-        // compute 0-1
-        auto l_zero_minus_one =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_one->clone(), church_false(a_depth)),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_minus_one_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
-        // std::cout << *l_zero_minus_zero_expected << std::endl;
-        assert(l_zero_minus_one->equals(l_zero_minus_one_expected));
+//         // compute 0-1
+//         auto l_zero_minus_one =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
+//                                l_one->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(
+//                     std::numeric_limits<size_t>::max(),
+//                     std::numeric_limits<size_t>::max(),
+//                     [](const std::unique_ptr<lambda::expr>&
+//                            a_expr) { /*std::cout << *a_expr << std::endl;*/
+//                            })
+//                 .m_expr;
+//         auto l_zero_minus_one_expected =
+//             wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+//         // std::cout << *l_zero_minus_zero_expected << std::endl;
+//         assert(l_zero_minus_one->equals(l_zero_minus_one_expected));
 
-        // compute 0-2
-        auto l_zero_minus_two =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_two->clone(), church_false(a_depth)),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_minus_two_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
-        // std::cout << *l_zero_minus_zero_expected << std::endl;
-        assert(l_zero_minus_two->equals(l_zero_minus_two_expected));
+//         // compute 0-2
+//         auto l_zero_minus_two =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
+//                                l_two->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(
+//                     std::numeric_limits<size_t>::max(),
+//                     std::numeric_limits<size_t>::max(),
+//                     [](const std::unique_ptr<lambda::expr>&
+//                            a_expr) { /*std::cout << *a_expr << std::endl;*/
+//                            })
+//                 .m_expr;
+//         auto l_zero_minus_two_expected =
+//             wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+//         // std::cout << *l_zero_minus_zero_expected << std::endl;
+//         assert(l_zero_minus_two->equals(l_zero_minus_two_expected));
 
-        // compute 0-3
-        auto l_zero_minus_three =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_three->clone(), church_false(a_depth)),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_minus_three_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
-        // std::cout << *l_zero_minus_zero_expected << std::endl;
-        assert(l_zero_minus_three->equals(l_zero_minus_three_expected));
+//         // compute 0-3
+//         auto l_zero_minus_three =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
+//                                l_three->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(
+//                     std::numeric_limits<size_t>::max(),
+//                     std::numeric_limits<size_t>::max(),
+//                     [](const std::unique_ptr<lambda::expr>&
+//                            a_expr) { /*std::cout << *a_expr << std::endl;*/
+//                            })
+//                 .m_expr;
+//         auto l_zero_minus_three_expected =
+//             wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+//         // std::cout << *l_zero_minus_zero_expected << std::endl;
+//         assert(l_zero_minus_three->equals(l_zero_minus_three_expected));
 
-        // compute 1-0
-        auto l_one_minus_zero =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
-                               l_zero->clone(), church_false(a_depth)),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_minus_zero_expected =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
-        std::cout << *l_one_minus_zero_expected << std::endl;
-        assert(l_one_minus_zero->equals(l_one_minus_zero_expected));
+//         // compute 1-0
+//         auto l_one_minus_zero =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
+//                                l_zero->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(
+//                     std::numeric_limits<size_t>::max(),
+//                     std::numeric_limits<size_t>::max(),
+//                     [](const std::unique_ptr<lambda::expr>&
+//                            a_expr) { /*std::cout << *a_expr << std::endl;*/
+//                            })
+//                 .m_expr;
+//         auto l_one_minus_zero_expected =
+//             wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+//         std::cout << *l_one_minus_zero_expected << std::endl;
+//         assert(l_one_minus_zero->equals(l_one_minus_zero_expected));
 
-        // compute 1-1
-        auto l_one_minus_one =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
-                               l_one->clone(), church_false(a_depth)),
-                         a_depth)
-                ->normalize(std::numeric_limits<size_t>::max(),
-                            std::numeric_limits<size_t>::max(),
-                            [](const std::unique_ptr<lambda::expr>& a_expr)
-                            { std::cout << *a_expr << std::endl; })
-                .m_expr;
-        auto l_one_minus_one_expected =
-            wrap_lambdas(a_twr(scott_cons(a_depth), church_false(a_depth),
-                               scott_nil(a_depth)),
-                         a_depth)
-                ->normalize()
-                .m_expr;
-        std::cout << *l_one_minus_one_expected << std::endl;
-        assert(l_one_minus_one->equals(l_one_minus_one_expected));
-    };
+//         // compute 1-1
+//         auto l_one_minus_one =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
+//                                l_one->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(
+//                     std::numeric_limits<size_t>::max(),
+//                     std::numeric_limits<size_t>::max(),
+//                     [](const std::unique_ptr<lambda::expr>&
+//                            a_expr) { /*std::cout << *a_expr << std::endl;*/
+//                            })
+//                 .m_expr;
+//         auto l_one_minus_one_expected =
+//             wrap_lambdas(a_twr(scott_cons(a_depth), church_false(a_depth),
+//                                scott_nil(a_depth)),
+//                          a_depth)
+//                 ->normalize()
+//                 .m_expr;
+//         std::cout << *l_one_minus_one_expected << std::endl;
+//         assert(l_one_minus_one->equals(l_one_minus_one_expected));
 
-    for(size_t depth = 0; depth <= 5; ++depth)
-    {
-        l_test_at_depth(depth);
-    }
-}
+//         // compute 1-2
+//         auto l_one_minus_two =
+//             wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
+//                                l_two->clone(), church_false(a_depth)),
+//                          a_depth)
+//                 ->normalize(std::numeric_limits<size_t>::max(),
+//                             std::numeric_limits<size_t>::max(),
+//                             [](const std::unique_ptr<lambda::expr>& a_expr)
+//                             { std::cout << *a_expr << std::endl; })
+//                 .m_expr;
+//         auto l_one_minus_two_expected =
+//             wrap_lambdas(a_twr(scott_cons(a_depth), church_false(a_depth),
+//                                scott_nil(a_depth)),
+//                          a_depth)
+//                 ->normalize()
+//                 .m_expr;
+//         std::cout << *l_one_minus_two_expected << std::endl;
+//         assert(l_one_minus_two->equals(l_one_minus_two_expected));
+//     };
+
+//     for(size_t depth = 0; depth <= 5; ++depth)
+//     {
+//         l_test_at_depth(depth);
+//     }
+// }
 
 void predef_test_main()
 {
@@ -1925,6 +2033,8 @@ void predef_test_main()
     TEST(test_church_pred);
     TEST(test_church_sub);
     TEST(test_church_less_than);
+    TEST(test_some);
+    TEST(test_none);
     TEST(test_scott_nil);
     TEST(test_scott_cons);
     TEST(test_binary_zero);
@@ -1932,7 +2042,7 @@ void predef_test_main()
     TEST(test_binary_succ);
     TEST(test_binary_pred);
     TEST(test_binary_add);
-    TEST(test_binary_subtract);
+    // TEST(test_binary_subtract);
 }
 
 #endif // UNIT_TEST

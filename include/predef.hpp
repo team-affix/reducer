@@ -62,6 +62,12 @@ std::unique_ptr<lambda::expr> church_sub(size_t a_binder_depth);
 // church less_than
 std::unique_ptr<lambda::expr> church_less_than(size_t a_binder_depth);
 
+// some constructor for Maybe
+std::unique_ptr<lambda::expr> some(size_t a_binder_depth);
+
+// none constructor for Maybe
+std::unique_ptr<lambda::expr> none(size_t a_binder_depth);
+
 // scott nil
 std::unique_ptr<lambda::expr> scott_nil(size_t a_binder_depth);
 
@@ -83,8 +89,11 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth);
 // binary add
 std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth);
 
-// binary sub
-std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth);
+// // binary sub
+// std::unique_ptr<lambda::expr> binary_try_subtract(size_t a_binder_depth);
+
+// // binary sub
+// std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth);
 
 } // namespace predef
 } // namespace dml

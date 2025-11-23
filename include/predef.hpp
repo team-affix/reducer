@@ -77,6 +77,9 @@ std::unique_ptr<lambda::expr> scott_cons(size_t a_binder_depth);
 // scott reverse
 std::unique_ptr<lambda::expr> scott_reverse(size_t a_binder_depth);
 
+// scott compare lengths
+std::unique_ptr<lambda::expr> scott_compare_lengths(size_t a_binder_depth);
+
 // binary zero
 std::unique_ptr<lambda::expr> binary_zero(size_t a_binder_depth);
 
@@ -89,8 +92,8 @@ std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth);
 // binary canonicalize
 std::unique_ptr<lambda::expr> binary_canonicalize(size_t a_binder_depth);
 
-// // binary less-than
-// std::unique_ptr<lambda::expr> binary_less_than(size_t a_binder_depth);
+// binary less-than
+std::unique_ptr<lambda::expr> binary_less_than(size_t a_binder_depth);
 
 // binary pred
 std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth);

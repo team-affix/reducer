@@ -282,6 +282,41 @@ std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth)
                                    ))))))));
 }
 
+// binary canonicalize
+std::unique_ptr<lambda::expr> binary_canonicalize(size_t a_binder_depth)
+{
+    return a(
+        y_combinator(a_binder_depth),
+        f(     // self
+            f( // x
+                a_twr(
+                    L(1), // x
+                    scott_nil(a_binder_depth + 2),
+                    f(                  // xh
+                        f(              // xt
+                            a_twr(L(2), // xh
+                                  a_twr(scott_cons(a_binder_depth + 4),
+                                        L(2),   // xh
+                                        a(L(0), // self
+                                          L(3)  // xt
+                                          )),
+                                  a_twr(a(L(0), // self
+                                          L(3)  // xt
+                                          ),
+                                        scott_nil(a_binder_depth + 4),
+                                        f(     // yh
+                                            f( // yt
+                                                a_twr(scott_cons(
+                                                          a_binder_depth + 6),
+                                                      L(2), // xh
+                                                      a_twr(scott_cons(
+                                                                a_binder_depth +
+                                                                6),
+                                                            L(4), // yh
+                                                            L(5)  // yt
+                                                            ))))))))))));
+}
+
 // binary pred
 std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
 {
@@ -405,8 +440,7 @@ std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
 //                                                   church_false(a_binder_depth
 //                                                   +
 //                                                                6)),
-//                                               L(1) // x, if y is nil and b is
-//                                                    // false
+//                                               L(1) // x, if y=nil and b=false
 //                                               ),
 //                                         f(     // yh
 //                                             f( // yt
@@ -1401,6 +1435,147 @@ void test_binary_succ()
     }
 }
 
+void test_binary_canonicalize()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_canonicalize = binary_canonicalize(depth);
+
+        // Expected canonical forms (targets for all tests below)
+        auto l_expected_empty = wrap_lambdas(scott_nil(depth), depth);
+
+        auto l_expected_one =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               scott_nil(depth + 2)))),
+                         depth);
+
+        auto l_expected_two =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+
+        auto l_expected_three =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+
+        auto l_expected_four = wrap_lambdas(
+            f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                  f(f(a(a(v(depth + 3), church_false(depth + 4)),
+                        f(f(a(a(v(depth + 5), church_true(depth + 6)),
+                              scott_nil(depth + 6)))))))))),
+            depth);
+
+        // Test case 1: [] -> [] (zero stays zero)
+        auto l_empty = scott_nil(depth);
+        auto l_result_empty =
+            wrap_lambdas(a(l_canonicalize->clone(), l_empty->clone()), depth)
+                ->normalize();
+        assert(l_result_empty.m_expr->equals(l_expected_empty));
+
+        // Test case 2: [1] -> [1] (one stays one)
+        auto l_one =
+            a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
+        auto l_result_one =
+            wrap_lambdas(a(l_canonicalize->clone(), l_one->clone()), depth)
+                ->normalize();
+        assert(l_result_one.m_expr->equals(l_expected_one));
+
+        // Test case 3: [0] -> [] (single trailing zero is trimmed)
+        auto l_single_zero =
+            a(a(scott_cons(depth), church_false(depth)), scott_nil(depth));
+        auto l_result_single_zero =
+            wrap_lambdas(a(l_canonicalize->clone(), l_single_zero->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_single_zero.m_expr->equals(l_expected_empty));
+
+        // Test case 4: [1, 0] -> [1] (one with one trailing zero)
+        auto l_one_trailing_zero =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)), scott_nil(depth)));
+        auto l_result_one_trailing =
+            wrap_lambdas(
+                a(l_canonicalize->clone(), l_one_trailing_zero->clone()), depth)
+                ->normalize();
+        assert(l_result_one_trailing.m_expr->equals(l_expected_one));
+
+        // Test case 5: [1, 0, 0] -> [1] (one with two trailing zeros)
+        auto l_one_two_trailing = a(
+            a(scott_cons(depth), church_true(depth)),
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
+        auto l_result_one_two_trailing =
+            wrap_lambdas(
+                a(l_canonicalize->clone(), l_one_two_trailing->clone()), depth)
+                ->normalize();
+        assert(l_result_one_two_trailing.m_expr->equals(l_expected_one));
+
+        // Test case 6: [0, 1] -> [0, 1] (two, already canonical)
+        auto l_two =
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
+        auto l_result_two =
+            wrap_lambdas(a(l_canonicalize->clone(), l_two->clone()), depth)
+                ->normalize();
+        assert(l_result_two.m_expr->equals(l_expected_two));
+
+        // Test case 7: [0, 1, 0] -> [0, 1] (two with trailing zero)
+        auto l_two_trailing = a(
+            a(scott_cons(depth), church_false(depth)),
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
+        auto l_result_two_trailing =
+            wrap_lambdas(a(l_canonicalize->clone(), l_two_trailing->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_two_trailing.m_expr->equals(l_expected_two));
+
+        // Test case 8: [1, 1] -> [1, 1] (three, already canonical)
+        auto l_three =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
+        auto l_result_three =
+            wrap_lambdas(a(l_canonicalize->clone(), l_three->clone()), depth)
+                ->normalize();
+        assert(l_result_three.m_expr->equals(l_expected_three));
+
+        // Test case 9: [1, 1, 0] -> [1, 1] (three with trailing zero)
+        auto l_three_trailing = a(
+            a(scott_cons(depth), church_true(depth)),
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
+        auto l_result_three_trailing =
+            wrap_lambdas(a(l_canonicalize->clone(), l_three_trailing->clone()),
+                         depth)
+                ->normalize();
+        assert(l_result_three_trailing.m_expr->equals(l_expected_three));
+
+        // Test case 10: [0, 0, 1, 0, 0] -> [0, 0, 1] (four with two trailing
+        // zeros)
+        auto l_four_two_trailing =
+            a(a(scott_cons(depth), church_false(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)),
+                  a(a(scott_cons(depth), church_false(depth)),
+                    a(a(scott_cons(depth), church_false(depth)),
+                      scott_nil(depth))))));
+        auto l_result_four_two_trailing =
+            wrap_lambdas(
+                a(l_canonicalize->clone(), l_four_two_trailing->clone()), depth)
+                ->normalize();
+        assert(l_result_four_two_trailing.m_expr->equals(l_expected_four));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void test_binary_pred()
 {
     using namespace dml::predef;
@@ -2040,6 +2215,7 @@ void predef_test_main()
     TEST(test_binary_zero);
     TEST(test_binary_is_zero);
     TEST(test_binary_succ);
+    TEST(test_binary_canonicalize);
     TEST(test_binary_pred);
     TEST(test_binary_add);
     // TEST(test_binary_subtract);

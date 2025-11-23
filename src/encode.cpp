@@ -188,7 +188,7 @@ void test_encode_church_numeral()
             expected_body = a(v(depth), std::move(expected_body));
         auto expected = wrap_lambdas(f(f(std::move(expected_body))), depth);
 
-        std::cout << *l_normalized << std::endl;
+        // std::cout << *l_normalized << std::endl;
 
         assert(l_normalized->equals(expected));
     };
@@ -272,10 +272,10 @@ void test_encode_church_pair()
                 ->normalize()
                 .m_expr;
 
-        std::cout << *l_first << std::endl;
-        std::cout << *l_second << std::endl;
+        // std::cout << *l_first << std::endl;
+        // std::cout << *l_second << std::endl;
 
-        std::cout << *l_pair << std::endl;
+        // std::cout << *l_pair << std::endl;
 
         // Expected: λf. ((f first) second) where f is at index depth
         auto expected = wrap_lambdas(
@@ -387,10 +387,11 @@ void test_encode_scott_list()
             wrap_lambdas(a(a(std::move(l_empty_list), l_nil_case->clone()),
                            l_cons_case->clone()),
                          depth)
-                ->normalize(std::numeric_limits<size_t>::max(),
-                            std::numeric_limits<size_t>::max(),
-                            [](const std::unique_ptr<lambda::expr>& a_expr)
-                            { std::cout << *a_expr << std::endl; });
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ });
 
         auto l_expected_empty = wrap_lambdas(church_boolean(depth, true), depth)
                                     ->normalize()

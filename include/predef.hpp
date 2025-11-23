@@ -92,8 +92,8 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth);
 // binary add
 std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth);
 
-// // binary subtract
-// std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth);
+// binary subtract
+std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth);
 
 } // namespace predef
 } // namespace dml

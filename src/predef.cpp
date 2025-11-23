@@ -326,8 +326,10 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
     //                NIL                             ; pred 0 = 0 (saturating)
     //                (λh. λt.
     //                   h
-    //                     (CONS BIT0 t)              ; h = 1 → 0 :: t
-    //                     (CONS BIT1 (rec t))))      ; h = 0 → 1 :: pred t
+    //                     (t NIL (λnth. λntt. CONS FALSE nt)) ; INLINE
+    //                                              canonicalization,
+    //                                              followed by h = 1 → 0 :: t
+    //                     (CONS TRUE (rec t))))    ; h = 0 → 1 :: pred t
     return a(
         y_combinator(a_binder_depth),
         f(                  // self

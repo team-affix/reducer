@@ -328,22 +328,26 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
     //                   h
     //                     (CONS BIT0 t)              ; h = 1 → 0 :: t
     //                     (CONS BIT1 (rec t))))      ; h = 0 → 1 :: pred t
-    return a(y_combinator(a_binder_depth),
-             f(                // rec
-                 f(            // n
-                     a(a(L(1), // n
-                         scott_nil(a_binder_depth + 2)),
-                       f(     // h
-                           f( // t
-                               a(a(L(2), a(a(scott_cons(a_binder_depth + 4),
-                                             church_false(a_binder_depth + 4)),
-                                           L(3) // t
-                                           )),
-                                 a(a(scott_cons(a_binder_depth + 4),
-                                     church_true(a_binder_depth + 4)),
-                                   a(L(0), // rec
-                                     L(3)  // t
-                                     )))))))));
+    return f( // n_original
+        a(binary_canonicalize(a_binder_depth + 1),
+          a(a(y_combinator(a_binder_depth + 1),
+              f(                // rec
+                  f(            // n
+                      a(a(L(2), // n
+                          scott_nil(a_binder_depth + 3)),
+                        f(     // h
+                            f( // t
+                                a(a(L(3), a(a(scott_cons(a_binder_depth + 5),
+                                              church_false(a_binder_depth + 5)),
+                                            L(4) // t
+                                            )),
+                                  a(a(scott_cons(a_binder_depth + 5),
+                                      church_true(a_binder_depth + 5)),
+                                    a(L(1), // rec
+                                      L(4)  // t
+                                      ))))))))),
+            L(0) // n_original
+            )));
 }
 
 std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
@@ -782,6 +786,160 @@ void test_church_xor()
                 ->normalize();
         assert(l_xor_false_false.m_expr->equals(
             wrap_lambdas(l_false->clone(), depth)));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_church_full_adder()
+{
+    using namespace dml::predef;
+
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_full_adder = church_full_adder(depth);
+
+        // Test structure: λa.λb.λc. PAIR (sum) (carry)
+        // sum = a XOR (b XOR c)
+        auto sum_expr =
+            a(a(church_xor(depth + 3), v(depth)),
+              a(a(church_xor(depth + 3), v(depth + 1)), v(depth + 2)));
+
+        // carry = (a AND b) OR ((a AND c) OR (b AND c))
+        auto carry_expr =
+            a(a(church_or(depth + 3),
+                a(a(church_and(depth + 3), v(depth)), v(depth + 1))),
+              a(a(church_or(depth + 3),
+                  a(a(church_and(depth + 3), v(depth)), v(depth + 2))),
+                a(a(church_and(depth + 3), v(depth + 1)), v(depth + 2))));
+
+        auto expected = f(f(f(a(a(church_pair(depth + 3), sum_expr->clone()),
+                                carry_expr->clone()))));
+        assert(l_full_adder->equals(expected));
+
+        // Test all 8 combinations of (a, b, carry_in)
+        // Full adder truth table:
+        // a b c | sum carry
+        // 0 0 0 |  0    0
+        // 0 0 1 |  1    0
+        // 0 1 0 |  1    0
+        // 0 1 1 |  0    1
+        // 1 0 0 |  1    0
+        // 1 0 1 |  0    1
+        // 1 1 0 |  0    1
+        // 1 1 1 |  1    1
+
+        auto test_case = [&](bool a_val, bool b_val, bool c_val,
+                             bool expected_sum, bool expected_carry)
+        {
+            auto bool_to_church = [&](bool val)
+            { return val ? church_true(depth) : church_false(depth); };
+
+            // Apply full_adder to three booleans (don't wrap, apply directly)
+            auto l_result = a(a(a(l_full_adder->clone(), bool_to_church(a_val)),
+                                bool_to_church(b_val)),
+                              bool_to_church(c_val));
+
+            // Extract sum using FST and wrap for normalization
+            auto l_sum =
+                wrap_lambdas(a(church_fst(depth), l_result->clone()), depth)
+                    ->normalize();
+
+            auto l_expected_sum =
+                wrap_lambdas(bool_to_church(expected_sum), depth)->normalize();
+
+            assert(l_sum.m_expr->equals(l_expected_sum.m_expr));
+
+            // Extract carry using SND and wrap for normalization
+            auto l_carry =
+                wrap_lambdas(a(church_snd(depth), l_result->clone()), depth)
+                    ->normalize();
+
+            auto l_expected_carry =
+                wrap_lambdas(bool_to_church(expected_carry), depth)
+                    ->normalize();
+
+            assert(l_carry.m_expr->equals(l_expected_carry.m_expr));
+        };
+
+        // Test all 8 cases
+        test_case(false, false, false, false, false); // 0 + 0 + 0 = 0, carry 0
+        test_case(false, false, true, true, false);   // 0 + 0 + 1 = 1, carry 0
+        test_case(false, true, false, true, false);   // 0 + 1 + 0 = 1, carry 0
+        test_case(false, true, true, false, true);    // 0 + 1 + 1 = 0, carry 1
+        test_case(true, false, false, true, false);   // 1 + 0 + 0 = 1, carry 0
+        test_case(true, false, true, false, true);    // 1 + 0 + 1 = 0, carry 1
+        test_case(true, true, false, false, true);    // 1 + 1 + 0 = 0, carry 1
+        test_case(true, true, true, true, true);      // 1 + 1 + 1 = 1, carry 1
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_church_full_subtractor()
+{
+    using namespace dml::predef;
+
+    auto test_at_depth = [](size_t depth)
+    {
+        // get the full subtractor function
+        auto l_full_subtractor = church_full_subtractor(depth);
+
+        // Test all 8 combinations of (a, b, carry_in)
+        // Full adder truth table:
+        // a b c | difference borrow
+        // 0 0 0 |   0           0
+        // 0 0 1 |   1           1
+        // 0 1 0 |   1           1
+        // 0 1 1 |   0           1
+        // 1 0 0 |   1           0
+        // 1 0 1 |   0           0
+        // 1 1 0 |   0           0
+        // 1 1 1 |   1           1
+
+        auto test_case = [&](bool a_val, bool b_val, bool c_val,
+                             bool expected_difference, bool expected_borrow)
+        {
+            auto bool_to_church = [&](bool val)
+            { return val ? church_true(depth) : church_false(depth); };
+
+            // apply the full subtractor to the three booleans
+            auto l_result =
+                wrap_lambdas(a_twr(l_full_subtractor->clone(),
+                                   bool_to_church(a_val), bool_to_church(b_val),
+                                   bool_to_church(c_val)),
+                             depth)
+                    ->normalize()
+                    .m_expr;
+
+            auto l_expected =
+                wrap_lambdas(a_twr(church_pair(depth),
+                                   bool_to_church(expected_difference),
+                                   bool_to_church(expected_borrow)),
+                             depth)
+                    ->normalize()
+                    .m_expr;
+
+            // std::cout << *l_result << std::endl;
+            // std::cout << *l_expected << std::endl;
+            assert(l_result->equals(l_expected));
+        };
+
+        // Test all 8 cases
+        test_case(false, false, false, false, false); // 0 - 0 - 0 = 0, borrow 0
+        test_case(false, false, true, true, true);    // 0 - 0 - 1 = 1, borrow 1
+        test_case(false, true, false, true, true);    // 0 - 1 - 0 = 1, borrow 1
+        test_case(false, true, true, false, true);    // 0 - 1 - 1 = 0, borrow 1
+        test_case(true, false, false, true, false);   // 1 - 0 - 0 = 1, borrow 0
+        test_case(true, false, true, false, false);   // 1 - 0 - 1 = 0, borrow 0
+        test_case(true, true, false, false, false);   // 1 - 1 - 0 = 0, borrow 0
+        test_case(true, true, true, true, true);      // 1 - 1 - 1 = 1, borrow 1
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1693,66 +1851,77 @@ void test_binary_pred()
     {
         auto l_pred = binary_pred(depth);
 
-        // Test behavioral: pred([]) = [] (saturating, 0 stays 0)
+        // Expected canonical forms (pred now canonicalizes output)
+        auto l_expected_empty = wrap_lambdas(scott_nil(depth), depth);
+
+        auto l_expected_one =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               scott_nil(depth + 2)))),
+                         depth);
+
+        auto l_expected_two =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+
+        auto l_expected_three =
+            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                                     scott_nil(depth + 4))))))),
+                         depth);
+
+        auto l_expected_four = wrap_lambdas(
+            f(f(a(a(v(depth + 1), church_false(depth + 2)),
+                  f(f(a(a(v(depth + 3), church_false(depth + 4)),
+                        f(f(a(a(v(depth + 5), church_true(depth + 6)),
+                              scott_nil(depth + 6)))))))))),
+            depth);
+
+        auto l_expected_seven = wrap_lambdas(
+            f(f(a(a(v(depth + 1), church_true(depth + 2)),
+                  f(f(a(a(v(depth + 3), church_true(depth + 4)),
+                        f(f(a(a(v(depth + 5), church_true(depth + 6)),
+                              scott_nil(depth + 6)))))))))),
+            depth);
+
+        // Test 1: pred(0) = 0 (saturating, 0 stays 0)
         auto l_zero = binary_zero(depth);
         auto l_pred_zero =
             wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth)
                 ->normalize();
-        // Expected: [] = NIL
-        auto l_expected_zero = wrap_lambdas(scott_nil(depth), depth);
-        assert(l_pred_zero.m_expr->equals(l_expected_zero));
+        assert(l_pred_zero.m_expr->equals(l_expected_empty));
 
-        // Test behavioral: pred([1]) = [0]
-        // [1] = CONS BIT1 NIL
+        // Test 2: pred(1) = 0 (canonicalized to empty list)
+        // This is a key test: pred([1]) produces [0] which canonicalizes to []
         auto l_one =
             a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
         auto l_pred_one =
             wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth)
                 ->normalize();
-        // [0] = CONS FALSE NIL in beta-normal form:
-        // λnilCase.λconsCase. consCase FALSE NIL
-        auto l_expected_one =
-            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
-                               scott_nil(depth + 2)))),
-                         depth);
-        assert(l_pred_one.m_expr->equals(l_expected_one));
+        assert(l_pred_one.m_expr->equals(l_expected_empty));
 
-        // Test behavioral: pred([0,1]) = [1,0]
-        // [0,1] = CONS BIT0 (CONS BIT1 NIL), represents 2
+        // Test 3: pred(2) = 1 (canonicalized)
+        // pred([0,1]) produces [1,0] which canonicalizes to [1]
         auto l_two =
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_pred_two =
             wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth)
                 ->normalize();
-        // [1,0] = CONS TRUE (CONS FALSE NIL) in beta-normal form:
-        // λnilCase.λconsCase. consCase TRUE [0]
-        auto l_expected_two =
-            wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
-                               f(f(a(a(v(depth + 3), church_false(depth + 4)),
-                                     scott_nil(depth + 4))))))),
-                         depth);
-        assert(l_pred_two.m_expr->equals(l_expected_two));
+        assert(l_pred_two.m_expr->equals(l_expected_one));
 
-        // Test behavioral: pred([1,1]) = [0,1]
-        // [1,1] = CONS BIT1 (CONS BIT1 NIL), represents 3
+        // Test 4: pred(3) = 2 (already canonical)
         auto l_three =
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_pred_three =
             wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth)
                 ->normalize();
-        // [0,1] = CONS FALSE (CONS TRUE NIL) in beta-normal form:
-        // λnilCase.λconsCase. consCase FALSE [1]
-        auto l_expected_three =
-            wrap_lambdas(f(f(a(a(v(depth + 1), church_false(depth + 2)),
-                               f(f(a(a(v(depth + 3), church_true(depth + 4)),
-                                     scott_nil(depth + 4))))))),
-                         depth);
-        assert(l_pred_three.m_expr->equals(l_expected_three));
+        assert(l_pred_three.m_expr->equals(l_expected_two));
 
-        // Test behavioral: pred([0,0,1]) = [1,1,0]
-        // [0,0,1] = CONS BIT0 (CONS BIT0 (CONS BIT1 NIL)), represents 4
+        // Test 5: pred(4) = 3 (canonicalized)
+        // pred([0,0,1]) produces [1,1,0] which canonicalizes to [1,1]
         auto l_four =
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_false(depth)),
@@ -1760,169 +1929,30 @@ void test_binary_pred()
         auto l_pred_four =
             wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth)
                 ->normalize();
-        // [1,1,0] = CONS TRUE (CONS TRUE (CONS FALSE NIL)) in beta-normal form:
-        // λnilCase.λconsCase. consCase TRUE [1,0]
-        auto l_expected_four = wrap_lambdas(
-            f(f(a(a(v(depth + 1), church_true(depth + 2)),
-                  f(f(a(a(v(depth + 3), church_true(depth + 4)),
-                        f(f(a(a(v(depth + 5), church_false(depth + 6)),
-                              scott_nil(depth + 6)))))))))),
-            depth);
-        assert(l_pred_four.m_expr->equals(l_expected_four));
-    };
+        assert(l_pred_four.m_expr->equals(l_expected_three));
 
-    for(size_t depth = 0; depth <= 5; ++depth)
-    {
-        test_at_depth(depth);
-    }
-}
+        // Test 6: pred(5) = 4 (already canonical)
+        // [1,0,1] -> [0,0,1]
+        auto l_five =
+            a(a(scott_cons(depth), church_true(depth)),
+              a(a(scott_cons(depth), church_false(depth)),
+                a(a(scott_cons(depth), church_true(depth)), scott_nil(depth))));
+        auto l_pred_five =
+            wrap_lambdas(a(l_pred->clone(), l_five->clone()), depth)
+                ->normalize();
+        assert(l_pred_five.m_expr->equals(l_expected_four));
 
-void test_church_full_adder()
-{
-    using namespace dml::predef;
-
-    auto test_at_depth = [](size_t depth)
-    {
-        auto l_full_adder = church_full_adder(depth);
-
-        // Test structure: λa.λb.λc. PAIR (sum) (carry)
-        // sum = a XOR (b XOR c)
-        auto sum_expr =
-            a(a(church_xor(depth + 3), v(depth)),
-              a(a(church_xor(depth + 3), v(depth + 1)), v(depth + 2)));
-
-        // carry = (a AND b) OR ((a AND c) OR (b AND c))
-        auto carry_expr =
-            a(a(church_or(depth + 3),
-                a(a(church_and(depth + 3), v(depth)), v(depth + 1))),
-              a(a(church_or(depth + 3),
-                  a(a(church_and(depth + 3), v(depth)), v(depth + 2))),
-                a(a(church_and(depth + 3), v(depth + 1)), v(depth + 2))));
-
-        auto expected = f(f(f(a(a(church_pair(depth + 3), sum_expr->clone()),
-                                carry_expr->clone()))));
-        assert(l_full_adder->equals(expected));
-
-        // Test all 8 combinations of (a, b, carry_in)
-        // Full adder truth table:
-        // a b c | sum carry
-        // 0 0 0 |  0    0
-        // 0 0 1 |  1    0
-        // 0 1 0 |  1    0
-        // 0 1 1 |  0    1
-        // 1 0 0 |  1    0
-        // 1 0 1 |  0    1
-        // 1 1 0 |  0    1
-        // 1 1 1 |  1    1
-
-        auto test_case = [&](bool a_val, bool b_val, bool c_val,
-                             bool expected_sum, bool expected_carry)
-        {
-            auto bool_to_church = [&](bool val)
-            { return val ? church_true(depth) : church_false(depth); };
-
-            // Apply full_adder to three booleans (don't wrap, apply directly)
-            auto l_result = a(a(a(l_full_adder->clone(), bool_to_church(a_val)),
-                                bool_to_church(b_val)),
-                              bool_to_church(c_val));
-
-            // Extract sum using FST and wrap for normalization
-            auto l_sum =
-                wrap_lambdas(a(church_fst(depth), l_result->clone()), depth)
-                    ->normalize();
-
-            auto l_expected_sum =
-                wrap_lambdas(bool_to_church(expected_sum), depth)->normalize();
-
-            assert(l_sum.m_expr->equals(l_expected_sum.m_expr));
-
-            // Extract carry using SND and wrap for normalization
-            auto l_carry =
-                wrap_lambdas(a(church_snd(depth), l_result->clone()), depth)
-                    ->normalize();
-
-            auto l_expected_carry =
-                wrap_lambdas(bool_to_church(expected_carry), depth)
-                    ->normalize();
-
-            assert(l_carry.m_expr->equals(l_expected_carry.m_expr));
-        };
-
-        // Test all 8 cases
-        test_case(false, false, false, false, false); // 0 + 0 + 0 = 0, carry 0
-        test_case(false, false, true, true, false);   // 0 + 0 + 1 = 1, carry 0
-        test_case(false, true, false, true, false);   // 0 + 1 + 0 = 1, carry 0
-        test_case(false, true, true, false, true);    // 0 + 1 + 1 = 0, carry 1
-        test_case(true, false, false, true, false);   // 1 + 0 + 0 = 1, carry 0
-        test_case(true, false, true, false, true);    // 1 + 0 + 1 = 0, carry 1
-        test_case(true, true, false, false, true);    // 1 + 1 + 0 = 0, carry 1
-        test_case(true, true, true, true, true);      // 1 + 1 + 1 = 1, carry 1
-    };
-
-    for(size_t depth = 0; depth <= 5; ++depth)
-    {
-        test_at_depth(depth);
-    }
-}
-
-void test_church_full_subtractor()
-{
-    using namespace dml::predef;
-
-    auto test_at_depth = [](size_t depth)
-    {
-        // get the full subtractor function
-        auto l_full_subtractor = church_full_subtractor(depth);
-
-        // Test all 8 combinations of (a, b, carry_in)
-        // Full adder truth table:
-        // a b c | difference borrow
-        // 0 0 0 |   0           0
-        // 0 0 1 |   1           1
-        // 0 1 0 |   1           1
-        // 0 1 1 |   0           1
-        // 1 0 0 |   1           0
-        // 1 0 1 |   0           0
-        // 1 1 0 |   0           0
-        // 1 1 1 |   1           1
-
-        auto test_case = [&](bool a_val, bool b_val, bool c_val,
-                             bool expected_difference, bool expected_borrow)
-        {
-            auto bool_to_church = [&](bool val)
-            { return val ? church_true(depth) : church_false(depth); };
-
-            // apply the full subtractor to the three booleans
-            auto l_result =
-                wrap_lambdas(a_twr(l_full_subtractor->clone(),
-                                   bool_to_church(a_val), bool_to_church(b_val),
-                                   bool_to_church(c_val)),
-                             depth)
-                    ->normalize()
-                    .m_expr;
-
-            auto l_expected =
-                wrap_lambdas(a_twr(church_pair(depth),
-                                   bool_to_church(expected_difference),
-                                   bool_to_church(expected_borrow)),
-                             depth)
-                    ->normalize()
-                    .m_expr;
-
-            // std::cout << *l_result << std::endl;
-            // std::cout << *l_expected << std::endl;
-            assert(l_result->equals(l_expected));
-        };
-
-        // Test all 8 cases
-        test_case(false, false, false, false, false); // 0 - 0 - 0 = 0, borrow 0
-        test_case(false, false, true, true, true);    // 0 - 0 - 1 = 1, borrow 1
-        test_case(false, true, false, true, true);    // 0 - 1 - 0 = 1, borrow 1
-        test_case(false, true, true, false, true);    // 0 - 1 - 1 = 0, borrow 1
-        test_case(true, false, false, true, false);   // 1 - 0 - 0 = 1, borrow 0
-        test_case(true, false, true, false, false);   // 1 - 0 - 1 = 0, borrow 0
-        test_case(true, true, false, false, false);   // 1 - 1 - 0 = 0, borrow 0
-        test_case(true, true, true, true, true);      // 1 - 1 - 1 = 1, borrow 1
+        // Test 7: pred(8) = 7 (canonicalized)
+        // [0,0,0,1] -> pred produces [1,1,1,0] which canonicalizes to [1,1,1]
+        auto l_eight = a(a(scott_cons(depth), church_false(depth)),
+                         a(a(scott_cons(depth), church_false(depth)),
+                           a(a(scott_cons(depth), church_false(depth)),
+                             a(a(scott_cons(depth), church_true(depth)),
+                               scott_nil(depth)))));
+        auto l_pred_eight =
+            wrap_lambdas(a(l_pred->clone(), l_eight->clone()), depth)
+                ->normalize();
+        assert(l_pred_eight.m_expr->equals(l_expected_seven));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

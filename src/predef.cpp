@@ -355,6 +355,61 @@ std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
                                                                   ))))))))))))))));
 }
 
+// binary sub
+std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth)
+{
+    return a(
+        y_combinator(a_binder_depth),
+        f(             // self
+            f(         // x
+                f(     // y
+                    f( // b
+                        a_twr(
+                            L(1), // x
+                            scott_nil(a_binder_depth + 4),
+                            f(     // xh
+                                f( // xt
+                                    a_twr(
+                                        L(2),            // y
+                                        a_twr(L(3),      // b
+                                              a_twr(     // b is true
+                                                  L(0),  // self
+                                                  L(1),  // x
+                                                  a_twr( // cons true nil
+                                                      scott_cons(
+                                                          a_binder_depth + 6),
+                                                      church_true(
+                                                          a_binder_depth + 6),
+                                                      scott_nil(a_binder_depth +
+                                                                6)),
+                                                  church_false(a_binder_depth +
+                                                               6)),
+                                              L(1) // x, if y is nil and b is
+                                                   // false
+                                              ),
+                                        f(     // yh
+                                            f( // yt
+                                                a(a_twr(church_full_subtractor(
+                                                            a_binder_depth + 8),
+                                                        L(4), // xh
+                                                        L(6), // yh
+                                                        L(3)  // b
+                                                        ),
+                                                  f(     // diff
+                                                      f( // bout
+                                                          a_twr(
+                                                              scott_cons(
+                                                                  a_binder_depth +
+                                                                  10),
+                                                              L(8), // diff
+                                                              a_twr(
+                                                                  L(0), // self
+                                                                  L(5), // xt
+                                                                  L(7), // yt
+                                                                  L(9)  // bout
+                                                                  ))))))))))))))));
+}
+
 } // namespace predef
 } // namespace dml
 

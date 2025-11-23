@@ -232,6 +232,28 @@ std::unique_ptr<lambda::expr> scott_cons(size_t a_binder_depth)
     return f(f(f(f(a(a(L(3), L(0)), L(1))))));
 }
 
+// scott reverse
+std::unique_ptr<lambda::expr> scott_reverse(size_t a_binder_depth)
+{
+    return f( // list
+        a_twr(a(y_combinator(a_binder_depth + 1),
+                f(                                    // self
+                    f(                                // l
+                        f(                            // r
+                            a_twr(L(2),               // l
+                                  L(3),               // r
+                                  f(                  // lh
+                                      f(              // lt
+                                          a_twr(L(1), // self
+                                                L(5), // lt
+                                                a_twr(scott_cons(
+                                                          a_binder_depth + 6),
+                                                      L(4), // lh
+                                                      L(3)  // r
+                                                      ))))))))),
+              L(0), scott_nil(a_binder_depth + 1)));
+}
+
 // binary zero
 std::unique_ptr<lambda::expr> binary_zero(size_t a_binder_depth)
 {
@@ -317,10 +339,10 @@ std::unique_ptr<lambda::expr> binary_canonicalize(size_t a_binder_depth)
                                                             ))))))))))));
 }
 
-// binary less-than
-std::unique_ptr<lambda::expr> binary_less_than(size_t a_binder_depth)
-{
-}
+// // binary less-than
+// std::unique_ptr<lambda::expr> binary_less_than(size_t a_binder_depth)
+// {
+// }
 
 // binary pred
 std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
@@ -1477,6 +1499,226 @@ void test_scott_cons()
     }
 }
 
+void test_scott_reverse()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        auto l_reverse = scott_reverse(depth);
+
+        // Helper to build a raw list from elements (no normalization)
+        auto build_list =
+            [depth](std::vector<std::unique_ptr<lambda::expr>> elements)
+        {
+            auto result = scott_nil(depth);
+            // Build list in reverse order (since we cons from the back)
+            for(int i = elements.size() - 1; i >= 0; --i)
+            {
+                result = a(a(scott_cons(depth), std::move(elements[i])),
+                           std::move(result));
+            }
+            return result;
+        };
+
+        // Test case 1: reverse([]) = []
+        auto l_empty = scott_nil(depth);
+        auto l_result_empty =
+            wrap_lambdas(a(l_reverse->clone(), l_empty->clone()), depth)
+                ->normalize();
+        auto l_expected_empty = wrap_lambdas(scott_nil(depth), depth);
+        assert(l_result_empty.m_expr->equals(l_expected_empty));
+
+        // Test case 2: reverse([v(10)]) = [v(10)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_single_in;
+        elems_single_in.push_back(v(depth + 10));
+        auto l_single = build_list(std::move(elems_single_in));
+        auto l_result_single =
+            wrap_lambdas(a(l_reverse->clone(), l_single->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_single_out;
+        elems_single_out.push_back(v(depth + 10));
+        auto l_expected_single_raw = build_list(std::move(elems_single_out));
+        auto l_expected_single =
+            wrap_lambdas(std::move(l_expected_single_raw), depth)->normalize();
+        assert(l_result_single.m_expr->equals(l_expected_single.m_expr));
+
+        // Test case 3: reverse([v(10), v(11)]) = [v(11), v(10)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_two_in;
+        elems_two_in.push_back(v(depth + 10));
+        elems_two_in.push_back(v(depth + 11));
+        auto l_two = build_list(std::move(elems_two_in));
+        auto l_result_two =
+            wrap_lambdas(a(l_reverse->clone(), l_two->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_two_out;
+        elems_two_out.push_back(v(depth + 11));
+        elems_two_out.push_back(v(depth + 10));
+        auto l_expected_two_raw = build_list(std::move(elems_two_out));
+        auto l_expected_two =
+            wrap_lambdas(std::move(l_expected_two_raw), depth)->normalize();
+        assert(l_result_two.m_expr->equals(l_expected_two.m_expr));
+
+        // Test case 4: reverse([v(10), v(11), v(12)]) = [v(12), v(11), v(10)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_three_in;
+        elems_three_in.push_back(v(depth + 10));
+        elems_three_in.push_back(v(depth + 11));
+        elems_three_in.push_back(v(depth + 12));
+        auto l_three = build_list(std::move(elems_three_in));
+        auto l_result_three =
+            wrap_lambdas(a(l_reverse->clone(), l_three->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_three_out;
+        elems_three_out.push_back(v(depth + 12));
+        elems_three_out.push_back(v(depth + 11));
+        elems_three_out.push_back(v(depth + 10));
+        auto l_expected_three_raw = build_list(std::move(elems_three_out));
+        auto l_expected_three =
+            wrap_lambdas(std::move(l_expected_three_raw), depth)->normalize();
+        assert(l_result_three.m_expr->equals(l_expected_three.m_expr));
+
+        // Test case 5: reverse([v(10), v(11), v(12), v(13)]) = [v(13), v(12),
+        // v(11), v(10)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_four_in;
+        elems_four_in.push_back(v(depth + 10));
+        elems_four_in.push_back(v(depth + 11));
+        elems_four_in.push_back(v(depth + 12));
+        elems_four_in.push_back(v(depth + 13));
+        auto l_four = build_list(std::move(elems_four_in));
+        auto l_result_four =
+            wrap_lambdas(a(l_reverse->clone(), l_four->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_four_out;
+        elems_four_out.push_back(v(depth + 13));
+        elems_four_out.push_back(v(depth + 12));
+        elems_four_out.push_back(v(depth + 11));
+        elems_four_out.push_back(v(depth + 10));
+        auto l_expected_four_raw = build_list(std::move(elems_four_out));
+        auto l_expected_four =
+            wrap_lambdas(std::move(l_expected_four_raw), depth)->normalize();
+        assert(l_result_four.m_expr->equals(l_expected_four.m_expr));
+
+        // Test case 6: reverse(reverse([])) = []
+        auto l_reverse_reverse_empty =
+            wrap_lambdas(
+                a(l_reverse->clone(), a(l_reverse->clone(), l_empty->clone())),
+                depth)
+                ->normalize();
+        assert(l_reverse_reverse_empty.m_expr->equals(l_expected_empty));
+
+        // Test case 7: reverse(reverse([v(10)])) = [v(10)]
+        auto l_reverse_reverse_single =
+            wrap_lambdas(
+                a(l_reverse->clone(), a(l_reverse->clone(), l_single->clone())),
+                depth)
+                ->normalize();
+        assert(
+            l_reverse_reverse_single.m_expr->equals(l_expected_single.m_expr));
+
+        // Test case 8: reverse(reverse([v(10), v(11)])) = [v(10), v(11)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_two_rr_in;
+        elems_two_rr_in.push_back(v(depth + 10));
+        elems_two_rr_in.push_back(v(depth + 11));
+        auto l_two_rr = build_list(std::move(elems_two_rr_in));
+        auto l_reverse_reverse_two =
+            wrap_lambdas(a(l_reverse->clone(),
+                           a(l_reverse->clone(), std::move(l_two_rr))),
+                         depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_two_rr_expected;
+        elems_two_rr_expected.push_back(v(depth + 10));
+        elems_two_rr_expected.push_back(v(depth + 11));
+        auto l_expected_two_rr_raw =
+            build_list(std::move(elems_two_rr_expected));
+        auto l_expected_two_rr =
+            wrap_lambdas(std::move(l_expected_two_rr_raw), depth)->normalize();
+        assert(l_reverse_reverse_two.m_expr->equals(l_expected_two_rr.m_expr));
+
+        // Test case 9: reverse(reverse([v(10), v(11), v(12)])) = [v(10), v(11),
+        // v(12)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_three_rr_in;
+        elems_three_rr_in.push_back(v(depth + 10));
+        elems_three_rr_in.push_back(v(depth + 11));
+        elems_three_rr_in.push_back(v(depth + 12));
+        auto l_three_rr = build_list(std::move(elems_three_rr_in));
+        auto l_reverse_reverse_three =
+            wrap_lambdas(a(l_reverse->clone(),
+                           a(l_reverse->clone(), std::move(l_three_rr))),
+                         depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_three_rr_expected;
+        elems_three_rr_expected.push_back(v(depth + 10));
+        elems_three_rr_expected.push_back(v(depth + 11));
+        elems_three_rr_expected.push_back(v(depth + 12));
+        auto l_expected_three_rr_raw =
+            build_list(std::move(elems_three_rr_expected));
+        auto l_expected_three_rr =
+            wrap_lambdas(std::move(l_expected_three_rr_raw), depth)
+                ->normalize();
+        assert(
+            l_reverse_reverse_three.m_expr->equals(l_expected_three_rr.m_expr));
+
+        // Test case 10: reverse([TRUE, FALSE]) = [FALSE, TRUE]
+        std::vector<std::unique_ptr<lambda::expr>> elems_bool_in;
+        elems_bool_in.push_back(church_true(depth));
+        elems_bool_in.push_back(church_false(depth));
+        auto l_bool_list = build_list(std::move(elems_bool_in));
+        auto l_result_bool =
+            wrap_lambdas(a(l_reverse->clone(), l_bool_list->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_bool_out;
+        elems_bool_out.push_back(church_false(depth));
+        elems_bool_out.push_back(church_true(depth));
+        auto l_expected_bool_raw = build_list(std::move(elems_bool_out));
+        auto l_expected_bool =
+            wrap_lambdas(std::move(l_expected_bool_raw), depth)->normalize();
+        assert(l_result_bool.m_expr->equals(l_expected_bool.m_expr));
+
+        // Test case 11: reverse([v(20)]) = [v(20)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_v20_in;
+        elems_v20_in.push_back(v(depth + 20));
+        auto l_single_v20 = build_list(std::move(elems_v20_in));
+        auto l_result_single_v20 =
+            wrap_lambdas(a(l_reverse->clone(), l_single_v20->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_v20_out;
+        elems_v20_out.push_back(v(depth + 20));
+        auto l_expected_single_v20_raw = build_list(std::move(elems_v20_out));
+        auto l_expected_single_v20 =
+            wrap_lambdas(std::move(l_expected_single_v20_raw), depth)
+                ->normalize();
+        assert(
+            l_result_single_v20.m_expr->equals(l_expected_single_v20.m_expr));
+
+        // Test case 12: reverse([v(5), v(6), v(7), v(8), v(9)]) = [v(9), v(8),
+        // v(7), v(6), v(5)]
+        std::vector<std::unique_ptr<lambda::expr>> elems_five_in;
+        elems_five_in.push_back(v(depth + 5));
+        elems_five_in.push_back(v(depth + 6));
+        elems_five_in.push_back(v(depth + 7));
+        elems_five_in.push_back(v(depth + 8));
+        elems_five_in.push_back(v(depth + 9));
+        auto l_five = build_list(std::move(elems_five_in));
+        auto l_result_five =
+            wrap_lambdas(a(l_reverse->clone(), l_five->clone()), depth)
+                ->normalize();
+        std::vector<std::unique_ptr<lambda::expr>> elems_five_out;
+        elems_five_out.push_back(v(depth + 9));
+        elems_five_out.push_back(v(depth + 8));
+        elems_five_out.push_back(v(depth + 7));
+        elems_five_out.push_back(v(depth + 6));
+        elems_five_out.push_back(v(depth + 5));
+        auto l_expected_five_raw = build_list(std::move(elems_five_out));
+        auto l_expected_five =
+            wrap_lambdas(std::move(l_expected_five_raw), depth)->normalize();
+        assert(l_result_five.m_expr->equals(l_expected_five.m_expr));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void test_binary_zero()
 {
     using namespace dml::predef;
@@ -2374,6 +2616,7 @@ void predef_test_main()
     TEST(test_none);
     TEST(test_scott_nil);
     TEST(test_scott_cons);
+    TEST(test_scott_reverse);
     TEST(test_binary_zero);
     TEST(test_binary_is_zero);
     TEST(test_binary_succ);

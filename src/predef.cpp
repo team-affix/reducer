@@ -3492,6 +3492,36 @@ void test_binary_subtract()
             wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
         std::cout << *l_one_minus_two_expected << std::endl;
         assert(l_one_minus_two->equals(l_one_minus_two_expected));
+
+        // compute 2-0
+        auto l_two_minus_zero =
+            wrap_lambdas(a_twr(binary_subtract(a_depth), l_two->clone(),
+                               l_zero->clone()),
+                         a_depth)
+                ->normalize(std::numeric_limits<size_t>::max(),
+                            std::numeric_limits<size_t>::max(),
+                            [](const std::unique_ptr<lambda::expr>& a_expr)
+                            { std::cout << *a_expr << std::endl; })
+                .m_expr;
+        auto l_two_minus_zero_expected =
+            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        std::cout << *l_two_minus_zero_expected << std::endl;
+        assert(l_two_minus_zero->equals(l_two_minus_zero_expected));
+
+        // compute 2-1
+        auto l_two_minus_one =
+            wrap_lambdas(
+                a_twr(binary_subtract(a_depth), l_two->clone(), l_one->clone()),
+                a_depth)
+                ->normalize(std::numeric_limits<size_t>::max(),
+                            std::numeric_limits<size_t>::max(),
+                            [](const std::unique_ptr<lambda::expr>& a_expr)
+                            { std::cout << *a_expr << std::endl; })
+                .m_expr;
+        auto l_two_minus_one_expected =
+            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        std::cout << *l_two_minus_one_expected << std::endl;
+        assert(l_two_minus_one->equals(l_two_minus_one_expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

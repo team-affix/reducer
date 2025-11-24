@@ -476,63 +476,86 @@ std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth)
 
 std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
 {
-    return a(
-        y_combinator(a_binder_depth),
-        f(             // self
-            f(         // x
-                f(     // y
-                    f( // c
-                        a_twr(
-                            L(1),             // x
-                            a_twr(L(3),       // c
-                                  a_twr(L(0), // self
-                                        a_twr(scott_cons(a_binder_depth + 4),
-                                              church_true(a_binder_depth + 4),
-                                              scott_nil(a_binder_depth + 4)),
-                                        L(2), // y
-                                        church_false(a_binder_depth + 4)),
-                                  L(2) // y
-                                  ),
-                            f(     // xh
-                                f( // xt
-                                    a_twr(
-                                        L(2), // y
-                                        a_twr(
-                                            L(3), // c
-                                            a_twr(
-                                                L(0), // self
-                                                L(1), // x
-                                                a_twr(scott_cons(
-                                                          a_binder_depth + 6),
-                                                      church_true(
-                                                          a_binder_depth + 6),
-                                                      scott_nil(a_binder_depth +
-                                                                6)),
-                                                church_false(a_binder_depth +
-                                                             6)),
-                                            L(1) // x
-                                            ),
-                                        f(     // yh
-                                            f( // yt
-                                                a(a_twr(church_full_adder(
-                                                            a_binder_depth + 8),
-                                                        L(4), // xh
-                                                        L(6), // yh
-                                                        L(3)  // c
-                                                        ),
-                                                  f(     // sum
-                                                      f( // cout
+    return f( // x
+        f(    // y
+            a_twr(
+
+                a(y_combinator(a_binder_depth + 2),
+                  f(             // self
+                      f(         // x'
+                          f(     // y'
+                              f( // c
+                                  a_twr(
+                                      L(3), // x'
+                                      a_twr(
+                                          L(5), // c
+                                          a_twr(
+                                              L(2), // self
+                                              a_twr(scott_cons(a_binder_depth +
+                                                               6),
+                                                    church_true(a_binder_depth +
+                                                                6),
+                                                    scott_nil(a_binder_depth +
+                                                              6)),
+                                              L(4), // y'
+                                              church_false(a_binder_depth + 6)),
+                                          L(4) // y'
+                                          ),
+                                      f(     // x'h
+                                          f( // x't
+                                              a_twr(
+                                                  L(4), // y'
+                                                  a_twr(
+                                                      L(5), // c
+                                                      a_twr(
+                                                          L(2), // self
+                                                          L(3), // x'
                                                           a_twr(
                                                               scott_cons(
                                                                   a_binder_depth +
-                                                                  10),
-                                                              L(8), // sum
-                                                              a_twr(
-                                                                  L(0), // self
-                                                                  L(5), // xt
-                                                                  L(7), // yt
-                                                                  L(9)  // cout
-                                                                  ))))))))))))))));
+                                                                  8),
+                                                              church_true(
+                                                                  a_binder_depth +
+                                                                  8),
+                                                              scott_nil(
+                                                                  a_binder_depth +
+                                                                  8)),
+                                                          church_false(
+                                                              a_binder_depth +
+                                                              8)),
+                                                      L(3) // x'
+                                                      ),
+                                                  f(     // y'h
+                                                      f( // y't
+                                                          a(a_twr(
+                                                                church_full_adder(
+                                                                    a_binder_depth +
+                                                                    10),
+                                                                L(6), // x'h
+                                                                L(8), // y'h
+                                                                L(5)  // c
+                                                                ),
+                                                            f(     // sum
+                                                                f( // cout
+                                                                    a_twr(
+                                                                        scott_cons(
+                                                                            a_binder_depth +
+                                                                            12),
+                                                                        L(10), // sum
+                                                                        a_twr(
+                                                                            L(2), // self
+                                                                            L(7), // x't
+                                                                            L(9), // y't
+                                                                            L(11) // cout
+                                                                            )))))))))))))))),
+
+                L(0), // x
+                L(1), // y
+                church_false(a_binder_depth + 2)
+
+                    )
+
+                ));
 }
 
 // binary subtract
@@ -3193,9 +3216,9 @@ void test_binary_add()
 
         // compute 0+0
         auto l_zero_plus_zero =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
-                               l_zero->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_zero->clone(), l_zero->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3209,9 +3232,9 @@ void test_binary_add()
 
         // compute 0+1
         auto l_zero_plus_one =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
-                               l_one->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_zero->clone(), l_one->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3225,9 +3248,9 @@ void test_binary_add()
 
         // compute 0+2
         auto l_zero_plus_two =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
-                               l_two->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_zero->clone(), l_two->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3241,9 +3264,9 @@ void test_binary_add()
 
         // compute 0+3
         auto l_zero_plus_three =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_zero->clone(),
-                               l_three->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_zero->clone(), l_three->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3257,9 +3280,9 @@ void test_binary_add()
 
         // compute 1+1
         auto l_one_plus_one =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
-                               l_one->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_one->clone(), l_one->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3273,9 +3296,9 @@ void test_binary_add()
 
         // compute 1+2
         auto l_one_plus_two =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
-                               l_two->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_one->clone(), l_two->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3289,9 +3312,9 @@ void test_binary_add()
 
         // compute 1+0
         auto l_one_plus_zero =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
-                               l_zero->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_one->clone(), l_zero->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3305,9 +3328,9 @@ void test_binary_add()
 
         // compute 2+1
         auto l_two_plus_one =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
-                               l_one->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_two->clone(), l_one->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3321,9 +3344,9 @@ void test_binary_add()
 
         // compute 2+3
         auto l_two_plus_three =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
-                               l_three->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_two->clone(), l_three->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3337,9 +3360,9 @@ void test_binary_add()
 
         // compute 3+2
         auto l_three_plus_two =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_three->clone(),
-                               l_two->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_three->clone(), l_two->clone()),
+                a_depth)
                 ->normalize(
                     std::numeric_limits<size_t>::max(),
                     std::numeric_limits<size_t>::max(),
@@ -3351,22 +3374,24 @@ void test_binary_add()
         // std::cout << *l_three_plus_two_expected << std::endl;
         assert(l_three_plus_two->equals(l_three_plus_two_expected));
 
+        // COMMENTED OUT: Test case for carry input (no longer supported)
         // compute 2+2 + carry
-        auto l_two_plus_two_plus_carry =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
-                               l_two->clone(), church_true(a_depth)),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_plus_two_plus_carry_expected =
-            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
-        // std::cout << *l_two_plus_two_plus_carry_expected << std::endl;
-        assert(l_two_plus_two_plus_carry->equals(
-            l_two_plus_two_plus_carry_expected));
+        // auto l_two_plus_two_plus_carry =
+        //     wrap_lambdas(a_twr(binary_add(a_depth), l_two->clone(),
+        //                        l_two->clone(), church_true(a_depth)),
+        //                  a_depth)
+        //         ->normalize(
+        //             std::numeric_limits<size_t>::max(),
+        //             std::numeric_limits<size_t>::max(),
+        //             [](const std::unique_ptr<lambda::expr>&
+        //                    a_expr) { /*std::cout << *a_expr << std::endl;*/
+        //                    })
+        //         .m_expr;
+        // auto l_two_plus_two_plus_carry_expected =
+        //     wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        // // std::cout << *l_two_plus_two_plus_carry_expected << std::endl;
+        // assert(l_two_plus_two_plus_carry->equals(
+        //     l_two_plus_two_plus_carry_expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

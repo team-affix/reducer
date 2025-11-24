@@ -3392,6 +3392,304 @@ void test_binary_add()
         // // std::cout << *l_two_plus_two_plus_carry_expected << std::endl;
         // assert(l_two_plus_two_plus_carry->equals(
         //     l_two_plus_two_plus_carry_expected));
+
+        // ==== ADDITIONAL TESTS WITH LARGER NUMBERS ====
+
+        // Helper to build a binary number from boolean vector (LSB first)
+        auto build_binary = [a_depth](const std::vector<bool>& bits)
+        {
+            auto result = scott_nil(a_depth);
+            for(int i = bits.size() - 1; i >= 0; --i)
+            {
+                result =
+                    a(a(scott_cons(a_depth),
+                        bits[i] ? church_true(a_depth) : church_false(a_depth)),
+                      std::move(result));
+            }
+            return result;
+        };
+
+        // Build larger test numbers
+        auto l_six = a(binary_succ(a_depth), l_five->clone());
+        auto l_seven = a(binary_succ(a_depth), l_six->clone());
+        auto l_eight = a(binary_succ(a_depth), l_seven->clone());
+        auto l_ten = build_binary({0, 1, 0, 1});              // 10 = 0b1010
+        auto l_fifteen = build_binary({1, 1, 1, 1});          // 15 = 0b1111
+        auto l_sixteen = build_binary({0, 0, 0, 0, 1});       // 16 = 0b10000
+        auto l_thirtyone = build_binary({1, 1, 1, 1, 1});     // 31 = 0b11111
+        auto l_thirtytwo = build_binary({0, 0, 0, 0, 0, 1});  // 32 = 0b100000
+        auto l_sixtythree = build_binary({1, 1, 1, 1, 1, 1}); // 63 = 0b111111
+        auto l_sixtyfour =
+            build_binary({0, 0, 0, 0, 0, 0, 1});              // 64 = 0b1000000
+        auto l_hundred = build_binary({0, 0, 1, 0, 0, 1, 1}); // 100 = 0b1100100
+        auto l_onetwentyeight =
+            build_binary({0, 0, 0, 0, 0, 0, 0, 1}); // 128 = 0b10000000
+
+        // compute 2+2 = 4
+        auto l_two_plus_two =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_two->clone(), l_two->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_two_plus_two_expected =
+            wrap_lambdas(l_four->clone(), a_depth)->normalize().m_expr;
+        assert(l_two_plus_two->equals(l_two_plus_two_expected));
+
+        // compute 3+3 = 6
+        auto l_three_plus_three =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_three->clone(), l_three->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_three_plus_three_expected =
+            wrap_lambdas(l_six->clone(), a_depth)->normalize().m_expr;
+        assert(l_three_plus_three->equals(l_three_plus_three_expected));
+
+        // compute 3+5 = 8
+        auto l_three_plus_five =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_three->clone(), l_five->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_three_plus_five_expected =
+            wrap_lambdas(l_eight->clone(), a_depth)->normalize().m_expr;
+        assert(l_three_plus_five->equals(l_three_plus_five_expected));
+
+        // compute 5+5 = 10
+        auto l_five_plus_five =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_five->clone(), l_five->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_five_plus_five_expected =
+            wrap_lambdas(l_ten->clone(), a_depth)->normalize().m_expr;
+        assert(l_five_plus_five->equals(l_five_plus_five_expected));
+
+        // compute 7+8 = 15
+        auto l_seven_plus_eight =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_seven->clone(), l_eight->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_seven_plus_eight_expected =
+            wrap_lambdas(l_fifteen->clone(), a_depth)->normalize().m_expr;
+        assert(l_seven_plus_eight->equals(l_seven_plus_eight_expected));
+
+        // compute 8+8 = 16
+        auto l_eight_plus_eight =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_eight->clone(), l_eight->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_eight_plus_eight_expected =
+            wrap_lambdas(l_sixteen->clone(), a_depth)->normalize().m_expr;
+        assert(l_eight_plus_eight->equals(l_eight_plus_eight_expected));
+
+        // compute 15+1 = 16
+        auto l_fifteen_plus_one =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_fifteen->clone(), l_one->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_fifteen_plus_one_expected =
+            wrap_lambdas(l_sixteen->clone(), a_depth)->normalize().m_expr;
+        assert(l_fifteen_plus_one->equals(l_fifteen_plus_one_expected));
+
+        // compute 10+10 = 20
+        auto l_twenty = build_binary({0, 0, 1, 0, 1}); // 20 = 0b10100
+        auto l_ten_plus_ten =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_ten->clone(), l_ten->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_ten_plus_ten_expected =
+            wrap_lambdas(l_twenty->clone(), a_depth)->normalize().m_expr;
+        assert(l_ten_plus_ten->equals(l_ten_plus_ten_expected));
+
+        // compute 15+16 = 31
+        auto l_fifteen_plus_sixteen =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_fifteen->clone(),
+                               l_sixteen->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_fifteen_plus_sixteen_expected =
+            wrap_lambdas(l_thirtyone->clone(), a_depth)->normalize().m_expr;
+        assert(l_fifteen_plus_sixteen->equals(l_fifteen_plus_sixteen_expected));
+
+        // compute 16+16 = 32
+        auto l_sixteen_plus_sixteen =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_sixteen->clone(),
+                               l_sixteen->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_sixteen_plus_sixteen_expected =
+            wrap_lambdas(l_thirtytwo->clone(), a_depth)->normalize().m_expr;
+        assert(l_sixteen_plus_sixteen->equals(l_sixteen_plus_sixteen_expected));
+
+        // compute 31+1 = 32
+        auto l_thirtyone_plus_one =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_thirtyone->clone(),
+                               l_one->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_thirtyone_plus_one_expected =
+            wrap_lambdas(l_thirtytwo->clone(), a_depth)->normalize().m_expr;
+        assert(l_thirtyone_plus_one->equals(l_thirtyone_plus_one_expected));
+
+        // compute 31+32 = 63
+        auto l_thirtyone_plus_thirtytwo =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_thirtyone->clone(),
+                               l_thirtytwo->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_thirtyone_plus_thirtytwo_expected =
+            wrap_lambdas(l_sixtythree->clone(), a_depth)->normalize().m_expr;
+        assert(l_thirtyone_plus_thirtytwo->equals(
+            l_thirtyone_plus_thirtytwo_expected));
+
+        // compute 32+32 = 64
+        auto l_thirtytwo_plus_thirtytwo =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_thirtytwo->clone(),
+                               l_thirtytwo->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_thirtytwo_plus_thirtytwo_expected =
+            wrap_lambdas(l_sixtyfour->clone(), a_depth)->normalize().m_expr;
+        assert(l_thirtytwo_plus_thirtytwo->equals(
+            l_thirtytwo_plus_thirtytwo_expected));
+
+        // compute 1+63 = 64
+        auto l_one_plus_sixtythree =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
+                               l_sixtythree->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_one_plus_sixtythree_expected =
+            wrap_lambdas(l_sixtyfour->clone(), a_depth)->normalize().m_expr;
+        assert(l_one_plus_sixtythree->equals(l_one_plus_sixtythree_expected));
+
+        // compute 50+50 = 100
+        auto l_fifty = build_binary({0, 1, 0, 0, 1, 1}); // 50 = 0b110010
+        auto l_fifty_plus_fifty =
+            wrap_lambdas(
+                a_twr(binary_add(a_depth), l_fifty->clone(), l_fifty->clone()),
+                a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_fifty_plus_fifty_expected =
+            wrap_lambdas(l_hundred->clone(), a_depth)->normalize().m_expr;
+        assert(l_fifty_plus_fifty->equals(l_fifty_plus_fifty_expected));
+
+        // compute 64+64 = 128
+        auto l_sixtyfour_plus_sixtyfour =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_sixtyfour->clone(),
+                               l_sixtyfour->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_sixtyfour_plus_sixtyfour_expected =
+            wrap_lambdas(l_onetwentyeight->clone(), a_depth)
+                ->normalize()
+                .m_expr;
+        assert(l_sixtyfour_plus_sixtyfour->equals(
+            l_sixtyfour_plus_sixtyfour_expected));
+
+        // compute 100+28 = 128
+        auto l_twentyeight = build_binary({0, 0, 1, 1, 1}); // 28 = 0b11100
+        auto l_hundred_plus_twentyeight =
+            wrap_lambdas(a_twr(binary_add(a_depth), l_hundred->clone(),
+                               l_twentyeight->clone()),
+                         a_depth)
+                ->normalize(
+                    std::numeric_limits<size_t>::max(),
+                    std::numeric_limits<size_t>::max(),
+                    [](const std::unique_ptr<lambda::expr>&
+                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
+                .m_expr;
+        auto l_hundred_plus_twentyeight_expected =
+            wrap_lambdas(l_onetwentyeight->clone(), a_depth)
+                ->normalize()
+                .m_expr;
+        assert(l_hundred_plus_twentyeight->equals(
+            l_hundred_plus_twentyeight_expected));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

@@ -92,8 +92,8 @@ std::unique_ptr<lambda::expr> binary_succ(size_t a_binder_depth);
 // binary canonicalize
 std::unique_ptr<lambda::expr> binary_canonicalize(size_t a_binder_depth);
 
-// binary less-than
-std::unique_ptr<lambda::expr> binary_less_than(size_t a_binder_depth);
+// binary compare <=>
+std::unique_ptr<lambda::expr> binary_compare(size_t a_binder_depth);
 
 // binary pred
 std::unique_ptr<lambda::expr> binary_pred(size_t a_binder_depth);

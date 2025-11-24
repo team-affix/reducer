@@ -364,57 +364,74 @@ std::unique_ptr<lambda::expr> binary_canonicalize(size_t a_binder_depth)
                                                             ))))))))))));
 }
 
-// binary less-than
-std::unique_ptr<lambda::expr> binary_less_than(size_t a_binder_depth)
+// binary compare <=>
+std::unique_ptr<lambda::expr> binary_compare(size_t a_binder_depth)
 {
-    return f( // x
-        f(    // y
-            a_twr(
-                a(y_combinator(a_binder_depth + 2),
-                  f(         // self
-                      f(     // x'
-                          f( // y'
-                              a_twr(
-                                  L(3),       // x'
-                                  a_twr(L(4), // y'
-                                        church_false(a_binder_depth + 5),
-                                        f(     // y'h (unused)
-                                            f( // y't (unused)
-                                                church_true(a_binder_depth +
-                                                            7)))),
-                                  f(     // x'h
-                                      f( // x't
-                                          a_twr(
-                                              L(4), // y'
-                                              church_false(a_binder_depth + 7),
-                                              f(     // y'h
-                                                  f( // y't
-                                                      a_twr(
-                                                          L(5), // x'h
-                                                          a_twr(
-                                                              L(7), // y'h
-                                                              a_twr(
-                                                                  L(2), // self
-                                                                  L(6), // x't
-                                                                  L(8)  // y't
-                                                                  ),
-                                                              church_false(
-                                                                  a_binder_depth +
-                                                                  9)),
-                                                          a_twr(
-                                                              L(7), // y'h
-                                                              church_true(
-                                                                  a_binder_depth +
-                                                                  9),
-                                                              a_twr(
-                                                                  L(2), // self
-                                                                  L(6), // x't
-                                                                  L(8)  // y't
-                                                                  ))))))))))))),
-                a( // make x'
-                    scott_reverse(a_binder_depth + 2), L(0)),
-                a( // make y'
-                    scott_reverse(a_binder_depth + 2), L(1)))));
+    auto l_error = [](size_t a_depth) { return v(1000 + a_depth); };
+
+    return f(          // x
+        f(             // y
+            f(         // lt
+                f(     // eq
+                    f( // gt
+                        a_twr(
+                            scott_compare_lengths(a_binder_depth + 2),
+                            L(0), // x
+                            L(1), // y
+                            L(2), // lt
+                            a_twr(
+                                y_combinator(a_binder_depth + 5),
+                                f(         // self
+                                    f(     // x'
+                                        f( // y'
+                                            a_twr(
+                                                L(6),       // x'
+                                                a_twr(L(7), // y'
+                                                      L(3), // eq
+                                                      // x' nil, y' not nil?
+                                                      // impossible
+                                                      l_error(a_binder_depth +
+                                                              8)),
+                                                f(     // x'h
+                                                    f( // x't
+                                                        a_twr(
+                                                            L(7), // y'
+                                                            // x' not nil, y'
+                                                            // nil? impossible
+                                                            l_error(
+                                                                a_binder_depth +
+                                                                10),
+                                                            f(     // y'h
+                                                                f( // y't
+                                                                    a_twr(
+                                                                        L(8), // x'h
+                                                                        a_twr(
+                                                                            L(10), // y'h
+                                                                            a_twr(
+                                                                                L(5), // self
+                                                                                L(9), // x't
+                                                                                L(11) // y't
+                                                                                ),
+                                                                            L(4) // gt
+                                                                            ),
+                                                                        a_twr(
+                                                                            L(10), // y'h
+                                                                            L(2), // lt
+                                                                            a_twr(
+                                                                                L(5), // self
+                                                                                L(9), // x't
+                                                                                L(11) // y't
+                                                                                )))))))))))),
+                                a(/*reverse x*/
+                                  scott_reverse(a_binder_depth + 5),
+                                  L(0) // x
+                                  ),
+                                a(/*reverse y*/
+                                  scott_reverse(a_binder_depth + 5),
+                                  L(1) // y
+                                  )),  // eq
+                            L(4)       // gt
+                            ))))));
 }
 
 // binary pred
@@ -3191,7 +3208,7 @@ void predef_test_main()
     TEST(test_binary_is_zero);
     TEST(test_binary_succ);
     TEST(test_binary_canonicalize);
-    // TEST(test_binary_less_than);
+    TEST(test_binary_less_than);
     TEST(test_binary_pred);
     TEST(test_binary_add);
     // TEST(test_binary_subtract);

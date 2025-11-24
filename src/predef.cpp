@@ -2527,8 +2527,6 @@ void test_binary_compare()
                          depth)
                 ->normalize();
         auto l_expected_0_0 = wrap_lambdas(v_eq->clone(), depth);
-        std::cout << *l_result_0_0.m_expr << std::endl;
-        std::cout << *l_expected_0_0 << std::endl;
         assert(l_result_0_0.m_expr->equals(l_expected_0_0));
 
         // Test case 2: 0 < 1
@@ -2832,6 +2830,177 @@ void test_binary_compare()
                 ->normalize();
         auto l_expected_5_5 = wrap_lambdas(v_eq->clone(), depth);
         assert(l_result_5_5.m_expr->equals(l_expected_5_5));
+
+        // Test case 25: 1 < 100 (very far apart)
+        auto l_hundred = build_binary(
+            {false, false, true, false, false, true, true}); // 100 = 0b1100100
+        auto l_result_1_100 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_one->clone()),
+                                 l_hundred->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_1_100 = wrap_lambdas(v_lt->clone(), depth);
+        assert(l_result_1_100.m_expr->equals(l_expected_1_100));
+
+        // Test case 26: 100 > 1
+        auto l_result_100_1 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_hundred->clone()),
+                                 l_one->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_100_1 = wrap_lambdas(v_gt->clone(), depth);
+        assert(l_result_100_1.m_expr->equals(l_expected_100_1));
+
+        // Test case 27: 0 < 63 (empty vs full 6-bit number)
+        auto l_sixtythree =
+            build_binary({true, true, true, true, true, true}); // 63 = 0b111111
+        auto l_result_0_63 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_zero->clone()),
+                                 l_sixtythree->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_0_63 = wrap_lambdas(v_lt->clone(), depth);
+        assert(l_result_0_63.m_expr->equals(l_expected_0_63));
+
+        // Test case 28: 63 > 0
+        auto l_result_63_0 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_sixtythree->clone()),
+                                 l_zero->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_63_0 = wrap_lambdas(v_gt->clone(), depth);
+        assert(l_result_63_0.m_expr->equals(l_expected_63_0));
+
+        // Test case 29: 7 < 64 (different bit lengths, powers of 2)
+        auto l_sixtyfour = build_binary(
+            {false, false, false, false, false, false, true}); // 64 = 0b1000000
+        auto l_result_7_64 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_seven->clone()),
+                                 l_sixtyfour->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_7_64 = wrap_lambdas(v_lt->clone(), depth);
+        assert(l_result_7_64.m_expr->equals(l_expected_7_64));
+
+        // Test case 30: 64 > 7
+        auto l_result_64_7 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_sixtyfour->clone()),
+                                 l_seven->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_64_7 = wrap_lambdas(v_gt->clone(), depth);
+        assert(l_result_64_7.m_expr->equals(l_expected_64_7));
+
+        // Test case 31: 10 < 127 (large gap)
+        auto l_onetwentyseven = build_binary(
+            {true, true, true, true, true, true, true}); // 127 = 0b1111111
+        auto l_result_10_127 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_ten->clone()),
+                                 l_onetwentyseven->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_10_127 = wrap_lambdas(v_lt->clone(), depth);
+        assert(l_result_10_127.m_expr->equals(l_expected_10_127));
+
+        // Test case 32: 127 > 10
+        auto l_result_127_10 =
+            wrap_lambdas(
+                a(a(a(a(a(l_compare->clone(), l_onetwentyseven->clone()),
+                        l_ten->clone()),
+                      v_lt->clone()),
+                    v_eq->clone()),
+                  v_gt->clone()),
+                depth)
+                ->normalize();
+        auto l_expected_127_10 = wrap_lambdas(v_gt->clone(), depth);
+        assert(l_result_127_10.m_expr->equals(l_expected_127_10));
+
+        // Test case 33: 1 < 128 (smallest vs power of 2)
+        auto l_onetwentyeight =
+            build_binary({false, false, false, false, false, false, false,
+                          true}); // 128 = 0b10000000
+        auto l_result_1_128 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_one->clone()),
+                                 l_onetwentyeight->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_1_128 = wrap_lambdas(v_lt->clone(), depth);
+        assert(l_result_1_128.m_expr->equals(l_expected_1_128));
+
+        // Test case 34: 128 > 1
+        auto l_result_128_1 =
+            wrap_lambdas(
+                a(a(a(a(a(l_compare->clone(), l_onetwentyeight->clone()),
+                        l_one->clone()),
+                      v_lt->clone()),
+                    v_eq->clone()),
+                  v_gt->clone()),
+                depth)
+                ->normalize();
+        auto l_expected_128_1 = wrap_lambdas(v_gt->clone(), depth);
+        assert(l_result_128_1.m_expr->equals(l_expected_128_1));
+
+        // Test case 35: 31 < 100 (both multi-bit, far apart)
+        auto l_result_31_100 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_thirtyone->clone()),
+                                 l_hundred->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_31_100 = wrap_lambdas(v_lt->clone(), depth);
+        assert(l_result_31_100.m_expr->equals(l_expected_31_100));
+
+        // Test case 36: 100 > 31
+        auto l_result_100_31 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_hundred->clone()),
+                                 l_thirtyone->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_100_31 = wrap_lambdas(v_gt->clone(), depth);
+        assert(l_result_100_31.m_expr->equals(l_expected_100_31));
+
+        // Test case 37: 100 == 100 (equal large numbers)
+        auto l_hundred_b = build_binary(
+            {false, false, true, false, false, true, true}); // 100 = 0b1100100
+        auto l_result_100_100 =
+            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_hundred->clone()),
+                                 l_hundred_b->clone()),
+                               v_lt->clone()),
+                             v_eq->clone()),
+                           v_gt->clone()),
+                         depth)
+                ->normalize();
+        auto l_expected_100_100 = wrap_lambdas(v_eq->clone(), depth);
+        assert(l_result_100_100.m_expr->equals(l_expected_100_100));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)

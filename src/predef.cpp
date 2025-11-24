@@ -538,86 +538,109 @@ std::unique_ptr<lambda::expr> binary_add(size_t a_binder_depth)
 // binary subtract
 std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth)
 {
-    return a(
-        y_combinator(a_binder_depth),
-        f(             // self
-            f(         // x
-                f(     // y
-                    f( // b
-                        a_twr(
-                            L(1), // x
-                            // x is NIL
-                            scott_nil(a_binder_depth + 4),
-                            f(     // xh
-                                f( // xt
-                                    a_twr(
-                                        L(2),            // y
-                                        a_twr(           // y is NIL
-                                            L(3),        // b
-                                            a_twr(L(0),  // self
-                                                  L(1),  // x
-                                                  a_twr( // CONS TRUE NIL
-                                                      scott_cons(
-                                                          a_binder_depth + 6),
-                                                      church_true(
-                                                          a_binder_depth + 6),
-                                                      scott_nil(a_binder_depth +
-                                                                6)),
-                                                  church_false(a_binder_depth +
-                                                               6)),
-                                            L(1) // x
-                                            ),
-                                        f(     // yh
-                                            f( // yt
-                                                a(a_twr(church_full_subtractor(
-                                                            a_binder_depth + 8),
-                                                        L(4), // xh
-                                                        L(6), // yh
-                                                        L(3)  // b
-                                                        ),
-                                                  f(     // diff
-                                                      f( // bout
+    return f( // x
+        f(    // y
+            a_twr(
+                binary_compare(a_binder_depth + 2),
+                L(0), // x
+                L(1), // y
+                // x < y, return 0
+                binary_zero(a_binder_depth + 2),
+                // x == y, return 0
+                binary_zero(a_binder_depth + 2),
+                // x > y, do sub
+                a_twr(
+                    a(y_combinator(a_binder_depth + 2),
+                      f(             // self
+                          f(         // x'
+                              f(     // y'
+                                  f( // b
+                                      a_twr(
+                                          L(3), // x'
+                                          // x' is NIL
+                                          scott_nil(a_binder_depth + 6),
+                                          f(     // x'h
+                                              f( // x't
+                                                  a_twr(
+                                                      L(4),     // y'
+                                                      a_twr(    // y' is NIL
+                                                          L(5), // b
                                                           a_twr(
-                                                              L(8), // diff
-                                                              a_twr(
+                                                              L(2),  // self
+                                                              L(3),  // x'
+                                                              a_twr( // CONS
+                                                                     // TRUE NIL
                                                                   scott_cons(
                                                                       a_binder_depth +
-                                                                      10),
+                                                                      8),
                                                                   church_true(
                                                                       a_binder_depth +
-                                                                      10),
-                                                                  a_twr(
-                                                                      L(0), // self
-                                                                      L(5), // xt
-                                                                      L(7), // yt
-                                                                      L(9) // bout
-                                                                      )),
-                                                              a_twr(
-                                                                  a_twr(
-                                                                      L(0), // self
-                                                                      L(5), // xt
-                                                                      L(7), // yt
-                                                                      L(9) // bout
-                                                                      ),
+                                                                      8),
                                                                   scott_nil(
                                                                       a_binder_depth +
-                                                                      10),
-                                                                  f(     // subh
-                                                                      f( // subt
-                                                                          a_twr(
-                                                                              scott_cons(
-                                                                                  a_binder_depth +
-                                                                                  12),
-                                                                              church_false(
-                                                                                  a_binder_depth +
-                                                                                  12),
-                                                                              a_twr(
-                                                                                  scott_cons(
-                                                                                      a_binder_depth +
-                                                                                      12),
-                                                                                  L(10), // subh
-                                                                                  L(11) // subt
-                                                                                  ))))))))))))))))))));
+                                                                      8)),
+                                                              church_false(
+                                                                  a_binder_depth +
+                                                                  8)),
+                                                          L(3) // x'
+                                                          ),
+                                                      f(     // y'h
+                                                          f( // y't
+                                                              a(a_twr(
+                                                                    church_full_subtractor(
+                                                                        a_binder_depth +
+                                                                        10),
+                                                                    L(6), // x'h
+                                                                    L(8), // y'h
+                                                                    L(5)  // b
+                                                                    ),
+                                                                f(     // diff
+                                                                    f( // bout
+                                                                        a_twr(
+                                                                            L(10), // diff
+                                                                            a_twr(
+                                                                                scott_cons(
+                                                                                    a_binder_depth +
+                                                                                    12),
+                                                                                church_true(
+                                                                                    a_binder_depth +
+                                                                                    12),
+                                                                                a_twr(
+                                                                                    L(2), // self
+                                                                                    L(7), // x't
+                                                                                    L(9), // y't
+                                                                                    L(11) // bout
+                                                                                    )),
+                                                                            a_twr(
+                                                                                a_twr(
+                                                                                    L(2), // self
+                                                                                    L(7), // x't
+                                                                                    L(9), // y't
+                                                                                    L(11) // bout
+                                                                                    ),
+                                                                                scott_nil(
+                                                                                    a_binder_depth +
+                                                                                    12),
+                                                                                f( // subh
+                                                                                    f( // subt
+                                                                                        a_twr(
+                                                                                            scott_cons(
+                                                                                                a_binder_depth +
+                                                                                                14),
+                                                                                            church_false(
+                                                                                                a_binder_depth +
+                                                                                                14),
+                                                                                            a_twr(
+                                                                                                scott_cons(
+                                                                                                    a_binder_depth +
+                                                                                                    14),
+                                                                                                L(12), // subh
+                                                                                                L(13) // subt
+                                                                                                )))))))))))))))))))),
+
+                    L(0), // x
+                    L(1), // y
+                    church_false(a_binder_depth + 2)))));
 }
 
 } // namespace predef
@@ -3368,7 +3391,7 @@ void test_binary_subtract()
         // compute 0-0
         auto l_zero_minus_zero =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_zero->clone(), church_false(a_depth)),
+                               l_zero->clone()),
                          a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
@@ -3383,7 +3406,7 @@ void test_binary_subtract()
         // compute 0-1
         auto l_zero_minus_one =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_one->clone(), church_false(a_depth)),
+                               l_one->clone()),
                          a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
@@ -3398,7 +3421,7 @@ void test_binary_subtract()
         // compute 0-2
         auto l_zero_minus_two =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_two->clone(), church_false(a_depth)),
+                               l_two->clone()),
                          a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
@@ -3413,7 +3436,7 @@ void test_binary_subtract()
         // compute 0-3
         auto l_zero_minus_three =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_three->clone(), church_false(a_depth)),
+                               l_three->clone()),
                          a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
@@ -3428,7 +3451,7 @@ void test_binary_subtract()
         // compute 1-0
         auto l_one_minus_zero =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
-                               l_zero->clone(), church_false(a_depth)),
+                               l_zero->clone()),
                          a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
@@ -3442,9 +3465,9 @@ void test_binary_subtract()
 
         // compute 1-1
         auto l_one_minus_one =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
-                               l_one->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_subtract(a_depth), l_one->clone(), l_one->clone()),
+                a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
                             [](const std::unique_ptr<lambda::expr>& a_expr)
@@ -3457,9 +3480,9 @@ void test_binary_subtract()
 
         // compute 1-2
         auto l_one_minus_two =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
-                               l_two->clone(), church_false(a_depth)),
-                         a_depth)
+            wrap_lambdas(
+                a_twr(binary_subtract(a_depth), l_one->clone(), l_two->clone()),
+                a_depth)
                 ->normalize(std::numeric_limits<size_t>::max(),
                             std::numeric_limits<size_t>::max(),
                             [](const std::unique_ptr<lambda::expr>& a_expr)
@@ -3511,7 +3534,7 @@ void predef_test_main()
     TEST(test_binary_compare);
     TEST(test_binary_pred);
     TEST(test_binary_add);
-    // TEST(test_binary_subtract);
+    TEST(test_binary_subtract);
 }
 
 #endif // UNIT_TEST

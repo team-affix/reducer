@@ -446,6 +446,12 @@ void test_encode_binary_numeral()
                 ->normalize()
                 .m_expr;
         assert(l_succ->equals(l_expected));
+
+        // make sure the successor computation actually does change the involved
+        // expression
+        auto l_norm =
+            wrap_lambdas(l_numeral->clone(), depth)->normalize().m_expr;
+        assert(!l_norm->equals(l_expected));
     };
 
     // Test on various depths and numeral values

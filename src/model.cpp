@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <memory>
 
 bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
 {
@@ -315,6 +316,8 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
         l_binning_function = build_function(a_helpers.size(), a_arity,
                                             a_simulation, a_recursion_limit);
 
+        std::cout << *l_binning_function << std::endl;
+
         // construct the program
         auto l_program = construct_program(a_helpers.begin(), a_helpers.end(),
                                            l_binning_function->clone());
@@ -419,6 +422,8 @@ learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 }
 
 #ifdef UNIT_TEST
+#include "../include/encode.hpp"
+#include "../include/predef.hpp"
 #include "test_utils.hpp"
 #include <sstream>
 
@@ -1350,6 +1355,92 @@ void test_learn_model()
 
         auto l_model =
             learn_model({}, l_data_pointers, 1000, 1000, 3, 1000, 5, 20);
+        std::cout << "model: " << *l_model << std::endl;
+    }
+
+    // add(x, y) = z
+    {
+        using namespace dml::encode;
+
+        // POSITIVE DATA
+        std::vector<std::unique_ptr<lambda::expr>> l_pos_inputs_0;
+        l_pos_inputs_0.emplace_back(binary_numeral(0, 0));
+        l_pos_inputs_0.emplace_back(binary_numeral(0, 0));
+        l_pos_inputs_0.emplace_back(binary_numeral(0, 0));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_pos_inputs_1;
+        l_pos_inputs_1.emplace_back(binary_numeral(0, 0));
+        l_pos_inputs_1.emplace_back(binary_numeral(0, 1));
+        l_pos_inputs_1.emplace_back(binary_numeral(0, 1));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_pos_inputs_2;
+        l_pos_inputs_2.emplace_back(binary_numeral(0, 1));
+        l_pos_inputs_2.emplace_back(binary_numeral(0, 0));
+        l_pos_inputs_2.emplace_back(binary_numeral(0, 1));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_pos_inputs_3;
+        l_pos_inputs_3.emplace_back(binary_numeral(0, 2));
+        l_pos_inputs_3.emplace_back(binary_numeral(0, 4));
+        l_pos_inputs_3.emplace_back(binary_numeral(0, 6));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_pos_inputs_4;
+        l_pos_inputs_4.emplace_back(binary_numeral(0, 8));
+        l_pos_inputs_4.emplace_back(binary_numeral(0, 4));
+        l_pos_inputs_4.emplace_back(binary_numeral(0, 12));
+
+        // NEGATIVE DATA
+
+        std::vector<std::unique_ptr<lambda::expr>> l_neg_inputs_0;
+        l_neg_inputs_0.emplace_back(binary_numeral(0, 0));
+        l_neg_inputs_0.emplace_back(binary_numeral(0, 1));
+        l_neg_inputs_0.emplace_back(binary_numeral(0, 0));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_neg_inputs_1;
+        l_neg_inputs_1.emplace_back(binary_numeral(0, 1));
+        l_neg_inputs_1.emplace_back(binary_numeral(0, 1));
+        l_neg_inputs_1.emplace_back(binary_numeral(0, 3));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_neg_inputs_2;
+        l_neg_inputs_2.emplace_back(binary_numeral(0, 1));
+        l_neg_inputs_2.emplace_back(binary_numeral(0, 5));
+        l_neg_inputs_2.emplace_back(binary_numeral(0, 7));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_neg_inputs_3;
+        l_neg_inputs_3.emplace_back(binary_numeral(0, 1));
+        l_neg_inputs_3.emplace_back(binary_numeral(0, 0));
+        l_neg_inputs_3.emplace_back(binary_numeral(0, 2));
+
+        std::vector<std::unique_ptr<lambda::expr>> l_neg_inputs_4;
+        l_neg_inputs_4.emplace_back(binary_numeral(0, 1));
+        l_neg_inputs_4.emplace_back(binary_numeral(0, 6));
+        l_neg_inputs_4.emplace_back(binary_numeral(0, 22));
+
+        std::vector<data_point> l_data;
+        l_data.emplace_back(std::move(l_pos_inputs_0), true);
+        l_data.emplace_back(std::move(l_pos_inputs_1), true);
+        l_data.emplace_back(std::move(l_pos_inputs_2), true);
+        l_data.emplace_back(std::move(l_pos_inputs_3), true);
+        l_data.emplace_back(std::move(l_pos_inputs_4), true);
+        l_data.emplace_back(std::move(l_neg_inputs_0), false);
+        l_data.emplace_back(std::move(l_neg_inputs_1), false);
+        l_data.emplace_back(std::move(l_neg_inputs_2), false);
+        l_data.emplace_back(std::move(l_neg_inputs_3), false);
+        l_data.emplace_back(std::move(l_neg_inputs_4), false);
+
+        // define data pointers
+        std::vector<const data_point*> l_data_pointers;
+        std::transform(l_data.begin(), l_data.end(),
+                       std::back_inserter(l_data_pointers),
+                       [](const auto& a_data_point) { return &a_data_point; });
+
+        // CONSTRUCT HELPERS
+        std::list<std::unique_ptr<lambda::expr>> l_helpers;
+
+        // insert the 'add' helper
+        l_helpers.emplace_back(dml::predef::binary_add(l_helpers.size()));
+
+        auto l_model = learn_model(l_helpers, l_data_pointers, 500, 100000, 3,
+                                   1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 }

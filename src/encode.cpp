@@ -1,5 +1,6 @@
 #include "../include/encode.hpp"
 #include "../include/predef.hpp"
+#include <vector>
 
 #define L(x) v(a_binder_depth + x)
 
@@ -90,7 +91,6 @@ std::unique_ptr<lambda::expr> binary_numeral(size_t a_binder_depth,
 
 #ifdef UNIT_TEST
 #include "test_utils.hpp"
-#include <limits>
 using namespace dml::encode;
 
 // Helper to wrap expression with n lambdas
@@ -123,9 +123,11 @@ void test_encode_church_boolean()
         constexpr size_t depth = 0;
         auto l_input = church_boolean(depth, value);
         auto l_not = church_not(depth);
-        auto l_result = a(std::move(l_not), std::move(l_input))->normalize();
+        auto l_result = a(std::move(l_not), std::move(l_input));
+        while(reduce_one_step(l_result))
+            ;
         auto l_expected = church_boolean(depth, !value);
-        assert(l_result.m_expr->equals(l_expected));
+        assert(l_result->equals(l_expected));
     };
 
     test_not(true);
@@ -138,10 +140,11 @@ void test_encode_church_boolean()
         auto l_a = church_boolean(depth, a_val);
         auto l_b = church_boolean(depth, b_val);
         auto l_and = church_and(depth);
-        auto l_result =
-            a(a(std::move(l_and), std::move(l_a)), std::move(l_b))->normalize();
+        auto l_result = a(a(std::move(l_and), std::move(l_a)), std::move(l_b));
+        while(reduce_one_step(l_result))
+            ;
         auto l_expected = church_boolean(depth, a_val && b_val);
-        assert(l_result.m_expr->equals(l_expected));
+        assert(l_result->equals(l_expected));
     };
 
     test_and(true, true);
@@ -156,10 +159,11 @@ void test_encode_church_boolean()
         auto l_a = church_boolean(depth, a_val);
         auto l_b = church_boolean(depth, b_val);
         auto l_or = church_or(depth);
-        auto l_result =
-            a(a(std::move(l_or), std::move(l_a)), std::move(l_b))->normalize();
+        auto l_result = a(a(std::move(l_or), std::move(l_a)), std::move(l_b));
+        while(reduce_one_step(l_result))
+            ;
         auto l_expected = church_boolean(depth, a_val || b_val);
-        assert(l_result.m_expr->equals(l_expected));
+        assert(l_result->equals(l_expected));
     };
 
     test_or(true, true);
@@ -179,8 +183,9 @@ void test_encode_church_numeral()
         auto l_numeral = church_numeral(depth, numeral);
 
         // normalize the numeral
-        auto l_normalized =
-            wrap_lambdas(std::move(l_numeral), depth)->normalize().m_expr;
+        auto l_normalized = wrap_lambdas(std::move(l_numeral), depth);
+        while(reduce_one_step(l_normalized))
+            ;
 
         // Build expected: λf.λx. f^n(x) where f=depth, x=depth+1
         auto expected_body = v(depth + 1);
@@ -208,10 +213,11 @@ void test_encode_church_numeral()
         constexpr size_t depth = 0;
         auto l_numeral = church_numeral(depth, numeral);
         auto l_is_zero = church_is_zero(depth);
-        auto l_result =
-            a(std::move(l_is_zero), std::move(l_numeral))->normalize();
+        auto l_result = a(std::move(l_is_zero), std::move(l_numeral));
+        while(reduce_one_step(l_result))
+            ;
         auto l_expected = church_boolean(depth, numeral == 0);
-        assert(l_result.m_expr->equals(l_expected));
+        assert(l_result->equals(l_expected));
     };
 
     test_is_zero(0);
@@ -224,10 +230,13 @@ void test_encode_church_numeral()
         constexpr size_t depth = 0;
         auto l_numeral = church_numeral(depth, numeral);
         auto l_succ = church_succ(depth);
-        auto l_result = a(std::move(l_succ), std::move(l_numeral))->normalize();
-        auto l_expected =
-            church_numeral(depth, numeral + 1)->normalize().m_expr;
-        assert(l_result.m_expr->equals(l_expected));
+        auto l_result = a(std::move(l_succ), std::move(l_numeral));
+        while(reduce_one_step(l_result))
+            ;
+        auto l_expected = church_numeral(depth, numeral + 1);
+        while(reduce_one_step(l_expected))
+            ;
+        assert(l_result->equals(l_expected));
     };
 
     test_succ(0);
@@ -240,11 +249,13 @@ void test_encode_church_numeral()
         constexpr size_t depth = 0;
         auto l_numeral = church_numeral(depth, numeral);
         auto l_pred = church_pred(depth);
-        auto l_result = a(std::move(l_pred), std::move(l_numeral))->normalize();
-        auto l_expected = church_numeral(depth, numeral > 0 ? numeral - 1 : 0)
-                              ->normalize()
-                              .m_expr;
-        assert(l_result.m_expr->equals(l_expected));
+        auto l_result = a(std::move(l_pred), std::move(l_numeral));
+        while(reduce_one_step(l_result))
+            ;
+        auto l_expected = church_numeral(depth, numeral > 0 ? numeral - 1 : 0);
+        while(reduce_one_step(l_expected))
+            ;
+        assert(l_result->equals(l_expected));
     };
 
     test_pred(0);
@@ -262,15 +273,17 @@ void test_encode_church_pair()
                             const std::unique_ptr<lambda::expr>& first,
                             const std::unique_ptr<lambda::expr>& second)
     {
-        auto l_first = wrap_lambdas(first->clone(), depth)->normalize().m_expr;
-        auto l_second =
-            wrap_lambdas(second->clone(), depth)->normalize().m_expr;
+        auto l_first = wrap_lambdas(first->clone(), depth);
+        while(reduce_one_step(l_first))
+            ;
+        auto l_second = wrap_lambdas(second->clone(), depth);
+        while(reduce_one_step(l_second))
+            ;
 
-        auto l_pair =
-            wrap_lambdas(
-                church_pair(depth, l_first->clone(), l_second->clone()), depth)
-                ->normalize()
-                .m_expr;
+        auto l_pair = wrap_lambdas(
+            church_pair(depth, l_first->clone(), l_second->clone()), depth);
+        while(reduce_one_step(l_pair))
+            ;
 
         // std::cout << *l_first << std::endl;
         // std::cout << *l_second << std::endl;
@@ -278,9 +291,13 @@ void test_encode_church_pair()
         // std::cout << *l_pair << std::endl;
 
         // Expected: λf. ((f first) second) where f is at index depth
-        auto expected = wrap_lambdas(
-            f(a(a(v(depth), l_first->lift(1, 0)), l_second->lift(1, 0))),
-            depth);
+        auto l_first_lifted = l_first->clone();
+        l_first_lifted->lift(1, 0);
+        auto l_second_lifted = l_second->clone();
+        l_second_lifted->lift(1, 0);
+        auto expected = wrap_lambdas(f(a(a(v(depth), std::move(l_first_lifted)),
+                                         std::move(l_second_lifted))),
+                                     depth);
 
         assert(l_pair->equals(expected));
     };
@@ -386,17 +403,15 @@ void test_encode_scott_list()
         auto l_result_empty =
             wrap_lambdas(a(a(std::move(l_empty_list), l_nil_case->clone()),
                            l_cons_case->clone()),
-                         depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ });
+                         depth);
+        while(reduce_one_step(l_result_empty))
+            ;
 
-        auto l_expected_empty = wrap_lambdas(church_boolean(depth, true), depth)
-                                    ->normalize()
-                                    .m_expr;
-        assert(l_result_empty.m_expr->equals(l_expected_empty));
+        auto l_expected_empty =
+            wrap_lambdas(church_boolean(depth, true), depth);
+        while(reduce_one_step(l_expected_empty))
+            ;
+        assert(l_result_empty->equals(l_expected_empty));
 
         // Test with non-empty list - should return consCase result (false)
         std::list<std::unique_ptr<lambda::expr>> l_nonempty;
@@ -407,14 +422,15 @@ void test_encode_scott_list()
         auto l_result_nonempty =
             wrap_lambdas(a(a(std::move(l_nonempty_list), l_nil_case->clone()),
                            l_cons_case->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_nonempty))
+            ;
 
         auto l_expected_nonempty =
-            wrap_lambdas(church_boolean(depth, false), depth)
-                ->normalize()
-                .m_expr;
-        assert(l_result_nonempty.m_expr->equals(l_expected_nonempty));
+            wrap_lambdas(church_boolean(depth, false), depth);
+        while(reduce_one_step(l_expected_nonempty))
+            ;
+        assert(l_result_nonempty->equals(l_expected_nonempty));
     };
 
     // Test at depth 0 only due to normalization complexity
@@ -436,21 +452,22 @@ void test_encode_binary_numeral()
 
         // compute the succ
         auto l_succ =
-            wrap_lambdas(a(binary_succ(depth), l_numeral->clone()), depth)
-                ->normalize()
-                .m_expr;
+            wrap_lambdas(a(binary_succ(depth), l_numeral->clone()), depth);
+        while(reduce_one_step(l_succ))
+            ;
 
         // compute the expected
         auto l_expected =
-            wrap_lambdas(binary_numeral(depth, numeral + 1), depth)
-                ->normalize()
-                .m_expr;
+            wrap_lambdas(binary_numeral(depth, numeral + 1), depth);
+        while(reduce_one_step(l_expected))
+            ;
         assert(l_succ->equals(l_expected));
 
         // make sure the successor computation actually does change the involved
         // expression
-        auto l_norm =
-            wrap_lambdas(l_numeral->clone(), depth)->normalize().m_expr;
+        auto l_norm = wrap_lambdas(l_numeral->clone(), depth);
+        while(reduce_one_step(l_norm))
+            ;
         assert(!l_norm->equals(l_expected));
     };
 

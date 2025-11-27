@@ -1,5 +1,4 @@
 #include "../include/predef.hpp"
-#include <limits>
 
 // local variable macro
 #define L(x) v(a_binder_depth + x)

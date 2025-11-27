@@ -694,15 +694,14 @@ void test_y_combinator()
                             f(a(v(depth), a(v(depth + 1), v(depth + 1))))));
         assert(l_y->equals(expected));
 
+        auto l_y_of_v10_result = a(l_y->clone(), v(depth + 10));
+
         // apply Y to v(10) (MUST have step limit or will run forever)
         // this should build a tower of applications of v(10) basically
-        auto l_y_of_v10_result =
-            wrap_lambdas(a(l_y->clone(), v(depth + 10)), depth)
-                ->normalize(
-                    4, std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>& a_expr)
-                        -> void { /* std::cout << *a_expr << std::endl;*/ });
-        assert(l_y_of_v10_result.m_expr->equals(
+        for(int i = 0; i < 4 && reduce_one_step(l_y_of_v10_result); ++i)
+            ;
+
+        assert(l_y_of_v10_result->equals(
             wrap_lambdas(a(v(depth + 10),
                            a(v(depth + 10),
                              a(v(depth + 10),
@@ -732,14 +731,12 @@ void test_y_combinator()
 
             // apply G to 10 (should terminate)
             auto l_G_result =
-                wrap_lambdas(a(l_G->clone(), l_ten->clone()), depth)
-                    ->normalize(
-                        std::numeric_limits<size_t>::max(),
-                        std::numeric_limits<size_t>::max(),
-                        [](const std::unique_ptr<lambda::expr>& a_expr)
-                            -> void { /* std::cout << *a_expr << std::endl;*/ });
-            assert(
-                l_G_result.m_expr->equals(wrap_lambdas(v(depth + 22), depth)));
+                wrap_lambdas(a(l_G->clone(), l_ten->clone()), depth);
+
+            while(reduce_one_step(l_G_result))
+                ;
+
+            assert(l_G_result->equals(wrap_lambdas(v(depth + 22), depth)));
         }
 
         // try computing a tower of applications of size n
@@ -767,13 +764,12 @@ void test_y_combinator()
             auto l_G_result =
                 wrap_lambdas(a(a(a(l_G->clone(), v(depth + 33)), v(depth + 44)),
                                l_five->clone()),
-                             depth)
-                    ->normalize(
-                        std::numeric_limits<size_t>::max(),
-                        std::numeric_limits<size_t>::max(),
-                        [](const std::unique_ptr<lambda::expr>& a_expr)
-                            -> void { /* std::cout << *a_expr << std::endl;*/ });
-            assert(l_G_result.m_expr->equals(wrap_lambdas(
+                             depth);
+
+            while(reduce_one_step(l_G_result))
+                ;
+
+            assert(l_G_result->equals(wrap_lambdas(
                 a(v(33 + depth),
                   a(v(33 + depth),
                     a(v(33 + depth),
@@ -831,16 +827,17 @@ void test_church_not()
         assert(l_not->equals(expected));
         auto l_true = church_true(depth);
         auto l_not_true =
-            wrap_lambdas(a(l_not->clone(), l_true->clone()), depth)
-                ->normalize();
-        assert(l_not_true.m_expr->equals(
-            wrap_lambdas(church_false(depth), depth)));
+            wrap_lambdas(a(l_not->clone(), l_true->clone()), depth);
+
+        while(reduce_one_step(l_not_true))
+            ;
+        assert(l_not_true->equals(wrap_lambdas(church_false(depth), depth)));
         auto l_false = church_false(depth);
         auto l_not_false =
-            wrap_lambdas(a(l_not->clone(), l_false->clone()), depth)
-                ->normalize();
-        assert(l_not_false.m_expr->equals(
-            wrap_lambdas(church_true(depth), depth)));
+            wrap_lambdas(a(l_not->clone(), l_false->clone()), depth);
+        while(reduce_one_step(l_not_false))
+            ;
+        assert(l_not_false->equals(wrap_lambdas(church_true(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -859,29 +856,31 @@ void test_church_and()
         assert(l_and->equals(expected));
         auto l_true = church_true(depth);
         auto l_false = church_false(depth);
-        auto l_and_true_true =
-            wrap_lambdas(a(a(l_and->clone(), l_true->clone()), l_true->clone()),
-                         depth)
-                ->normalize();
-        assert(l_and_true_true.m_expr->equals(
-            wrap_lambdas(church_true(depth), depth)));
-        auto l_and_false_true =
-            wrap_lambdas(
-                a(a(l_and->clone(), l_false->clone()), l_true->clone()), depth)
-                ->normalize();
-        assert(l_and_false_true.m_expr->equals(
-            wrap_lambdas(church_false(depth), depth)));
-        auto l_and_true_false =
-            wrap_lambdas(
-                a(a(l_and->clone(), l_true->clone()), l_false->clone()), depth)
-                ->normalize();
-        assert(l_and_true_false.m_expr->equals(
-            wrap_lambdas(church_false(depth), depth)));
-        auto l_and_false_false =
-            wrap_lambdas(
-                a(a(l_and->clone(), l_false->clone()), l_false->clone()), depth)
-                ->normalize();
-        assert(l_and_false_false.m_expr->equals(
+        auto l_and_true_true = wrap_lambdas(
+            a(a(l_and->clone(), l_true->clone()), l_true->clone()), depth);
+        while(reduce_one_step(l_and_true_true))
+            ;
+        assert(
+            l_and_true_true->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_and_false_true = wrap_lambdas(
+            a(a(l_and->clone(), l_false->clone()), l_true->clone()), depth);
+        while(reduce_one_step(l_and_false_true))
+            ;
+
+        assert(
+            l_and_false_true->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_and_true_false = wrap_lambdas(
+            a(a(l_and->clone(), l_true->clone()), l_false->clone()), depth);
+        while(reduce_one_step(l_and_true_false))
+            ;
+
+        assert(
+            l_and_true_false->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_and_false_false = wrap_lambdas(
+            a(a(l_and->clone(), l_false->clone()), l_false->clone()), depth);
+        while(reduce_one_step(l_and_false_false))
+            ;
+        assert(l_and_false_false->equals(
             wrap_lambdas(church_false(depth), depth)));
     };
 
@@ -901,30 +900,35 @@ void test_church_or()
         assert(l_or->equals(expected));
         auto l_true = church_true(depth);
         auto l_false = church_false(depth);
-        auto l_or_true_true =
-            wrap_lambdas(a(a(l_or->clone(), l_true->clone()), l_true->clone()),
-                         depth)
-                ->normalize();
-        assert(l_or_true_true.m_expr->equals(
-            wrap_lambdas(church_true(depth), depth)));
-        auto l_or_true_false =
-            wrap_lambdas(a(a(l_or->clone(), l_true->clone()), l_false->clone()),
-                         depth)
-                ->normalize();
-        assert(l_or_true_false.m_expr->equals(
-            wrap_lambdas(church_true(depth), depth)));
-        auto l_or_false_true =
-            wrap_lambdas(a(a(l_or->clone(), l_false->clone()), l_true->clone()),
-                         depth)
-                ->normalize();
-        assert(l_or_false_true.m_expr->equals(
-            wrap_lambdas(church_true(depth), depth)));
-        auto l_or_false_false =
-            wrap_lambdas(
-                a(a(l_or->clone(), l_false->clone()), l_false->clone()), depth)
-                ->normalize();
-        assert(l_or_false_false.m_expr->equals(
-            wrap_lambdas(church_false(depth), depth)));
+        auto l_or_true_true = wrap_lambdas(
+            a(a(l_or->clone(), l_true->clone()), l_true->clone()), depth);
+
+        while(reduce_one_step(l_or_true_true))
+            ;
+
+        assert(l_or_true_true->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_or_true_false = wrap_lambdas(
+            a(a(l_or->clone(), l_true->clone()), l_false->clone()), depth);
+
+        while(reduce_one_step(l_or_true_false))
+            ;
+        assert(
+            l_or_true_false->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_or_false_true = wrap_lambdas(
+            a(a(l_or->clone(), l_false->clone()), l_true->clone()), depth);
+
+        while(reduce_one_step(l_or_false_true))
+            ;
+        assert(
+            l_or_false_true->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_or_false_false = wrap_lambdas(
+            a(a(l_or->clone(), l_false->clone()), l_false->clone()), depth);
+
+        while(reduce_one_step(l_or_false_false))
+            ;
+
+        assert(
+            l_or_false_false->equals(wrap_lambdas(church_false(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -951,36 +955,33 @@ void test_church_xor()
         auto l_false = church_false(depth);
 
         // Test xor(true, true) = false
-        auto l_xor_true_true =
-            wrap_lambdas(a(a(l_xor->clone(), l_true->clone()), l_true->clone()),
-                         depth)
-                ->normalize();
-        assert(l_xor_true_true.m_expr->equals(
-            wrap_lambdas(l_false->clone(), depth)));
+        auto l_xor_true_true = wrap_lambdas(
+            a(a(l_xor->clone(), l_true->clone()), l_true->clone()), depth);
+        while(reduce_one_step(l_xor_true_true))
+            ;
+        assert(l_xor_true_true->equals(wrap_lambdas(l_false->clone(), depth)));
 
         // Test xor(true, false) = true
-        auto l_xor_true_false =
-            wrap_lambdas(
-                a(a(l_xor->clone(), l_true->clone()), l_false->clone()), depth)
-                ->normalize();
-        assert(l_xor_true_false.m_expr->equals(
-            wrap_lambdas(l_true->clone(), depth)));
+        auto l_xor_true_false = wrap_lambdas(
+            a(a(l_xor->clone(), l_true->clone()), l_false->clone()), depth);
+        while(reduce_one_step(l_xor_true_false))
+            ;
+        assert(l_xor_true_false->equals(wrap_lambdas(l_true->clone(), depth)));
 
         // Test xor(false, true) = true
-        auto l_xor_false_true =
-            wrap_lambdas(
-                a(a(l_xor->clone(), l_false->clone()), l_true->clone()), depth)
-                ->normalize();
-        assert(l_xor_false_true.m_expr->equals(
-            wrap_lambdas(l_true->clone(), depth)));
+        auto l_xor_false_true = wrap_lambdas(
+            a(a(l_xor->clone(), l_false->clone()), l_true->clone()), depth);
+        while(reduce_one_step(l_xor_false_true))
+            ;
+        assert(l_xor_false_true->equals(wrap_lambdas(l_true->clone(), depth)));
 
         // Test xor(false, false) = false
-        auto l_xor_false_false =
-            wrap_lambdas(
-                a(a(l_xor->clone(), l_false->clone()), l_false->clone()), depth)
-                ->normalize();
-        assert(l_xor_false_false.m_expr->equals(
-            wrap_lambdas(l_false->clone(), depth)));
+        auto l_xor_false_false = wrap_lambdas(
+            a(a(l_xor->clone(), l_false->clone()), l_false->clone()), depth);
+        while(reduce_one_step(l_xor_false_false))
+            ;
+        assert(
+            l_xor_false_false->equals(wrap_lambdas(l_false->clone(), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1040,24 +1041,29 @@ void test_church_full_adder()
 
             // Extract sum using FST and wrap for normalization
             auto l_sum =
-                wrap_lambdas(a(church_fst(depth), l_result->clone()), depth)
-                    ->normalize();
+                wrap_lambdas(a(church_fst(depth), l_result->clone()), depth);
+            while(reduce_one_step(l_sum))
+                ;
 
             auto l_expected_sum =
-                wrap_lambdas(bool_to_church(expected_sum), depth)->normalize();
+                wrap_lambdas(bool_to_church(expected_sum), depth);
+            while(reduce_one_step(l_expected_sum))
+                ;
 
-            assert(l_sum.m_expr->equals(l_expected_sum.m_expr));
+            assert(l_sum->equals(l_expected_sum));
 
             // Extract carry using SND and wrap for normalization
             auto l_carry =
-                wrap_lambdas(a(church_snd(depth), l_result->clone()), depth)
-                    ->normalize();
+                wrap_lambdas(a(church_snd(depth), l_result->clone()), depth);
+            while(reduce_one_step(l_carry))
+                ;
 
             auto l_expected_carry =
-                wrap_lambdas(bool_to_church(expected_carry), depth)
-                    ->normalize();
+                wrap_lambdas(bool_to_church(expected_carry), depth);
+            while(reduce_one_step(l_expected_carry))
+                ;
 
-            assert(l_carry.m_expr->equals(l_expected_carry.m_expr));
+            assert(l_carry->equals(l_expected_carry));
         };
 
         // Test all 8 cases
@@ -1105,21 +1111,19 @@ void test_church_full_subtractor()
             { return val ? church_true(depth) : church_false(depth); };
 
             // apply the full subtractor to the three booleans
-            auto l_result =
-                wrap_lambdas(a_twr(l_full_subtractor->clone(),
-                                   bool_to_church(a_val), bool_to_church(b_val),
-                                   bool_to_church(c_val)),
-                             depth)
-                    ->normalize()
-                    .m_expr;
+            auto l_result = wrap_lambdas(
+                a_twr(l_full_subtractor->clone(), bool_to_church(a_val),
+                      bool_to_church(b_val), bool_to_church(c_val)),
+                depth);
+            while(reduce_one_step(l_result))
+                ;
 
-            auto l_expected =
-                wrap_lambdas(a_twr(church_pair(depth),
-                                   bool_to_church(expected_difference),
-                                   bool_to_church(expected_borrow)),
-                             depth)
-                    ->normalize()
-                    .m_expr;
+            auto l_expected = wrap_lambdas(
+                a_twr(church_pair(depth), bool_to_church(expected_difference),
+                      bool_to_church(expected_borrow)),
+                depth);
+            while(reduce_one_step(l_expected))
+                ;
 
             // std::cout << *l_result << std::endl;
             // std::cout << *l_expected << std::endl;
@@ -1169,11 +1173,11 @@ void test_church_succ()
             f(f(a(v(depth + 1), a(a(v(depth), v(depth + 1)), v(depth + 2))))));
         assert(l_succ->equals(expected));
         auto l_zero = church_zero(depth);
-        auto l_one = wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth)
-                         ->normalize();
+        auto l_one = wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth);
+        while(reduce_one_step(l_one))
+            ;
         auto expected_one = f(f(a(v(depth), v(depth + 1))));
-        assert(
-            l_one.m_expr->equals(wrap_lambdas(std::move(expected_one), depth)));
+        assert(l_one->equals(wrap_lambdas(std::move(expected_one), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1193,16 +1197,16 @@ void test_church_is_zero()
         assert(l_is_zero->equals(expected));
         auto l_zero = church_zero(depth);
         auto l_is_zero_zero =
-            wrap_lambdas(a(l_is_zero->clone(), l_zero->clone()), depth)
-                ->normalize();
-        assert(l_is_zero_zero.m_expr->equals(
-            wrap_lambdas(church_true(depth), depth)));
+            wrap_lambdas(a(l_is_zero->clone(), l_zero->clone()), depth);
+        while(reduce_one_step(l_is_zero_zero))
+            ;
+        assert(l_is_zero_zero->equals(wrap_lambdas(church_true(depth), depth)));
         auto l_one = f(f(a(v(depth), v(depth + 1))));
         auto l_is_zero_one =
-            wrap_lambdas(a(l_is_zero->clone(), l_one->clone()), depth)
-                ->normalize();
-        assert(l_is_zero_one.m_expr->equals(
-            wrap_lambdas(church_false(depth), depth)));
+            wrap_lambdas(a(l_is_zero->clone(), l_one->clone()), depth);
+        while(reduce_one_step(l_is_zero_one))
+            ;
+        assert(l_is_zero_one->equals(wrap_lambdas(church_false(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1219,21 +1223,20 @@ void test_church_pair()
         auto l_pair = church_pair(depth);
         auto expected = f(f(f(a(a(v(depth + 2), v(depth)), v(depth + 1)))));
         assert(l_pair->equals(expected));
-        auto l_first = wrap_lambdas(a(a(a(l_pair->clone(), church_false(depth)),
-                                        church_true(depth)),
-                                      church_true(depth)),
-                                    depth)
-                           ->normalize();
-        assert(
-            l_first.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
-        auto l_second =
-            wrap_lambdas(a(a(a(l_pair->clone(), church_false(depth)),
-                             church_true(depth)),
-                           church_false(depth)),
-                         depth)
-                ->normalize();
-        assert(
-            l_second.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_first = wrap_lambdas(
+            a(a(a(l_pair->clone(), church_false(depth)), church_true(depth)),
+              church_true(depth)),
+            depth);
+        while(reduce_one_step(l_first))
+            ;
+        assert(l_first->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_second = wrap_lambdas(
+            a(a(a(l_pair->clone(), church_false(depth)), church_true(depth)),
+              church_false(depth)),
+            depth);
+        while(reduce_one_step(l_second))
+            ;
+        assert(l_second->equals(wrap_lambdas(church_true(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1256,10 +1259,10 @@ void test_church_fst()
             a(a(l_pair_ft->clone(), church_false(depth)), church_true(depth));
         // Apply fst to the pair
         auto l_result =
-            wrap_lambdas(a(l_fst->clone(), std::move(l_pair_created)), depth)
-                ->normalize();
-        assert(
-            l_result.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+            wrap_lambdas(a(l_fst->clone(), std::move(l_pair_created)), depth);
+        while(reduce_one_step(l_result))
+            ;
+        assert(l_result->equals(wrap_lambdas(church_false(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1282,10 +1285,10 @@ void test_church_snd()
             a(a(l_pair_ft->clone(), church_false(depth)), church_true(depth));
         // Apply snd to the pair
         auto l_result =
-            wrap_lambdas(a(l_snd->clone(), std::move(l_pair_created)), depth)
-                ->normalize();
-        assert(
-            l_result.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+            wrap_lambdas(a(l_snd->clone(), std::move(l_pair_created)), depth);
+        while(reduce_one_step(l_result))
+            ;
+        assert(l_result->equals(wrap_lambdas(church_true(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1303,53 +1306,54 @@ void test_church_pred()
         auto l_zero = church_zero(depth);
         auto l_pred = church_pred(depth);
         auto l_pred_zero =
-            wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth)
-                ->normalize();
-        assert(l_pred_zero.m_expr->equals(
-            wrap_lambdas(church_zero(depth), depth)));
+            wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth);
+        while(reduce_one_step(l_pred_zero))
+            ;
+        assert(l_pred_zero->equals(wrap_lambdas(church_zero(depth), depth)));
 
         // Test pred(1) = 0
         auto l_one = f(f(a(v(depth), v(depth + 1))));
         auto l_pred_one =
-            wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth)
-                ->normalize();
-        assert(
-            l_pred_one.m_expr->equals(wrap_lambdas(church_zero(depth), depth)));
+            wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth);
+        while(reduce_one_step(l_pred_one))
+            ;
+        assert(l_pred_one->equals(wrap_lambdas(church_zero(depth), depth)));
 
         // Test pred(2) = 1
         auto l_two = f(f(a(v(depth), a(v(depth), v(depth + 1)))));
         auto l_pred_two =
-            wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth)
-                ->normalize();
-        assert(l_pred_two.m_expr->equals(wrap_lambdas(l_one->clone(), depth)));
+            wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth);
+        while(reduce_one_step(l_pred_two))
+            ;
+        assert(l_pred_two->equals(wrap_lambdas(l_one->clone(), depth)));
 
         // Test pred(3) = 2
         auto l_three =
             f(f(a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))));
         auto l_pred_three =
-            wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth)
-                ->normalize();
-        assert(
-            l_pred_three.m_expr->equals(wrap_lambdas(l_two->clone(), depth)));
+            wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth);
+        while(reduce_one_step(l_pred_three))
+            ;
+        assert(l_pred_three->equals(wrap_lambdas(l_two->clone(), depth)));
 
         // Test pred(4) = 3
         auto l_four = f(f(
             a(v(depth), a(v(depth), a(v(depth), a(v(depth), v(depth + 1)))))));
         auto l_pred_four =
-            wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth)
-                ->normalize();
-        assert(
-            l_pred_four.m_expr->equals(wrap_lambdas(l_three->clone(), depth)));
+            wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth);
+        while(reduce_one_step(l_pred_four))
+            ;
+        assert(l_pred_four->equals(wrap_lambdas(l_three->clone(), depth)));
 
         // Test pred(5) = 4
         auto l_five = f(f(a(
             v(depth),
             a(v(depth), a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))))));
         auto l_pred_five =
-            wrap_lambdas(a(l_pred->clone(), l_five->clone()), depth)
-                ->normalize();
-        assert(
-            l_pred_five.m_expr->equals(wrap_lambdas(l_four->clone(), depth)));
+            wrap_lambdas(a(l_pred->clone(), l_five->clone()), depth);
+        while(reduce_one_step(l_pred_five))
+            ;
+        assert(l_pred_five->equals(wrap_lambdas(l_four->clone(), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1371,34 +1375,32 @@ void test_church_sub()
             f(f(a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))));
 
         // Test sub(3, 1) = 2
-        auto l_sub_3_1 =
-            wrap_lambdas(a(a(l_sub->clone(), l_three->clone()), l_one->clone()),
-                         depth)
-                ->normalize();
-        assert(l_sub_3_1.m_expr->equals(wrap_lambdas(l_two->clone(), depth)));
+        auto l_sub_3_1 = wrap_lambdas(
+            a(a(l_sub->clone(), l_three->clone()), l_one->clone()), depth);
+        while(reduce_one_step(l_sub_3_1))
+            ;
+        assert(l_sub_3_1->equals(wrap_lambdas(l_two->clone(), depth)));
 
         // Test sub(3, 2) = 1
-        auto l_sub_3_2 =
-            wrap_lambdas(a(a(l_sub->clone(), l_three->clone()), l_two->clone()),
-                         depth)
-                ->normalize();
-        assert(l_sub_3_2.m_expr->equals(wrap_lambdas(l_one->clone(), depth)));
+        auto l_sub_3_2 = wrap_lambdas(
+            a(a(l_sub->clone(), l_three->clone()), l_two->clone()), depth);
+        while(reduce_one_step(l_sub_3_2))
+            ;
+        assert(l_sub_3_2->equals(wrap_lambdas(l_one->clone(), depth)));
 
         // Test sub(2, 2) = 0
-        auto l_sub_2_2 =
-            wrap_lambdas(a(a(l_sub->clone(), l_two->clone()), l_two->clone()),
-                         depth)
-                ->normalize();
-        assert(
-            l_sub_2_2.m_expr->equals(wrap_lambdas(church_zero(depth), depth)));
+        auto l_sub_2_2 = wrap_lambdas(
+            a(a(l_sub->clone(), l_two->clone()), l_two->clone()), depth);
+        while(reduce_one_step(l_sub_2_2))
+            ;
+        assert(l_sub_2_2->equals(wrap_lambdas(church_zero(depth), depth)));
 
         // Test sub(1, 2) = 0 (clamped at 0)
-        auto l_sub_1_2 =
-            wrap_lambdas(a(a(l_sub->clone(), l_one->clone()), l_two->clone()),
-                         depth)
-                ->normalize();
-        assert(
-            l_sub_1_2.m_expr->equals(wrap_lambdas(church_zero(depth), depth)));
+        auto l_sub_1_2 = wrap_lambdas(
+            a(a(l_sub->clone(), l_one->clone()), l_two->clone()), depth);
+        while(reduce_one_step(l_sub_1_2))
+            ;
+        assert(l_sub_1_2->equals(wrap_lambdas(church_zero(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1418,100 +1420,92 @@ void test_church_less_than()
         auto l_two = f(f(a(v(depth), a(v(depth), v(depth + 1)))));
 
         // Test less_than(1, 2) = true
-        auto l_lt_1_2 = wrap_lambdas(a(a(l_less_than->clone(), l_one->clone()),
-                                       l_two->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_1_2.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_lt_1_2 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_one->clone()), l_two->clone()), depth);
+        while(reduce_one_step(l_lt_1_2))
+            ;
+        assert(l_lt_1_2->equals(wrap_lambdas(church_true(depth), depth)));
 
         // Test less_than(2, 1) = false
-        auto l_lt_2_1 = wrap_lambdas(a(a(l_less_than->clone(), l_two->clone()),
-                                       l_one->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_2_1.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_lt_2_1 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_two->clone()), l_one->clone()), depth);
+        while(reduce_one_step(l_lt_2_1))
+            ;
+        assert(l_lt_2_1->equals(wrap_lambdas(church_false(depth), depth)));
 
         // Test less_than(2, 2) = false
-        auto l_lt_2_2 = wrap_lambdas(a(a(l_less_than->clone(), l_two->clone()),
-                                       l_two->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_2_2.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_lt_2_2 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_two->clone()), l_two->clone()), depth);
+        while(reduce_one_step(l_lt_2_2))
+            ;
+        assert(l_lt_2_2->equals(wrap_lambdas(church_false(depth), depth)));
 
         // Test less_than(0, 1) = true
-        auto l_lt_0_1 = wrap_lambdas(a(a(l_less_than->clone(), l_zero->clone()),
-                                       l_one->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_0_1.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_lt_0_1 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_zero->clone()), l_one->clone()), depth);
+        while(reduce_one_step(l_lt_0_1))
+            ;
+        assert(l_lt_0_1->equals(wrap_lambdas(church_true(depth), depth)));
 
         // Tests involving 3
         auto l_three =
             f(f(a(v(depth), a(v(depth), a(v(depth), v(depth + 1))))));
 
         // Test less_than(0, 3) = true
-        auto l_lt_0_3 = wrap_lambdas(a(a(l_less_than->clone(), l_zero->clone()),
-                                       l_three->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_0_3.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_lt_0_3 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_zero->clone()), l_three->clone()),
+            depth);
+        while(reduce_one_step(l_lt_0_3))
+            ;
+        assert(l_lt_0_3->equals(wrap_lambdas(church_true(depth), depth)));
 
         // Test less_than(1, 3) = true
-        auto l_lt_1_3 = wrap_lambdas(a(a(l_less_than->clone(), l_one->clone()),
-                                       l_three->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_1_3.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_lt_1_3 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_one->clone()), l_three->clone()),
+            depth);
+        while(reduce_one_step(l_lt_1_3))
+            ;
+        assert(l_lt_1_3->equals(wrap_lambdas(church_true(depth), depth)));
 
         // Test less_than(2, 3) = true
-        auto l_lt_2_3 = wrap_lambdas(a(a(l_less_than->clone(), l_two->clone()),
-                                       l_three->clone()),
-                                     depth)
-                            ->normalize();
-        assert(
-            l_lt_2_3.m_expr->equals(wrap_lambdas(church_true(depth), depth)));
+        auto l_lt_2_3 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_two->clone()), l_three->clone()),
+            depth);
+        while(reduce_one_step(l_lt_2_3))
+            ;
+        assert(l_lt_2_3->equals(wrap_lambdas(church_true(depth), depth)));
 
         // Test less_than(3, 0) = false
-        auto l_lt_3_0 =
-            wrap_lambdas(
-                a(a(l_less_than->clone(), l_three->clone()), l_zero->clone()),
-                depth)
-                ->normalize();
-        assert(
-            l_lt_3_0.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_lt_3_0 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_three->clone()), l_zero->clone()),
+            depth);
+        while(reduce_one_step(l_lt_3_0))
+            ;
+        assert(l_lt_3_0->equals(wrap_lambdas(church_false(depth), depth)));
 
         // Test less_than(3, 1) = false
-        auto l_lt_3_1 =
-            wrap_lambdas(
-                a(a(l_less_than->clone(), l_three->clone()), l_one->clone()),
-                depth)
-                ->normalize();
-        assert(
-            l_lt_3_1.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_lt_3_1 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_three->clone()), l_one->clone()),
+            depth);
+        while(reduce_one_step(l_lt_3_1))
+            ;
+        assert(l_lt_3_1->equals(wrap_lambdas(church_false(depth), depth)));
 
         // Test less_than(3, 2) = false
-        auto l_lt_3_2 =
-            wrap_lambdas(
-                a(a(l_less_than->clone(), l_three->clone()), l_two->clone()),
-                depth)
-                ->normalize();
-        assert(
-            l_lt_3_2.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_lt_3_2 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_three->clone()), l_two->clone()),
+            depth);
+        while(reduce_one_step(l_lt_3_2))
+            ;
+        assert(l_lt_3_2->equals(wrap_lambdas(church_false(depth), depth)));
 
         // Test less_than(3, 3) = false
-        auto l_lt_3_3 =
-            wrap_lambdas(
-                a(a(l_less_than->clone(), l_three->clone()), l_three->clone()),
-                depth)
-                ->normalize();
-        assert(
-            l_lt_3_3.m_expr->equals(wrap_lambdas(church_false(depth), depth)));
+        auto l_lt_3_3 = wrap_lambdas(
+            a(a(l_less_than->clone(), l_three->clone()), l_three->clone()),
+            depth);
+        while(reduce_one_step(l_lt_3_3))
+            ;
+        assert(l_lt_3_3->equals(wrap_lambdas(church_false(depth), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1536,13 +1530,14 @@ void test_some()
         auto l_some_x = a(l_some->clone(), v(depth + 10));
 
         // Apply to someCase and noneCase
-        auto l_result =
-            wrap_lambdas(a(a(l_some_x->clone(), v(depth + 20)), v(depth + 30)),
-                         depth)
-                ->normalize();
+        auto l_result = wrap_lambdas(
+            a(a(l_some_x->clone(), v(depth + 20)), v(depth + 30)), depth);
+
+        while(reduce_one_step(l_result))
+            ;
 
         // Expected: v(20) applied to v(10)
-        assert(l_result.m_expr->equals(
+        assert(l_result->equals(
             wrap_lambdas(a(v(depth + 20), v(depth + 10)), depth)));
     };
 
@@ -1564,13 +1559,13 @@ void test_none()
 
         // Test behavior: none applied to someCase=v(20) and noneCase=v(30)
         // should reduce to: noneCase = v(30)
-        auto l_result =
-            wrap_lambdas(a(a(l_none->clone(), v(depth + 20)), v(depth + 30)),
-                         depth)
-                ->normalize();
+        auto l_result = wrap_lambdas(
+            a(a(l_none->clone(), v(depth + 20)), v(depth + 30)), depth);
+        while(reduce_one_step(l_result))
+            ;
 
         // Expected: v(30) (the noneCase)
-        assert(l_result.m_expr->equals(wrap_lambdas(v(depth + 30), depth)));
+        assert(l_result->equals(wrap_lambdas(v(depth + 30), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1589,13 +1584,13 @@ void test_scott_nil()
         assert(l_nil->equals(expected));
 
         // check if nil (supply v(10) and v(11)) to see what it resolves to
-        auto l_nil_result =
-            wrap_lambdas(a(a(l_nil->clone(), v(depth + 10)), v(depth + 11)),
-                         depth)
-                ->normalize();
+        auto l_nil_result = wrap_lambdas(
+            a(a(l_nil->clone(), v(depth + 10)), v(depth + 11)), depth);
+        while(reduce_one_step(l_nil_result))
+            ;
 
         // nil returns the first argument
-        assert(l_nil_result.m_expr->equals(wrap_lambdas(v(depth + 10), depth)));
+        assert(l_nil_result->equals(wrap_lambdas(v(depth + 10), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1619,13 +1614,13 @@ void test_scott_cons()
             a(a(l_cons->clone(), v(depth + 10)), v(depth + 11));
 
         // interrogate cons with (v(12), v(13)) to see what it resolves to
-        auto l_cons_result =
-            wrap_lambdas(
-                a(a(std::move(l_cons_created), v(depth + 12)), v(depth + 13)),
-                depth)
-                ->normalize();
+        auto l_cons_result = wrap_lambdas(
+            a(a(std::move(l_cons_created), v(depth + 12)), v(depth + 13)),
+            depth);
+        while(reduce_one_step(l_cons_result))
+            ;
         // cons returns the second argument applied to the head and tail
-        assert(l_cons_result.m_expr->equals(wrap_lambdas(
+        assert(l_cons_result->equals(wrap_lambdas(
             a(a(v(depth + 13), v(depth + 10)), v(depth + 11)), depth)));
     };
 
@@ -1662,248 +1657,248 @@ void test_scott_compare_lengths()
         // Test case 1: [] vs [] = same (both empty)
         auto l_empty_a = scott_nil(depth);
         auto l_empty_b = scott_nil(depth);
-        auto l_result_0_0 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_empty_a->clone()),
-                        l_empty_b->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_0_0 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_empty_a->clone()),
+                    l_empty_b->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_0_0))
+            ;
         auto l_expected_0_0 = wrap_lambdas(v_same->clone(), depth);
-        assert(l_result_0_0.m_expr->equals(l_expected_0_0));
+        assert(l_result_0_0->equals(l_expected_0_0));
 
         // Test case 2: [] vs [v(10)] = less
         auto l_list_1 = build_list_of_length(1, 10);
-        auto l_result_0_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_empty_a->clone()),
-                        l_list_1->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_0_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_empty_a->clone()),
+                    l_list_1->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_0_1))
+            ;
         auto l_expected_0_1 = wrap_lambdas(v_less->clone(), depth);
-        assert(l_result_0_1.m_expr->equals(l_expected_0_1));
+        assert(l_result_0_1->equals(l_expected_0_1));
 
         // Test case 3: [v(10)] vs [] = greater
-        auto l_result_1_0 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
-                        l_empty_a->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_1_0 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
+                    l_empty_a->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_0))
+            ;
         auto l_expected_1_0 = wrap_lambdas(v_greater->clone(), depth);
-        assert(l_result_1_0.m_expr->equals(l_expected_1_0));
+        assert(l_result_1_0->equals(l_expected_1_0));
 
         // Test case 4: [v(10)] vs [v(20)] = same (both length 1)
         auto l_list_1b = build_list_of_length(1, 20);
-        auto l_result_1_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
-                        l_list_1b->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_1_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
+                    l_list_1b->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_1))
+            ;
         auto l_expected_1_1 = wrap_lambdas(v_same->clone(), depth);
-        assert(l_result_1_1.m_expr->equals(l_expected_1_1));
+        assert(l_result_1_1->equals(l_expected_1_1));
 
         // Test case 5: [v(10)] vs [v(20), v(21)] = less
         auto l_list_2 = build_list_of_length(2, 20);
-        auto l_result_1_2 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
-                        l_list_2->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_1_2 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
+                    l_list_2->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_2))
+            ;
         auto l_expected_1_2 = wrap_lambdas(v_less->clone(), depth);
-        assert(l_result_1_2.m_expr->equals(l_expected_1_2));
+        assert(l_result_1_2->equals(l_expected_1_2));
 
         // Test case 6: [v(20), v(21)] vs [v(10)] = greater
-        auto l_result_2_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_2->clone()),
-                        l_list_1->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_2_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_2->clone()),
+                    l_list_1->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_2_1))
+            ;
         auto l_expected_2_1 = wrap_lambdas(v_greater->clone(), depth);
-        assert(l_result_2_1.m_expr->equals(l_expected_2_1));
+        assert(l_result_2_1->equals(l_expected_2_1));
 
         // Test case 7: [v(10), v(11)] vs [v(20), v(21)] = same (both length 2)
         auto l_list_2b = build_list_of_length(2, 10);
-        auto l_result_2_2 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_2b->clone()),
-                        l_list_2->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_2_2 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_2b->clone()),
+                    l_list_2->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_2_2))
+            ;
         auto l_expected_2_2 = wrap_lambdas(v_same->clone(), depth);
-        assert(l_result_2_2.m_expr->equals(l_expected_2_2));
+        assert(l_result_2_2->equals(l_expected_2_2));
 
         // Test case 8: length 2 vs length 3 = less
         auto l_list_3 = build_list_of_length(3, 30);
-        auto l_result_2_3 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_2->clone()),
-                        l_list_3->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_2_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_2->clone()),
+                    l_list_3->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_2_3))
+            ;
         auto l_expected_2_3 = wrap_lambdas(v_less->clone(), depth);
-        assert(l_result_2_3.m_expr->equals(l_expected_2_3));
+        assert(l_result_2_3->equals(l_expected_2_3));
 
         // Test case 9: length 3 vs length 2 = greater
-        auto l_result_3_2 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
-                        l_list_2->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_3_2 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
+                    l_list_2->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_2))
+            ;
         auto l_expected_3_2 = wrap_lambdas(v_greater->clone(), depth);
-        assert(l_result_3_2.m_expr->equals(l_expected_3_2));
+        assert(l_result_3_2->equals(l_expected_3_2));
 
         // Test case 10: length 3 vs length 3 = same
         auto l_list_3b = build_list_of_length(3, 40);
-        auto l_result_3_3 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
-                        l_list_3b->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_3_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
+                    l_list_3b->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_3))
+            ;
         auto l_expected_3_3 = wrap_lambdas(v_same->clone(), depth);
-        assert(l_result_3_3.m_expr->equals(l_expected_3_3));
+        assert(l_result_3_3->equals(l_expected_3_3));
 
         // Test case 11: length 1 vs length 5 = less (bigger gap)
         auto l_list_5 = build_list_of_length(5, 50);
-        auto l_result_1_5 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
-                        l_list_5->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_1_5 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_1->clone()),
+                    l_list_5->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_5))
+            ;
         auto l_expected_1_5 = wrap_lambdas(v_less->clone(), depth);
-        assert(l_result_1_5.m_expr->equals(l_expected_1_5));
+        assert(l_result_1_5->equals(l_expected_1_5));
 
         // Test case 12: length 5 vs length 1 = greater (bigger gap)
-        auto l_result_5_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_5->clone()),
-                        l_list_1->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_5_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_5->clone()),
+                    l_list_1->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_5_1))
+            ;
         auto l_expected_5_1 = wrap_lambdas(v_greater->clone(), depth);
-        assert(l_result_5_1.m_expr->equals(l_expected_5_1));
+        assert(l_result_5_1->equals(l_expected_5_1));
 
         // Test case 13: length 5 vs length 5 = same
         auto l_list_5b = build_list_of_length(5, 60);
-        auto l_result_5_5 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_5->clone()),
-                        l_list_5b->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_5_5 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_5->clone()),
+                    l_list_5b->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_5_5))
+            ;
         auto l_expected_5_5 = wrap_lambdas(v_same->clone(), depth);
-        assert(l_result_5_5.m_expr->equals(l_expected_5_5));
+        assert(l_result_5_5->equals(l_expected_5_5));
 
         // Test case 14: length 0 vs length 3 = less
-        auto l_result_0_3 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_empty_a->clone()),
-                        l_list_3->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_0_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_empty_a->clone()),
+                    l_list_3->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_0_3))
+            ;
         auto l_expected_0_3 = wrap_lambdas(v_less->clone(), depth);
-        assert(l_result_0_3.m_expr->equals(l_expected_0_3));
+        assert(l_result_0_3->equals(l_expected_0_3));
 
         // Test case 15: length 3 vs length 0 = greater
-        auto l_result_3_0 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
-                        l_empty_a->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_3_0 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
+                    l_empty_a->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_0))
+            ;
         auto l_expected_3_0 = wrap_lambdas(v_greater->clone(), depth);
-        assert(l_result_3_0.m_expr->equals(l_expected_3_0));
+        assert(l_result_3_0->equals(l_expected_3_0));
 
         // Test case 16: length 4 vs length 4 = same
         auto l_list_4a = build_list_of_length(4, 70);
         auto l_list_4b = build_list_of_length(4, 80);
-        auto l_result_4_4 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_4a->clone()),
-                        l_list_4b->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_4_4 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_4a->clone()),
+                    l_list_4b->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_4_4))
+            ;
         auto l_expected_4_4 = wrap_lambdas(v_same->clone(), depth);
-        assert(l_result_4_4.m_expr->equals(l_expected_4_4));
+        assert(l_result_4_4->equals(l_expected_4_4));
 
         // Test case 17: length 3 vs length 4 = less
-        auto l_result_3_4 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
-                        l_list_4a->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_3_4 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_3->clone()),
+                    l_list_4a->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_4))
+            ;
         auto l_expected_3_4 = wrap_lambdas(v_less->clone(), depth);
-        assert(l_result_3_4.m_expr->equals(l_expected_3_4));
+        assert(l_result_3_4->equals(l_expected_3_4));
 
         // Test case 18: length 4 vs length 3 = greater
-        auto l_result_4_3 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare_lengths->clone(), l_list_4a->clone()),
-                        l_list_3->clone()),
-                      v_less->clone()),
-                    v_same->clone()),
-                  v_greater->clone()),
-                depth)
-                ->normalize();
+        auto l_result_4_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare_lengths->clone(), l_list_4a->clone()),
+                    l_list_3->clone()),
+                  v_less->clone()),
+                v_same->clone()),
+              v_greater->clone()),
+            depth);
+        while(reduce_one_step(l_result_4_3))
+            ;
         auto l_expected_4_3 = wrap_lambdas(v_greater->clone(), depth);
-        assert(l_result_4_3.m_expr->equals(l_expected_4_3));
+        assert(l_result_4_3->equals(l_expected_4_3));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -1936,24 +1931,28 @@ void test_scott_reverse()
         // Test case 1: reverse([]) = []
         auto l_empty = scott_nil(depth);
         auto l_result_empty =
-            wrap_lambdas(a(l_reverse->clone(), l_empty->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_empty->clone()), depth);
+        while(reduce_one_step(l_result_empty))
+            ;
         auto l_expected_empty = wrap_lambdas(scott_nil(depth), depth);
-        assert(l_result_empty.m_expr->equals(l_expected_empty));
+        assert(l_result_empty->equals(l_expected_empty));
 
         // Test case 2: reverse([v(10)]) = [v(10)]
         std::vector<std::unique_ptr<lambda::expr>> elems_single_in;
         elems_single_in.push_back(v(depth + 10));
         auto l_single = build_list(std::move(elems_single_in));
         auto l_result_single =
-            wrap_lambdas(a(l_reverse->clone(), l_single->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_single->clone()), depth);
+        while(reduce_one_step(l_result_single))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_single_out;
         elems_single_out.push_back(v(depth + 10));
         auto l_expected_single_raw = build_list(std::move(elems_single_out));
         auto l_expected_single =
-            wrap_lambdas(std::move(l_expected_single_raw), depth)->normalize();
-        assert(l_result_single.m_expr->equals(l_expected_single.m_expr));
+            wrap_lambdas(std::move(l_expected_single_raw), depth);
+        while(reduce_one_step(l_expected_single))
+            ;
+        assert(l_result_single->equals(l_expected_single));
 
         // Test case 3: reverse([v(10), v(11)]) = [v(11), v(10)]
         std::vector<std::unique_ptr<lambda::expr>> elems_two_in;
@@ -1961,15 +1960,18 @@ void test_scott_reverse()
         elems_two_in.push_back(v(depth + 11));
         auto l_two = build_list(std::move(elems_two_in));
         auto l_result_two =
-            wrap_lambdas(a(l_reverse->clone(), l_two->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_two->clone()), depth);
+        while(reduce_one_step(l_result_two))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_two_out;
         elems_two_out.push_back(v(depth + 11));
         elems_two_out.push_back(v(depth + 10));
         auto l_expected_two_raw = build_list(std::move(elems_two_out));
         auto l_expected_two =
-            wrap_lambdas(std::move(l_expected_two_raw), depth)->normalize();
-        assert(l_result_two.m_expr->equals(l_expected_two.m_expr));
+            wrap_lambdas(std::move(l_expected_two_raw), depth);
+        while(reduce_one_step(l_expected_two))
+            ;
+        assert(l_result_two->equals(l_expected_two));
 
         // Test case 4: reverse([v(10), v(11), v(12)]) = [v(12), v(11), v(10)]
         std::vector<std::unique_ptr<lambda::expr>> elems_three_in;
@@ -1978,16 +1980,19 @@ void test_scott_reverse()
         elems_three_in.push_back(v(depth + 12));
         auto l_three = build_list(std::move(elems_three_in));
         auto l_result_three =
-            wrap_lambdas(a(l_reverse->clone(), l_three->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_three->clone()), depth);
+        while(reduce_one_step(l_result_three))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_three_out;
         elems_three_out.push_back(v(depth + 12));
         elems_three_out.push_back(v(depth + 11));
         elems_three_out.push_back(v(depth + 10));
         auto l_expected_three_raw = build_list(std::move(elems_three_out));
         auto l_expected_three =
-            wrap_lambdas(std::move(l_expected_three_raw), depth)->normalize();
-        assert(l_result_three.m_expr->equals(l_expected_three.m_expr));
+            wrap_lambdas(std::move(l_expected_three_raw), depth);
+        while(reduce_one_step(l_expected_three))
+            ;
+        assert(l_result_three->equals(l_expected_three));
 
         // Test case 5: reverse([v(10), v(11), v(12), v(13)]) = [v(13), v(12),
         // v(11), v(10)]
@@ -1998,8 +2003,9 @@ void test_scott_reverse()
         elems_four_in.push_back(v(depth + 13));
         auto l_four = build_list(std::move(elems_four_in));
         auto l_result_four =
-            wrap_lambdas(a(l_reverse->clone(), l_four->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_four->clone()), depth);
+        while(reduce_one_step(l_result_four))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_four_out;
         elems_four_out.push_back(v(depth + 13));
         elems_four_out.push_back(v(depth + 12));
@@ -2007,44 +2013,47 @@ void test_scott_reverse()
         elems_four_out.push_back(v(depth + 10));
         auto l_expected_four_raw = build_list(std::move(elems_four_out));
         auto l_expected_four =
-            wrap_lambdas(std::move(l_expected_four_raw), depth)->normalize();
-        assert(l_result_four.m_expr->equals(l_expected_four.m_expr));
+            wrap_lambdas(std::move(l_expected_four_raw), depth);
+        while(reduce_one_step(l_expected_four))
+            ;
+        assert(l_result_four->equals(l_expected_four));
 
         // Test case 6: reverse(reverse([])) = []
-        auto l_reverse_reverse_empty =
-            wrap_lambdas(
-                a(l_reverse->clone(), a(l_reverse->clone(), l_empty->clone())),
-                depth)
-                ->normalize();
-        assert(l_reverse_reverse_empty.m_expr->equals(l_expected_empty));
+        auto l_reverse_reverse_empty = wrap_lambdas(
+            a(l_reverse->clone(), a(l_reverse->clone(), l_empty->clone())),
+            depth);
+        while(reduce_one_step(l_reverse_reverse_empty))
+            ;
+        assert(l_reverse_reverse_empty->equals(l_expected_empty));
 
         // Test case 7: reverse(reverse([v(10)])) = [v(10)]
-        auto l_reverse_reverse_single =
-            wrap_lambdas(
-                a(l_reverse->clone(), a(l_reverse->clone(), l_single->clone())),
-                depth)
-                ->normalize();
-        assert(
-            l_reverse_reverse_single.m_expr->equals(l_expected_single.m_expr));
+        auto l_reverse_reverse_single = wrap_lambdas(
+            a(l_reverse->clone(), a(l_reverse->clone(), l_single->clone())),
+            depth);
+        while(reduce_one_step(l_reverse_reverse_single))
+            ;
+        assert(l_reverse_reverse_single->equals(l_expected_single));
 
         // Test case 8: reverse(reverse([v(10), v(11)])) = [v(10), v(11)]
         std::vector<std::unique_ptr<lambda::expr>> elems_two_rr_in;
         elems_two_rr_in.push_back(v(depth + 10));
         elems_two_rr_in.push_back(v(depth + 11));
         auto l_two_rr = build_list(std::move(elems_two_rr_in));
-        auto l_reverse_reverse_two =
-            wrap_lambdas(a(l_reverse->clone(),
-                           a(l_reverse->clone(), std::move(l_two_rr))),
-                         depth)
-                ->normalize();
+        auto l_reverse_reverse_two = wrap_lambdas(
+            a(l_reverse->clone(), a(l_reverse->clone(), std::move(l_two_rr))),
+            depth);
+        while(reduce_one_step(l_reverse_reverse_two))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_two_rr_expected;
         elems_two_rr_expected.push_back(v(depth + 10));
         elems_two_rr_expected.push_back(v(depth + 11));
         auto l_expected_two_rr_raw =
             build_list(std::move(elems_two_rr_expected));
         auto l_expected_two_rr =
-            wrap_lambdas(std::move(l_expected_two_rr_raw), depth)->normalize();
-        assert(l_reverse_reverse_two.m_expr->equals(l_expected_two_rr.m_expr));
+            wrap_lambdas(std::move(l_expected_two_rr_raw), depth);
+        while(reduce_one_step(l_expected_two_rr))
+            ;
+        assert(l_reverse_reverse_two->equals(l_expected_two_rr));
 
         // Test case 9: reverse(reverse([v(10), v(11), v(12)])) = [v(10), v(11),
         // v(12)]
@@ -2053,11 +2062,11 @@ void test_scott_reverse()
         elems_three_rr_in.push_back(v(depth + 11));
         elems_three_rr_in.push_back(v(depth + 12));
         auto l_three_rr = build_list(std::move(elems_three_rr_in));
-        auto l_reverse_reverse_three =
-            wrap_lambdas(a(l_reverse->clone(),
-                           a(l_reverse->clone(), std::move(l_three_rr))),
-                         depth)
-                ->normalize();
+        auto l_reverse_reverse_three = wrap_lambdas(
+            a(l_reverse->clone(), a(l_reverse->clone(), std::move(l_three_rr))),
+            depth);
+        while(reduce_one_step(l_reverse_reverse_three))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_three_rr_expected;
         elems_three_rr_expected.push_back(v(depth + 10));
         elems_three_rr_expected.push_back(v(depth + 11));
@@ -2065,10 +2074,10 @@ void test_scott_reverse()
         auto l_expected_three_rr_raw =
             build_list(std::move(elems_three_rr_expected));
         auto l_expected_three_rr =
-            wrap_lambdas(std::move(l_expected_three_rr_raw), depth)
-                ->normalize();
-        assert(
-            l_reverse_reverse_three.m_expr->equals(l_expected_three_rr.m_expr));
+            wrap_lambdas(std::move(l_expected_three_rr_raw), depth);
+        while(reduce_one_step(l_expected_three_rr))
+            ;
+        assert(l_reverse_reverse_three->equals(l_expected_three_rr));
 
         // Test case 10: reverse([TRUE, FALSE]) = [FALSE, TRUE]
         std::vector<std::unique_ptr<lambda::expr>> elems_bool_in;
@@ -2076,31 +2085,35 @@ void test_scott_reverse()
         elems_bool_in.push_back(church_false(depth));
         auto l_bool_list = build_list(std::move(elems_bool_in));
         auto l_result_bool =
-            wrap_lambdas(a(l_reverse->clone(), l_bool_list->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_bool_list->clone()), depth);
+        while(reduce_one_step(l_result_bool))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_bool_out;
         elems_bool_out.push_back(church_false(depth));
         elems_bool_out.push_back(church_true(depth));
         auto l_expected_bool_raw = build_list(std::move(elems_bool_out));
         auto l_expected_bool =
-            wrap_lambdas(std::move(l_expected_bool_raw), depth)->normalize();
-        assert(l_result_bool.m_expr->equals(l_expected_bool.m_expr));
+            wrap_lambdas(std::move(l_expected_bool_raw), depth);
+        while(reduce_one_step(l_expected_bool))
+            ;
+        assert(l_result_bool->equals(l_expected_bool));
 
         // Test case 11: reverse([v(20)]) = [v(20)]
         std::vector<std::unique_ptr<lambda::expr>> elems_v20_in;
         elems_v20_in.push_back(v(depth + 20));
         auto l_single_v20 = build_list(std::move(elems_v20_in));
         auto l_result_single_v20 =
-            wrap_lambdas(a(l_reverse->clone(), l_single_v20->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_single_v20->clone()), depth);
+        while(reduce_one_step(l_result_single_v20))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_v20_out;
         elems_v20_out.push_back(v(depth + 20));
         auto l_expected_single_v20_raw = build_list(std::move(elems_v20_out));
         auto l_expected_single_v20 =
-            wrap_lambdas(std::move(l_expected_single_v20_raw), depth)
-                ->normalize();
-        assert(
-            l_result_single_v20.m_expr->equals(l_expected_single_v20.m_expr));
+            wrap_lambdas(std::move(l_expected_single_v20_raw), depth);
+        while(reduce_one_step(l_expected_single_v20))
+            ;
+        assert(l_result_single_v20->equals(l_expected_single_v20));
 
         // Test case 12: reverse([v(5), v(6), v(7), v(8), v(9)]) = [v(9), v(8),
         // v(7), v(6), v(5)]
@@ -2112,8 +2125,9 @@ void test_scott_reverse()
         elems_five_in.push_back(v(depth + 9));
         auto l_five = build_list(std::move(elems_five_in));
         auto l_result_five =
-            wrap_lambdas(a(l_reverse->clone(), l_five->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_reverse->clone(), l_five->clone()), depth);
+        while(reduce_one_step(l_result_five))
+            ;
         std::vector<std::unique_ptr<lambda::expr>> elems_five_out;
         elems_five_out.push_back(v(depth + 9));
         elems_five_out.push_back(v(depth + 8));
@@ -2122,8 +2136,10 @@ void test_scott_reverse()
         elems_five_out.push_back(v(depth + 5));
         auto l_expected_five_raw = build_list(std::move(elems_five_out));
         auto l_expected_five =
-            wrap_lambdas(std::move(l_expected_five_raw), depth)->normalize();
-        assert(l_result_five.m_expr->equals(l_expected_five.m_expr));
+            wrap_lambdas(std::move(l_expected_five_raw), depth);
+        while(reduce_one_step(l_expected_five))
+            ;
+        assert(l_result_five->equals(l_expected_five));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -2143,12 +2159,12 @@ void test_binary_zero()
         assert(l_zero->equals(expected));
 
         // Test behavioral: binary_zero interrogated should return nilCase
-        auto l_result =
-            wrap_lambdas(a(a(l_zero->clone(), v(depth + 10)), v(depth + 11)),
-                         depth)
-                ->normalize();
+        auto l_result = wrap_lambdas(
+            a(a(l_zero->clone(), v(depth + 10)), v(depth + 11)), depth);
+        while(reduce_one_step(l_result))
+            ;
         // Should return the nilCase (first argument)
-        assert(l_result.m_expr->equals(wrap_lambdas(v(depth + 10), depth)));
+        assert(l_result->equals(wrap_lambdas(v(depth + 10), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -2174,14 +2190,15 @@ void test_binary_is_zero()
 
         // Now apply the result to two test values to check if it's TRUE
         // TRUE v(10) v(11) should return v(10)
-        auto l_result = wrap_lambdas(a(a(a(l_is_zero->clone(), l_zero->clone()),
-                                         v(depth + 10)),
-                                       v(depth + 11)),
-                                     depth)
-                            ->normalize();
+        auto l_result = wrap_lambdas(
+            a(a(a(l_is_zero->clone(), l_zero->clone()), v(depth + 10)),
+              v(depth + 11)),
+            depth);
+        while(reduce_one_step(l_result))
+            ;
 
         // Should return the first argument (v(depth + 10)) since it's TRUE
-        assert(l_result.m_expr->equals(wrap_lambdas(v(depth + 10), depth)));
+        assert(l_result->equals(wrap_lambdas(v(depth + 10), depth)));
 
         // Test behavioral: is_zero([1]) = false
         // [1] = CONS BIT1 NIL
@@ -2190,15 +2207,15 @@ void test_binary_is_zero()
 
         // Now apply the result to two test values to check if it's FALSE
         // FALSE v(10) v(11) should return v(11)
-        auto l_result_one =
-            wrap_lambdas(
-                a(a(a(l_is_zero->clone(), l_one->clone()), v(depth + 10)),
-                  v(depth + 11)),
-                depth)
-                ->normalize();
+        auto l_result_one = wrap_lambdas(
+            a(a(a(l_is_zero->clone(), l_one->clone()), v(depth + 10)),
+              v(depth + 11)),
+            depth);
+        while(reduce_one_step(l_result_one))
+            ;
 
         // Should return the second argument (v(depth + 11)) since it's FALSE
-        assert(l_result_one.m_expr->equals(wrap_lambdas(v(depth + 11), depth)));
+        assert(l_result_one->equals(wrap_lambdas(v(depth + 11), depth)));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -2217,23 +2234,25 @@ void test_binary_succ()
         // Test behavioral: succ([]) = [1]
         auto l_zero = binary_zero(depth);
         auto l_succ_zero =
-            wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_succ->clone(), l_zero->clone()), depth);
+        while(reduce_one_step(l_succ_zero))
+            ;
         // [1] = CONS BIT1 NIL in beta-normal form:
         // λnilCase.λconsCase. consCase TRUE NIL
         auto l_expected_one =
             wrap_lambdas(f(f(a(a(v(depth + 1), church_true(depth + 2)),
                                scott_nil(depth + 2)))),
                          depth);
-        assert(l_succ_zero.m_expr->equals(l_expected_one));
+        assert(l_succ_zero->equals(l_expected_one));
 
         // Test behavioral: succ([1]) = [0,1]
         // [1] = CONS BIT1 NIL
         auto l_one =
             a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
         auto l_succ_one =
-            wrap_lambdas(a(l_succ->clone(), l_one->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_succ->clone(), l_one->clone()), depth);
+        while(reduce_one_step(l_succ_one))
+            ;
         // [0,1] = CONS FALSE (CONS TRUE NIL) in beta-normal form:
         // λnilCase.λconsCase. consCase FALSE [1]
         auto l_expected_two =
@@ -2241,7 +2260,7 @@ void test_binary_succ()
                                f(f(a(a(v(depth + 3), church_true(depth + 4)),
                                      scott_nil(depth + 4))))))),
                          depth);
-        assert(l_succ_one.m_expr->equals(l_expected_two));
+        assert(l_succ_one->equals(l_expected_two));
 
         // Test behavioral: succ([0,1]) = [1,1]
         // [0,1] = CONS BIT0 (CONS BIT1 NIL)
@@ -2249,8 +2268,9 @@ void test_binary_succ()
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_succ_two =
-            wrap_lambdas(a(l_succ->clone(), l_two->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_succ->clone(), l_two->clone()), depth);
+        while(reduce_one_step(l_succ_two))
+            ;
         // [1,1] = CONS TRUE (CONS TRUE NIL) in beta-normal form:
         // λnilCase.λconsCase. consCase TRUE [1]
         auto l_expected_three =
@@ -2258,7 +2278,7 @@ void test_binary_succ()
                                f(f(a(a(v(depth + 3), church_true(depth + 4)),
                                      scott_nil(depth + 4))))))),
                          depth);
-        assert(l_succ_two.m_expr->equals(l_expected_three));
+        assert(l_succ_two->equals(l_expected_three));
 
         // Test behavioral: succ([1,1]) = [0,0,1]
         // [1,1] = CONS BIT1 (CONS BIT1 NIL)
@@ -2266,8 +2286,9 @@ void test_binary_succ()
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_succ_three =
-            wrap_lambdas(a(l_succ->clone(), l_three->clone()), depth)
-                ->normalize();
+            wrap_lambdas(a(l_succ->clone(), l_three->clone()), depth);
+        while(reduce_one_step(l_succ_three))
+            ;
         // [0,0,1] = CONS FALSE (CONS FALSE (CONS TRUE NIL)) in beta-normal
         // form: λnilCase.λconsCase. consCase FALSE [0,1]
         auto l_expected_four = wrap_lambdas(
@@ -2276,7 +2297,7 @@ void test_binary_succ()
                         f(f(a(a(v(depth + 5), church_true(depth + 6)),
                               scott_nil(depth + 6)))))))))),
             depth);
-        assert(l_succ_three.m_expr->equals(l_expected_four));
+        assert(l_succ_three->equals(l_expected_four));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -2340,87 +2361,91 @@ void test_binary_canonicalize()
         // Test case 1: [] -> [] (zero stays zero)
         auto l_empty = scott_nil(depth);
         auto l_result_empty =
-            wrap_lambdas(a(l_canonicalize->clone(), l_empty->clone()), depth)
-                ->normalize();
-        assert(l_result_empty.m_expr->equals(l_expected_empty));
+            wrap_lambdas(a(l_canonicalize->clone(), l_empty->clone()), depth);
+        while(reduce_one_step(l_result_empty))
+            ;
+        assert(l_result_empty->equals(l_expected_empty));
 
         // Test case 2: [1] -> [1] (one stays one)
         auto l_one =
             a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
         auto l_result_one =
-            wrap_lambdas(a(l_canonicalize->clone(), l_one->clone()), depth)
-                ->normalize();
-        assert(l_result_one.m_expr->equals(l_expected_one));
+            wrap_lambdas(a(l_canonicalize->clone(), l_one->clone()), depth);
+        while(reduce_one_step(l_result_one))
+            ;
+        assert(l_result_one->equals(l_expected_one));
 
         // Test case 3: [0] -> [] (single trailing zero is trimmed)
         auto l_single_zero =
             a(a(scott_cons(depth), church_false(depth)), scott_nil(depth));
-        auto l_result_single_zero =
-            wrap_lambdas(a(l_canonicalize->clone(), l_single_zero->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_single_zero.m_expr->equals(l_expected_empty));
+        auto l_result_single_zero = wrap_lambdas(
+            a(l_canonicalize->clone(), l_single_zero->clone()), depth);
+        while(reduce_one_step(l_result_single_zero))
+            ;
+        assert(l_result_single_zero->equals(l_expected_empty));
 
         // Test case 4: [1, 0] -> [1] (one with one trailing zero)
         auto l_one_trailing_zero =
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_false(depth)), scott_nil(depth)));
-        auto l_result_one_trailing =
-            wrap_lambdas(
-                a(l_canonicalize->clone(), l_one_trailing_zero->clone()), depth)
-                ->normalize();
-        assert(l_result_one_trailing.m_expr->equals(l_expected_one));
+        auto l_result_one_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_one_trailing_zero->clone()), depth);
+        while(reduce_one_step(l_result_one_trailing))
+            ;
+        assert(l_result_one_trailing->equals(l_expected_one));
 
         // Test case 5: [1, 0, 0] -> [1] (one with two trailing zeros)
         auto l_one_two_trailing = a(
             a(scott_cons(depth), church_true(depth)),
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
-        auto l_result_one_two_trailing =
-            wrap_lambdas(
-                a(l_canonicalize->clone(), l_one_two_trailing->clone()), depth)
-                ->normalize();
-        assert(l_result_one_two_trailing.m_expr->equals(l_expected_one));
+        auto l_result_one_two_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_one_two_trailing->clone()), depth);
+        while(reduce_one_step(l_result_one_two_trailing))
+            ;
+        assert(l_result_one_two_trailing->equals(l_expected_one));
 
         // Test case 6: [0, 1] -> [0, 1] (two, already canonical)
         auto l_two =
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_result_two =
-            wrap_lambdas(a(l_canonicalize->clone(), l_two->clone()), depth)
-                ->normalize();
-        assert(l_result_two.m_expr->equals(l_expected_two));
+            wrap_lambdas(a(l_canonicalize->clone(), l_two->clone()), depth);
+        while(reduce_one_step(l_result_two))
+            ;
+        assert(l_result_two->equals(l_expected_two));
 
         // Test case 7: [0, 1, 0] -> [0, 1] (two with trailing zero)
         auto l_two_trailing = a(
             a(scott_cons(depth), church_false(depth)),
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
-        auto l_result_two_trailing =
-            wrap_lambdas(a(l_canonicalize->clone(), l_two_trailing->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_two_trailing.m_expr->equals(l_expected_two));
+        auto l_result_two_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_two_trailing->clone()), depth);
+        while(reduce_one_step(l_result_two_trailing))
+            ;
+        assert(l_result_two_trailing->equals(l_expected_two));
 
         // Test case 8: [1, 1] -> [1, 1] (three, already canonical)
         auto l_three =
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_result_three =
-            wrap_lambdas(a(l_canonicalize->clone(), l_three->clone()), depth)
-                ->normalize();
-        assert(l_result_three.m_expr->equals(l_expected_three));
+            wrap_lambdas(a(l_canonicalize->clone(), l_three->clone()), depth);
+        while(reduce_one_step(l_result_three))
+            ;
+        assert(l_result_three->equals(l_expected_three));
 
         // Test case 9: [1, 1, 0] -> [1, 1] (three with trailing zero)
         auto l_three_trailing = a(
             a(scott_cons(depth), church_true(depth)),
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
-        auto l_result_three_trailing =
-            wrap_lambdas(a(l_canonicalize->clone(), l_three_trailing->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_three_trailing.m_expr->equals(l_expected_three));
+        auto l_result_three_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_three_trailing->clone()), depth);
+        while(reduce_one_step(l_result_three_trailing))
+            ;
+        assert(l_result_three_trailing->equals(l_expected_three));
 
         // Test case 10: [0, 0, 1, 0, 0] -> [0, 0, 1] (four with two trailing
         // zeros)
@@ -2431,11 +2456,11 @@ void test_binary_canonicalize()
                   a(a(scott_cons(depth), church_false(depth)),
                     a(a(scott_cons(depth), church_false(depth)),
                       scott_nil(depth))))));
-        auto l_result_four_two_trailing =
-            wrap_lambdas(
-                a(l_canonicalize->clone(), l_four_two_trailing->clone()), depth)
-                ->normalize();
-        assert(l_result_four_two_trailing.m_expr->equals(l_expected_four));
+        auto l_result_four_two_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_four_two_trailing->clone()), depth);
+        while(reduce_one_step(l_result_four_two_trailing))
+            ;
+        assert(l_result_four_two_trailing->equals(l_expected_four));
 
         // Test case 11: [1, 0, 1] -> [1, 0, 1] (five, already canonical - non-
         // trailing zero preserved)
@@ -2444,9 +2469,10 @@ void test_binary_canonicalize()
               a(a(scott_cons(depth), church_false(depth)),
                 a(a(scott_cons(depth), church_true(depth)), scott_nil(depth))));
         auto l_result_five =
-            wrap_lambdas(a(l_canonicalize->clone(), l_five->clone()), depth)
-                ->normalize();
-        assert(l_result_five.m_expr->equals(l_expected_five));
+            wrap_lambdas(a(l_canonicalize->clone(), l_five->clone()), depth);
+        while(reduce_one_step(l_result_five))
+            ;
+        assert(l_result_five->equals(l_expected_five));
 
         // Test case 12: [1, 0, 1, 0] -> [1, 0, 1] (five with one trailing zero)
         auto l_five_trailing =
@@ -2455,11 +2481,11 @@ void test_binary_canonicalize()
                 a(a(scott_cons(depth), church_true(depth)),
                   a(a(scott_cons(depth), church_false(depth)),
                     scott_nil(depth)))));
-        auto l_result_five_trailing =
-            wrap_lambdas(a(l_canonicalize->clone(), l_five_trailing->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_five_trailing.m_expr->equals(l_expected_five));
+        auto l_result_five_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_five_trailing->clone()), depth);
+        while(reduce_one_step(l_result_five_trailing))
+            ;
+        assert(l_result_five_trailing->equals(l_expected_five));
 
         // Test case 13: [1, 0, 1, 0, 0] -> [1, 0, 1] (five with two trailing
         // zeros)
@@ -2470,11 +2496,11 @@ void test_binary_canonicalize()
                   a(a(scott_cons(depth), church_false(depth)),
                     a(a(scott_cons(depth), church_false(depth)),
                       scott_nil(depth))))));
-        auto l_result_five_two_trailing =
-            wrap_lambdas(
-                a(l_canonicalize->clone(), l_five_two_trailing->clone()), depth)
-                ->normalize();
-        assert(l_result_five_two_trailing.m_expr->equals(l_expected_five));
+        auto l_result_five_two_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_five_two_trailing->clone()), depth);
+        while(reduce_one_step(l_result_five_two_trailing))
+            ;
+        assert(l_result_five_two_trailing->equals(l_expected_five));
 
         // Test case 14: [0, 0, 1, 0, 1] -> [0, 0, 1, 0, 1] (twenty, already
         // canonical)
@@ -2485,9 +2511,10 @@ void test_binary_canonicalize()
                                 a(a(scott_cons(depth), church_true(depth)),
                                   scott_nil(depth))))));
         auto l_result_twenty =
-            wrap_lambdas(a(l_canonicalize->clone(), l_twenty->clone()), depth)
-                ->normalize();
-        assert(l_result_twenty.m_expr->equals(l_expected_twenty));
+            wrap_lambdas(a(l_canonicalize->clone(), l_twenty->clone()), depth);
+        while(reduce_one_step(l_result_twenty))
+            ;
+        assert(l_result_twenty->equals(l_expected_twenty));
 
         // Test case 15: [0, 0, 1, 0, 1, 0] -> [0, 0, 1, 0, 1] (twenty with
         // trailing zero)
@@ -2499,22 +2526,22 @@ void test_binary_canonicalize()
                     a(a(scott_cons(depth), church_true(depth)),
                       a(a(scott_cons(depth), church_false(depth)),
                         scott_nil(depth)))))));
-        auto l_result_twenty_trailing =
-            wrap_lambdas(a(l_canonicalize->clone(), l_twenty_trailing->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_twenty_trailing.m_expr->equals(l_expected_twenty));
+        auto l_result_twenty_trailing = wrap_lambdas(
+            a(l_canonicalize->clone(), l_twenty_trailing->clone()), depth);
+        while(reduce_one_step(l_result_twenty_trailing))
+            ;
+        assert(l_result_twenty_trailing->equals(l_expected_twenty));
 
         // Test case 16: [0, 0, 0] -> [] (all zeros trim to empty)
         auto l_all_zeros = a(
             a(scott_cons(depth), church_false(depth)),
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_false(depth)), scott_nil(depth))));
-        auto l_result_all_zeros =
-            wrap_lambdas(a(l_canonicalize->clone(), l_all_zeros->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_all_zeros.m_expr->equals(l_expected_empty));
+        auto l_result_all_zeros = wrap_lambdas(
+            a(l_canonicalize->clone(), l_all_zeros->clone()), depth);
+        while(reduce_one_step(l_result_all_zeros))
+            ;
+        assert(l_result_all_zeros->equals(l_expected_empty));
 
         // Test case 17: [0, 0, 0, 0, 0] -> [] (many zeros trim to empty)
         auto l_many_zeros = a(a(scott_cons(depth), church_false(depth)),
@@ -2523,11 +2550,11 @@ void test_binary_canonicalize()
                                   a(a(scott_cons(depth), church_false(depth)),
                                     a(a(scott_cons(depth), church_false(depth)),
                                       scott_nil(depth))))));
-        auto l_result_many_zeros =
-            wrap_lambdas(a(l_canonicalize->clone(), l_many_zeros->clone()),
-                         depth)
-                ->normalize();
-        assert(l_result_many_zeros.m_expr->equals(l_expected_empty));
+        auto l_result_many_zeros = wrap_lambdas(
+            a(l_canonicalize->clone(), l_many_zeros->clone()), depth);
+        while(reduce_one_step(l_result_many_zeros))
+            ;
+        assert(l_result_many_zeros->equals(l_expected_empty));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -2570,112 +2597,113 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_0_0))
+            ;
         auto l_expected_0_0 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_0_0.m_expr->equals(l_expected_0_0));
+        assert(l_result_0_0->equals(l_expected_0_0));
 
         // Test case 2: 0 < 1
         auto l_zero = scott_nil(depth);
         auto l_one = build_binary({true}); // 1 = 0b1
-        auto l_result_0_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare->clone(), l_zero->clone()), l_one->clone()),
-                      v_lt->clone()),
-                    v_eq->clone()),
-                  v_gt->clone()),
-                depth)
-                ->normalize();
+        auto l_result_0_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_zero->clone()), l_one->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_0_1))
+            ;
         auto l_expected_0_1 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_0_1.m_expr->equals(l_expected_0_1));
+        assert(l_result_0_1->equals(l_expected_0_1));
 
         // Test case 3: 1 > 0
-        auto l_result_1_0 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare->clone(), l_one->clone()), l_zero->clone()),
-                      v_lt->clone()),
-                    v_eq->clone()),
-                  v_gt->clone()),
-                depth)
-                ->normalize();
+        auto l_result_1_0 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_one->clone()), l_zero->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_0))
+            ;
         auto l_expected_1_0 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_1_0.m_expr->equals(l_expected_1_0));
+        assert(l_result_1_0->equals(l_expected_1_0));
 
         // Test case 4: 1 == 1
         auto l_one_b = build_binary({true});
-        auto l_result_1_1 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_one->clone()),
-                                 l_one_b->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_1_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_one->clone()), l_one_b->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_1))
+            ;
         auto l_expected_1_1 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_1_1.m_expr->equals(l_expected_1_1));
+        assert(l_result_1_1->equals(l_expected_1_1));
 
         // Test case 5: 1 < 2
         auto l_two = build_binary({false, true}); // 2 = 0b10
-        auto l_result_1_2 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare->clone(), l_one->clone()), l_two->clone()),
-                      v_lt->clone()),
-                    v_eq->clone()),
-                  v_gt->clone()),
-                depth)
-                ->normalize();
+        auto l_result_1_2 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_one->clone()), l_two->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_2))
+            ;
         auto l_expected_1_2 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_1_2.m_expr->equals(l_expected_1_2));
+        assert(l_result_1_2->equals(l_expected_1_2));
 
         // Test case 6: 2 > 1
-        auto l_result_2_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare->clone(), l_two->clone()), l_one->clone()),
-                      v_lt->clone()),
-                    v_eq->clone()),
-                  v_gt->clone()),
-                depth)
-                ->normalize();
+        auto l_result_2_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_two->clone()), l_one->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_2_1))
+            ;
         auto l_expected_2_1 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_2_1.m_expr->equals(l_expected_2_1));
+        assert(l_result_2_1->equals(l_expected_2_1));
 
         // Test case 7: 2 == 2
         auto l_two_b = build_binary({false, true});
-        auto l_result_2_2 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_two->clone()),
-                                 l_two_b->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_2_2 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_two->clone()), l_two_b->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_2_2))
+            ;
         auto l_expected_2_2 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_2_2.m_expr->equals(l_expected_2_2));
+        assert(l_result_2_2->equals(l_expected_2_2));
 
         // Test case 8: 2 < 3
         auto l_three = build_binary({true, true}); // 3 = 0b11
-        auto l_result_2_3 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_two->clone()),
-                                 l_three->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_2_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_two->clone()), l_three->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_2_3))
+            ;
         auto l_expected_2_3 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_2_3.m_expr->equals(l_expected_2_3));
+        assert(l_result_2_3->equals(l_expected_2_3));
 
         // Test case 9: 3 > 2
-        auto l_result_3_2 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_three->clone()),
-                                 l_two->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_3_2 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_three->clone()), l_two->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_2))
+            ;
         auto l_expected_3_2 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_3_2.m_expr->equals(l_expected_3_2));
+        assert(l_result_3_2->equals(l_expected_3_2));
 
         // Test case 10: 3 == 3
         auto l_three_b = build_binary({true, true});
@@ -2685,112 +2713,113 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_3_3))
+            ;
         auto l_expected_3_3 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_3_3.m_expr->equals(l_expected_3_3));
+        assert(l_result_3_3->equals(l_expected_3_3));
 
         // Test case 11: 3 < 4 (previously failing case - different lengths!)
         auto l_four = build_binary({false, false, true}); // 4 = 0b100
-        auto l_result_3_4 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_three->clone()),
-                                 l_four->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_3_4 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_three->clone()), l_four->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_4))
+            ;
         auto l_expected_3_4 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_3_4.m_expr->equals(l_expected_3_4));
+        assert(l_result_3_4->equals(l_expected_3_4));
 
         // Test case 12: 4 > 3
-        auto l_result_4_3 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_four->clone()),
-                                 l_three->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_4_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_four->clone()), l_three->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_4_3))
+            ;
         auto l_expected_4_3 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_4_3.m_expr->equals(l_expected_4_3));
+        assert(l_result_4_3->equals(l_expected_4_3));
 
         // Test case 13: 5 > 3
         auto l_five = build_binary({true, false, true}); // 5 = 0b101
-        auto l_result_5_3 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_five->clone()),
-                                 l_three->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_5_3 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_five->clone()), l_three->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_5_3))
+            ;
         auto l_expected_5_3 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_5_3.m_expr->equals(l_expected_5_3));
+        assert(l_result_5_3->equals(l_expected_5_3));
 
         // Test case 14: 3 < 5
-        auto l_result_3_5 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_three->clone()),
-                                 l_five->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_3_5 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_three->clone()), l_five->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_3_5))
+            ;
         auto l_expected_3_5 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_3_5.m_expr->equals(l_expected_3_5));
+        assert(l_result_3_5->equals(l_expected_3_5));
 
         // Test case 15: 7 < 8 (different lengths)
         auto l_seven = build_binary({true, true, true});          // 7 = 0b111
         auto l_eight = build_binary({false, false, false, true}); // 8 = 0b1000
-        auto l_result_7_8 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_seven->clone()),
-                                 l_eight->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_7_8 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_seven->clone()), l_eight->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_7_8))
+            ;
         auto l_expected_7_8 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_7_8.m_expr->equals(l_expected_7_8));
+        assert(l_result_7_8->equals(l_expected_7_8));
 
         // Test case 16: 8 > 7
-        auto l_result_8_7 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_eight->clone()),
-                                 l_seven->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_8_7 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_eight->clone()), l_seven->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_8_7))
+            ;
         auto l_expected_8_7 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_8_7.m_expr->equals(l_expected_8_7));
+        assert(l_result_8_7->equals(l_expected_8_7));
 
         // Test case 17: 10 < 15 (same length, different values)
         auto l_ten = build_binary({false, true, false, true});   // 10 = 0b1010
         auto l_fifteen = build_binary({true, true, true, true}); // 15 = 0b1111
-        auto l_result_10_15 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_ten->clone()),
-                                 l_fifteen->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_10_15 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_ten->clone()), l_fifteen->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_10_15))
+            ;
         auto l_expected_10_15 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_10_15.m_expr->equals(l_expected_10_15));
+        assert(l_result_10_15->equals(l_expected_10_15));
 
         // Test case 18: 15 > 10
-        auto l_result_15_10 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_fifteen->clone()),
-                                 l_ten->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_15_10 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_fifteen->clone()), l_ten->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_15_10))
+            ;
         auto l_expected_15_10 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_15_10.m_expr->equals(l_expected_15_10));
+        assert(l_result_15_10->equals(l_expected_15_10));
 
         // Test case 19: 15 < 16 (different lengths, boundary)
         auto l_sixteen =
@@ -2801,10 +2830,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_15_16))
+            ;
         auto l_expected_15_16 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_15_16.m_expr->equals(l_expected_15_16));
+        assert(l_result_15_16->equals(l_expected_15_16));
 
         // Test case 20: 31 < 32 (max for 5 bits vs min for 6 bits)
         auto l_thirtyone =
@@ -2817,10 +2847,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_31_32))
+            ;
         auto l_expected_31_32 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_31_32.m_expr->equals(l_expected_31_32));
+        assert(l_result_31_32->equals(l_expected_31_32));
 
         // Test case 21: 20 == 20 (equal multi-bit numbers)
         auto l_twenty_a =
@@ -2833,10 +2864,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_20_20))
+            ;
         auto l_expected_20_20 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_20_20.m_expr->equals(l_expected_20_20));
+        assert(l_result_20_20->equals(l_expected_20_20));
 
         // Test case 22: 19 < 20 (adjacent numbers)
         auto l_nineteen =
@@ -2847,10 +2879,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_19_20))
+            ;
         auto l_expected_19_20 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_19_20.m_expr->equals(l_expected_19_20));
+        assert(l_result_19_20->equals(l_expected_19_20));
 
         // Test case 23: 20 > 19
         auto l_result_20_19 =
@@ -2859,49 +2892,50 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_20_19))
+            ;
         auto l_expected_20_19 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_20_19.m_expr->equals(l_expected_20_19));
+        assert(l_result_20_19->equals(l_expected_20_19));
 
         // Test case 24: 5 == 5 (equal with non-contiguous bits)
         auto l_five_b = build_binary({true, false, true}); // 5 = 0b101
-        auto l_result_5_5 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_five->clone()),
-                                 l_five_b->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_5_5 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_five->clone()), l_five_b->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_5_5))
+            ;
         auto l_expected_5_5 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_5_5.m_expr->equals(l_expected_5_5));
+        assert(l_result_5_5->equals(l_expected_5_5));
 
         // Test case 25: 1 < 100 (very far apart)
         auto l_hundred = build_binary(
             {false, false, true, false, false, true, true}); // 100 = 0b1100100
-        auto l_result_1_100 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_one->clone()),
-                                 l_hundred->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_1_100 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_one->clone()), l_hundred->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_1_100))
+            ;
         auto l_expected_1_100 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_1_100.m_expr->equals(l_expected_1_100));
+        assert(l_result_1_100->equals(l_expected_1_100));
 
         // Test case 26: 100 > 1
-        auto l_result_100_1 =
-            wrap_lambdas(a(a(a(a(a(l_compare->clone(), l_hundred->clone()),
-                                 l_one->clone()),
-                               v_lt->clone()),
-                             v_eq->clone()),
-                           v_gt->clone()),
-                         depth)
-                ->normalize();
+        auto l_result_100_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_hundred->clone()), l_one->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_100_1))
+            ;
         auto l_expected_100_1 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_100_1.m_expr->equals(l_expected_100_1));
+        assert(l_result_100_1->equals(l_expected_100_1));
 
         // Test case 27: 0 < 63 (empty vs full 6-bit number)
         auto l_sixtythree =
@@ -2912,10 +2946,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_0_63))
+            ;
         auto l_expected_0_63 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_0_63.m_expr->equals(l_expected_0_63));
+        assert(l_result_0_63->equals(l_expected_0_63));
 
         // Test case 28: 63 > 0
         auto l_result_63_0 =
@@ -2924,10 +2959,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_63_0))
+            ;
         auto l_expected_63_0 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_63_0.m_expr->equals(l_expected_63_0));
+        assert(l_result_63_0->equals(l_expected_63_0));
 
         // Test case 29: 7 < 64 (different bit lengths, powers of 2)
         auto l_sixtyfour = build_binary(
@@ -2938,10 +2974,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_7_64))
+            ;
         auto l_expected_7_64 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_7_64.m_expr->equals(l_expected_7_64));
+        assert(l_result_7_64->equals(l_expected_7_64));
 
         // Test case 30: 64 > 7
         auto l_result_64_7 =
@@ -2950,10 +2987,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_64_7))
+            ;
         auto l_expected_64_7 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_64_7.m_expr->equals(l_expected_64_7));
+        assert(l_result_64_7->equals(l_expected_64_7));
 
         // Test case 31: 10 < 127 (large gap)
         auto l_onetwentyseven = build_binary(
@@ -2964,23 +3002,24 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_10_127))
+            ;
         auto l_expected_10_127 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_10_127.m_expr->equals(l_expected_10_127));
+        assert(l_result_10_127->equals(l_expected_10_127));
 
         // Test case 32: 127 > 10
-        auto l_result_127_10 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare->clone(), l_onetwentyseven->clone()),
-                        l_ten->clone()),
-                      v_lt->clone()),
-                    v_eq->clone()),
-                  v_gt->clone()),
-                depth)
-                ->normalize();
+        auto l_result_127_10 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_onetwentyseven->clone()),
+                    l_ten->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_127_10))
+            ;
         auto l_expected_127_10 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_127_10.m_expr->equals(l_expected_127_10));
+        assert(l_result_127_10->equals(l_expected_127_10));
 
         // Test case 33: 1 < 128 (smallest vs power of 2)
         auto l_onetwentyeight =
@@ -2992,23 +3031,24 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_1_128))
+            ;
         auto l_expected_1_128 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_1_128.m_expr->equals(l_expected_1_128));
+        assert(l_result_1_128->equals(l_expected_1_128));
 
         // Test case 34: 128 > 1
-        auto l_result_128_1 =
-            wrap_lambdas(
-                a(a(a(a(a(l_compare->clone(), l_onetwentyeight->clone()),
-                        l_one->clone()),
-                      v_lt->clone()),
-                    v_eq->clone()),
-                  v_gt->clone()),
-                depth)
-                ->normalize();
+        auto l_result_128_1 = wrap_lambdas(
+            a(a(a(a(a(l_compare->clone(), l_onetwentyeight->clone()),
+                    l_one->clone()),
+                  v_lt->clone()),
+                v_eq->clone()),
+              v_gt->clone()),
+            depth);
+        while(reduce_one_step(l_result_128_1))
+            ;
         auto l_expected_128_1 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_128_1.m_expr->equals(l_expected_128_1));
+        assert(l_result_128_1->equals(l_expected_128_1));
 
         // Test case 35: 31 < 100 (both multi-bit, far apart)
         auto l_result_31_100 =
@@ -3017,10 +3057,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_31_100))
+            ;
         auto l_expected_31_100 = wrap_lambdas(v_lt->clone(), depth);
-        assert(l_result_31_100.m_expr->equals(l_expected_31_100));
+        assert(l_result_31_100->equals(l_expected_31_100));
 
         // Test case 36: 100 > 31
         auto l_result_100_31 =
@@ -3029,10 +3070,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_100_31))
+            ;
         auto l_expected_100_31 = wrap_lambdas(v_gt->clone(), depth);
-        assert(l_result_100_31.m_expr->equals(l_expected_100_31));
+        assert(l_result_100_31->equals(l_expected_100_31));
 
         // Test case 37: 100 == 100 (equal large numbers)
         auto l_hundred_b = build_binary(
@@ -3043,10 +3085,11 @@ void test_binary_compare()
                                v_lt->clone()),
                              v_eq->clone()),
                            v_gt->clone()),
-                         depth)
-                ->normalize();
+                         depth);
+        while(reduce_one_step(l_result_100_100))
+            ;
         auto l_expected_100_100 = wrap_lambdas(v_eq->clone(), depth);
-        assert(l_result_100_100.m_expr->equals(l_expected_100_100));
+        assert(l_result_100_100->equals(l_expected_100_100));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -3099,18 +3142,20 @@ void test_binary_pred()
         // Test 1: pred(0) = 0 (saturating, 0 stays 0)
         auto l_zero = binary_zero(depth);
         auto l_pred_zero =
-            wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth)
-                ->normalize();
-        assert(l_pred_zero.m_expr->equals(l_expected_empty));
+            wrap_lambdas(a(l_pred->clone(), l_zero->clone()), depth);
+        while(reduce_one_step(l_pred_zero))
+            ;
+        assert(l_pred_zero->equals(l_expected_empty));
 
         // Test 2: pred(1) = 0 (canonicalized to empty list)
         // This is a key test: pred([1]) produces [0] which canonicalizes to []
         auto l_one =
             a(a(scott_cons(depth), church_true(depth)), scott_nil(depth));
         auto l_pred_one =
-            wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth)
-                ->normalize();
-        assert(l_pred_one.m_expr->equals(l_expected_empty));
+            wrap_lambdas(a(l_pred->clone(), l_one->clone()), depth);
+        while(reduce_one_step(l_pred_one))
+            ;
+        assert(l_pred_one->equals(l_expected_empty));
 
         // Test 3: pred(2) = 1 (canonicalized)
         // pred([0,1]) produces [1,0] which canonicalizes to [1]
@@ -3118,23 +3163,20 @@ void test_binary_pred()
             a(a(scott_cons(depth), church_false(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_pred_two =
-            wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth)
-                ->normalize();
-        assert(l_pred_two.m_expr->equals(l_expected_one));
+            wrap_lambdas(a(l_pred->clone(), l_two->clone()), depth);
+        while(reduce_one_step(l_pred_two))
+            ;
+        assert(l_pred_two->equals(l_expected_one));
 
         // Test 4: pred(3) = 2 (already canonical)
         auto l_three =
             a(a(scott_cons(depth), church_true(depth)),
               a(a(scott_cons(depth), church_true(depth)), scott_nil(depth)));
         auto l_pred_three =
-            wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ });
-        // std::cout << *l_pred_three.m_expr << std::endl;
-        assert(l_pred_three.m_expr->equals(l_expected_two));
+            wrap_lambdas(a(l_pred->clone(), l_three->clone()), depth);
+        while(reduce_one_step(l_pred_three))
+            ;
+        assert(l_pred_three->equals(l_expected_two));
 
         // Test 5: pred(4) = 3 (canonicalized)
         // pred([0,0,1]) produces [1,1,0] which canonicalizes to [1,1]
@@ -3143,9 +3185,10 @@ void test_binary_pred()
               a(a(scott_cons(depth), church_false(depth)),
                 a(a(scott_cons(depth), church_true(depth)), scott_nil(depth))));
         auto l_pred_four =
-            wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth)
-                ->normalize();
-        assert(l_pred_four.m_expr->equals(l_expected_three));
+            wrap_lambdas(a(l_pred->clone(), l_four->clone()), depth);
+        while(reduce_one_step(l_pred_four))
+            ;
+        assert(l_pred_four->equals(l_expected_three));
 
         // Test 6: pred(5) = 4 (already canonical)
         // [1,0,1] -> [0,0,1]
@@ -3154,9 +3197,10 @@ void test_binary_pred()
               a(a(scott_cons(depth), church_false(depth)),
                 a(a(scott_cons(depth), church_true(depth)), scott_nil(depth))));
         auto l_pred_five =
-            wrap_lambdas(a(l_pred->clone(), l_five->clone()), depth)
-                ->normalize();
-        assert(l_pred_five.m_expr->equals(l_expected_four));
+            wrap_lambdas(a(l_pred->clone(), l_five->clone()), depth);
+        while(reduce_one_step(l_pred_five))
+            ;
+        assert(l_pred_five->equals(l_expected_four));
 
         // Test 7: pred(8) = 7 (canonicalized)
         // [0,0,0,1] -> pred produces [1,1,1,0] which canonicalizes to [1,1,1]
@@ -3166,9 +3210,10 @@ void test_binary_pred()
                              a(a(scott_cons(depth), church_true(depth)),
                                scott_nil(depth)))));
         auto l_pred_eight =
-            wrap_lambdas(a(l_pred->clone(), l_eight->clone()), depth)
-                ->normalize();
-        assert(l_pred_eight.m_expr->equals(l_expected_seven));
+            wrap_lambdas(a(l_pred->clone(), l_eight->clone()), depth);
+        while(reduce_one_step(l_pred_eight))
+            ;
+        assert(l_pred_eight->equals(l_expected_seven));
     };
 
     for(size_t depth = 0; depth <= 5; ++depth)
@@ -3190,187 +3235,154 @@ void test_binary_add()
         auto l_four = a(binary_succ(a_depth), l_three->clone());
         auto l_five = a(binary_succ(a_depth), l_four->clone());
 
-        auto l_norm_number_0 =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_norm_number_0 = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_norm_number_0))
+            ;
         // std::cout << *l_norm_number_0 << std::endl;
 
-        auto l_norm_number_1 =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        auto l_norm_number_1 = wrap_lambdas(l_one->clone(), a_depth);
+        while(reduce_one_step(l_norm_number_1))
+            ;
         // std::cout << *l_norm_number_1 << std::endl;
 
-        auto l_norm_number_2 =
-            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        auto l_norm_number_2 = wrap_lambdas(l_two->clone(), a_depth);
+        while(reduce_one_step(l_norm_number_2))
+            ;
         // std::cout << *l_norm_number_2 << std::endl;
 
-        auto l_norm_number_3 =
-            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        auto l_norm_number_3 = wrap_lambdas(l_three->clone(), a_depth);
+        while(reduce_one_step(l_norm_number_3))
+            ;
         // std::cout << *l_norm_number_3 << std::endl;
 
-        auto l_norm_number_4 =
-            wrap_lambdas(l_four->clone(), a_depth)->normalize().m_expr;
+        auto l_norm_number_4 = wrap_lambdas(l_four->clone(), a_depth);
+        while(reduce_one_step(l_norm_number_4))
+            ;
         // std::cout << *l_norm_number_4 << std::endl;
 
-        auto l_norm_number_5 =
-            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        auto l_norm_number_5 = wrap_lambdas(l_five->clone(), a_depth);
+        while(reduce_one_step(l_norm_number_5))
+            ;
         // std::cout << *l_norm_number_5 << std::endl;
 
         // compute 0+0
-        auto l_zero_plus_zero =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_zero->clone(), l_zero->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_plus_zero_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_zero_plus_zero = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_zero->clone(), l_zero->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_plus_zero))
+            ;
+        auto l_zero_plus_zero_expected = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_zero_plus_zero_expected))
+            ;
         // std::cout << *l_zero << std::endl;
         assert(l_zero_plus_zero->equals(l_zero_plus_zero_expected));
 
         // compute 0+1
-        auto l_zero_plus_one =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_zero->clone(), l_one->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_plus_one_expected =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        auto l_zero_plus_one = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_zero->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_plus_one))
+            ;
+        auto l_zero_plus_one_expected = wrap_lambdas(l_one->clone(), a_depth);
+        while(reduce_one_step(l_zero_plus_one_expected))
+            ;
         // std::cout << *l_zero_plus_one_expected << std::endl;
         assert(l_zero_plus_one->equals(l_zero_plus_one_expected));
 
         // compute 0+2
-        auto l_zero_plus_two =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_zero->clone(), l_two->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_plus_two_expected =
-            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        auto l_zero_plus_two = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_zero->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_plus_two))
+            ;
+        auto l_zero_plus_two_expected = wrap_lambdas(l_two->clone(), a_depth);
+        while(reduce_one_step(l_zero_plus_two_expected))
+            ;
         // std::cout << *l_zero_plus_two_expected << std::endl;
         assert(l_zero_plus_two->equals(l_zero_plus_two_expected));
 
         // compute 0+3
-        auto l_zero_plus_three =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_zero->clone(), l_three->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_zero_plus_three = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_zero->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_plus_three))
+            ;
         auto l_zero_plus_three_expected =
-            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_three->clone(), a_depth);
+        while(reduce_one_step(l_zero_plus_three_expected))
+            ;
         // std::cout << *l_zero_plus_three_expected << std::endl;
         assert(l_zero_plus_three->equals(l_zero_plus_three_expected));
 
         // compute 1+1
-        auto l_one_plus_one =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_one->clone(), l_one->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_plus_one_expected =
-            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        auto l_one_plus_one = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_one->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_plus_one))
+            ;
+        auto l_one_plus_one_expected = wrap_lambdas(l_two->clone(), a_depth);
+        while(reduce_one_step(l_one_plus_one_expected))
+            ;
         // std::cout << *l_one_plus_one_expected << std::endl;
         assert(l_one_plus_one->equals(l_one_plus_one_expected));
 
         // compute 1+2
-        auto l_one_plus_two =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_one->clone(), l_two->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_plus_two_expected =
-            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        auto l_one_plus_two = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_one->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_plus_two))
+            ;
+        auto l_one_plus_two_expected = wrap_lambdas(l_three->clone(), a_depth);
+        while(reduce_one_step(l_one_plus_two_expected))
+            ;
         // std::cout << *l_one_plus_two_expected << std::endl;
         assert(l_one_plus_two->equals(l_one_plus_two_expected));
 
         // compute 1+0
-        auto l_one_plus_zero =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_one->clone(), l_zero->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_plus_zero_expected =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        auto l_one_plus_zero = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_one->clone(), l_zero->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_plus_zero))
+            ;
+        auto l_one_plus_zero_expected = wrap_lambdas(l_one->clone(), a_depth);
+        while(reduce_one_step(l_one_plus_zero_expected))
+            ;
         // std::cout << *l_one_plus_zero_expected << std::endl;
         assert(l_one_plus_zero->equals(l_one_plus_zero_expected));
 
         // compute 2+1
-        auto l_two_plus_one =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_two->clone(), l_one->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_plus_one_expected =
-            wrap_lambdas(l_three->clone(), a_depth)->normalize().m_expr;
+        auto l_two_plus_one = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_two->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_two_plus_one))
+            ;
+        auto l_two_plus_one_expected = wrap_lambdas(l_three->clone(), a_depth);
+        while(reduce_one_step(l_two_plus_one_expected))
+            ;
         // std::cout << *l_two_plus_one_expected << std::endl;
         assert(l_two_plus_one->equals(l_two_plus_one_expected));
 
         // compute 2+3
-        auto l_two_plus_three =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_two->clone(), l_three->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_plus_three_expected =
-            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        auto l_two_plus_three = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_two->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_two_plus_three))
+            ;
+        auto l_two_plus_three_expected = wrap_lambdas(l_five->clone(), a_depth);
+        while(reduce_one_step(l_two_plus_three_expected))
+            ;
         // std::cout << *l_two_plus_three_expected << std::endl;
         assert(l_two_plus_three->equals(l_two_plus_three_expected));
 
         // compute 3+2
-        auto l_three_plus_two =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_three->clone(), l_two->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_three_plus_two_expected =
-            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        auto l_three_plus_two = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_three->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_plus_two))
+            ;
+        auto l_three_plus_two_expected = wrap_lambdas(l_five->clone(), a_depth);
+        while(reduce_one_step(l_three_plus_two_expected))
+            ;
         // std::cout << *l_three_plus_two_expected << std::endl;
         assert(l_three_plus_two->equals(l_three_plus_two_expected));
 
@@ -3426,184 +3438,146 @@ void test_binary_add()
             build_binary({0, 0, 0, 0, 0, 0, 0, 1}); // 128 = 0b10000000
 
         // compute 2+2 = 4
-        auto l_two_plus_two =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_two->clone(), l_two->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_plus_two_expected =
-            wrap_lambdas(l_four->clone(), a_depth)->normalize().m_expr;
+        auto l_two_plus_two = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_two->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_two_plus_two))
+            ;
+        auto l_two_plus_two_expected = wrap_lambdas(l_four->clone(), a_depth);
+        while(reduce_one_step(l_two_plus_two_expected))
+            ;
         assert(l_two_plus_two->equals(l_two_plus_two_expected));
 
         // compute 3+3 = 6
-        auto l_three_plus_three =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_three->clone(), l_three->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_three_plus_three = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_three->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_plus_three))
+            ;
         auto l_three_plus_three_expected =
-            wrap_lambdas(l_six->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_six->clone(), a_depth);
+        while(reduce_one_step(l_three_plus_three_expected))
+            ;
         assert(l_three_plus_three->equals(l_three_plus_three_expected));
 
         // compute 3+5 = 8
-        auto l_three_plus_five =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_three->clone(), l_five->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_three_plus_five = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_three->clone(), l_five->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_plus_five))
+            ;
         auto l_three_plus_five_expected =
-            wrap_lambdas(l_eight->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_eight->clone(), a_depth);
+        while(reduce_one_step(l_three_plus_five_expected))
+            ;
         assert(l_three_plus_five->equals(l_three_plus_five_expected));
 
         // compute 5+5 = 10
-        auto l_five_plus_five =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_five->clone(), l_five->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_five_plus_five_expected =
-            wrap_lambdas(l_ten->clone(), a_depth)->normalize().m_expr;
+        auto l_five_plus_five = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_five->clone(), l_five->clone()),
+            a_depth);
+        while(reduce_one_step(l_five_plus_five))
+            ;
+        auto l_five_plus_five_expected = wrap_lambdas(l_ten->clone(), a_depth);
+        while(reduce_one_step(l_five_plus_five_expected))
+            ;
         assert(l_five_plus_five->equals(l_five_plus_five_expected));
 
         // compute 7+8 = 15
-        auto l_seven_plus_eight =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_seven->clone(), l_eight->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_seven_plus_eight = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_seven->clone(), l_eight->clone()),
+            a_depth);
+        while(reduce_one_step(l_seven_plus_eight))
+            ;
         auto l_seven_plus_eight_expected =
-            wrap_lambdas(l_fifteen->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_fifteen->clone(), a_depth);
+        while(reduce_one_step(l_seven_plus_eight_expected))
+            ;
         assert(l_seven_plus_eight->equals(l_seven_plus_eight_expected));
 
         // compute 8+8 = 16
-        auto l_eight_plus_eight =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_eight->clone(), l_eight->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_eight_plus_eight = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_eight->clone(), l_eight->clone()),
+            a_depth);
+        while(reduce_one_step(l_eight_plus_eight))
+            ;
         auto l_eight_plus_eight_expected =
-            wrap_lambdas(l_sixteen->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixteen->clone(), a_depth);
+        while(reduce_one_step(l_eight_plus_eight_expected))
+            ;
         assert(l_eight_plus_eight->equals(l_eight_plus_eight_expected));
 
         // compute 15+1 = 16
-        auto l_fifteen_plus_one =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_fifteen->clone(), l_one->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_fifteen_plus_one = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_fifteen->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_fifteen_plus_one))
+            ;
         auto l_fifteen_plus_one_expected =
-            wrap_lambdas(l_sixteen->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixteen->clone(), a_depth);
+        while(reduce_one_step(l_fifteen_plus_one_expected))
+            ;
         assert(l_fifteen_plus_one->equals(l_fifteen_plus_one_expected));
 
         // compute 10+10 = 20
         auto l_twenty = build_binary({0, 0, 1, 0, 1}); // 20 = 0b10100
-        auto l_ten_plus_ten =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_ten->clone(), l_ten->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_ten_plus_ten_expected =
-            wrap_lambdas(l_twenty->clone(), a_depth)->normalize().m_expr;
+        auto l_ten_plus_ten = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_ten->clone(), l_ten->clone()),
+            a_depth);
+        while(reduce_one_step(l_ten_plus_ten))
+            ;
+        auto l_ten_plus_ten_expected = wrap_lambdas(l_twenty->clone(), a_depth);
+        while(reduce_one_step(l_ten_plus_ten_expected))
+            ;
         assert(l_ten_plus_ten->equals(l_ten_plus_ten_expected));
 
         // compute 15+16 = 31
-        auto l_fifteen_plus_sixteen =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_fifteen->clone(),
-                               l_sixteen->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_fifteen_plus_sixteen = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_fifteen->clone(), l_sixteen->clone()),
+            a_depth);
+        while(reduce_one_step(l_fifteen_plus_sixteen))
+            ;
         auto l_fifteen_plus_sixteen_expected =
-            wrap_lambdas(l_thirtyone->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_thirtyone->clone(), a_depth);
+        while(reduce_one_step(l_fifteen_plus_sixteen_expected))
+            ;
         assert(l_fifteen_plus_sixteen->equals(l_fifteen_plus_sixteen_expected));
 
         // compute 16+16 = 32
-        auto l_sixteen_plus_sixteen =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_sixteen->clone(),
-                               l_sixteen->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_sixteen_plus_sixteen = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_sixteen->clone(), l_sixteen->clone()),
+            a_depth);
+        while(reduce_one_step(l_sixteen_plus_sixteen))
+            ;
         auto l_sixteen_plus_sixteen_expected =
-            wrap_lambdas(l_thirtytwo->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_thirtytwo->clone(), a_depth);
+        while(reduce_one_step(l_sixteen_plus_sixteen_expected))
+            ;
         assert(l_sixteen_plus_sixteen->equals(l_sixteen_plus_sixteen_expected));
 
         // compute 31+1 = 32
-        auto l_thirtyone_plus_one =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_thirtyone->clone(),
-                               l_one->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_thirtyone_plus_one = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_thirtyone->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_thirtyone_plus_one))
+            ;
         auto l_thirtyone_plus_one_expected =
-            wrap_lambdas(l_thirtytwo->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_thirtytwo->clone(), a_depth);
+        while(reduce_one_step(l_thirtyone_plus_one_expected))
+            ;
         assert(l_thirtyone_plus_one->equals(l_thirtyone_plus_one_expected));
 
         // compute 31+32 = 63
         auto l_thirtyone_plus_thirtytwo =
             wrap_lambdas(a_twr(binary_add(a_depth), l_thirtyone->clone(),
                                l_thirtytwo->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_thirtyone_plus_thirtytwo))
+            ;
         auto l_thirtyone_plus_thirtytwo_expected =
-            wrap_lambdas(l_sixtythree->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixtythree->clone(), a_depth);
+        while(reduce_one_step(l_thirtyone_plus_thirtytwo_expected))
+            ;
         assert(l_thirtyone_plus_thirtytwo->equals(
             l_thirtyone_plus_thirtytwo_expected));
 
@@ -3611,64 +3585,52 @@ void test_binary_add()
         auto l_thirtytwo_plus_thirtytwo =
             wrap_lambdas(a_twr(binary_add(a_depth), l_thirtytwo->clone(),
                                l_thirtytwo->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_thirtytwo_plus_thirtytwo))
+            ;
         auto l_thirtytwo_plus_thirtytwo_expected =
-            wrap_lambdas(l_sixtyfour->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixtyfour->clone(), a_depth);
+        while(reduce_one_step(l_thirtytwo_plus_thirtytwo_expected))
+            ;
         assert(l_thirtytwo_plus_thirtytwo->equals(
             l_thirtytwo_plus_thirtytwo_expected));
 
         // compute 1+63 = 64
-        auto l_one_plus_sixtythree =
-            wrap_lambdas(a_twr(binary_add(a_depth), l_one->clone(),
-                               l_sixtythree->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_one_plus_sixtythree = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_one->clone(), l_sixtythree->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_plus_sixtythree))
+            ;
         auto l_one_plus_sixtythree_expected =
-            wrap_lambdas(l_sixtyfour->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixtyfour->clone(), a_depth);
+        while(reduce_one_step(l_one_plus_sixtythree_expected))
+            ;
         assert(l_one_plus_sixtythree->equals(l_one_plus_sixtythree_expected));
 
         // compute 50+50 = 100
         auto l_fifty = build_binary({0, 1, 0, 0, 1, 1}); // 50 = 0b110010
-        auto l_fifty_plus_fifty =
-            wrap_lambdas(
-                a_twr(binary_add(a_depth), l_fifty->clone(), l_fifty->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_fifty_plus_fifty = wrap_lambdas(
+            a_twr(binary_add(a_depth), l_fifty->clone(), l_fifty->clone()),
+            a_depth);
+        while(reduce_one_step(l_fifty_plus_fifty))
+            ;
         auto l_fifty_plus_fifty_expected =
-            wrap_lambdas(l_hundred->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_hundred->clone(), a_depth);
+        while(reduce_one_step(l_fifty_plus_fifty_expected))
+            ;
         assert(l_fifty_plus_fifty->equals(l_fifty_plus_fifty_expected));
 
         // compute 64+64 = 128
         auto l_sixtyfour_plus_sixtyfour =
             wrap_lambdas(a_twr(binary_add(a_depth), l_sixtyfour->clone(),
                                l_sixtyfour->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_sixtyfour_plus_sixtyfour))
+            ;
         auto l_sixtyfour_plus_sixtyfour_expected =
-            wrap_lambdas(l_onetwentyeight->clone(), a_depth)
-                ->normalize()
-                .m_expr;
+            wrap_lambdas(l_onetwentyeight->clone(), a_depth);
+        while(reduce_one_step(l_sixtyfour_plus_sixtyfour_expected))
+            ;
         assert(l_sixtyfour_plus_sixtyfour->equals(
             l_sixtyfour_plus_sixtyfour_expected));
 
@@ -3677,17 +3639,13 @@ void test_binary_add()
         auto l_hundred_plus_twentyeight =
             wrap_lambdas(a_twr(binary_add(a_depth), l_hundred->clone(),
                                l_twentyeight->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_hundred_plus_twentyeight))
+            ;
         auto l_hundred_plus_twentyeight_expected =
-            wrap_lambdas(l_onetwentyeight->clone(), a_depth)
-                ->normalize()
-                .m_expr;
+            wrap_lambdas(l_onetwentyeight->clone(), a_depth);
+        while(reduce_one_step(l_hundred_plus_twentyeight_expected))
+            ;
         assert(l_hundred_plus_twentyeight->equals(
             l_hundred_plus_twentyeight_expected));
     };

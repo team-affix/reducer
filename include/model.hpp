@@ -1,9 +1,10 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
-#include "../mcts/include/mcts.hpp"
 #include "lambda.hpp"
+#include <chrono>
 #include <cstddef>
+#include <list>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -16,7 +17,7 @@ struct model
     std::optional<bool>
     eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
          const std::unique_ptr<lambda::expr>* a_args, size_t a_arity,
-         size_t a_step_limit, size_t a_size_limit);
+         const std::chrono::milliseconds& a_time_limit, size_t a_size_limit);
     size_t size() const;
 
   private:
@@ -107,9 +108,9 @@ data_pointers(const std::vector<data_point>& a_data);
 std::unique_ptr<model>
 learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
             const std::vector<const data_point*>& a_data,
-            const size_t& a_step_limit, const size_t& a_size_limit,
-            const size_t& a_arity, const size_t& a_iterations,
-            const size_t& a_recursion_limit,
+            const std::chrono::milliseconds& a_time_limit,
+            const size_t& a_size_limit, const size_t& a_arity,
+            const size_t& a_iterations, const size_t& a_recursion_limit,
             const double& a_exploration_constant);
 
 #endif // MODEL_HPP

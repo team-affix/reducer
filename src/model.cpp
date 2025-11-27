@@ -1,4 +1,5 @@
 #include "../include/model.hpp"
+#include "../mcts/include/mcts.hpp"
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -28,10 +29,10 @@ bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
     }
 }
 
-std::optional<bool>
-eval_binning_program(const std::unique_ptr<lambda::expr>& a_binning_program,
-                     const std::unique_ptr<lambda::expr>* a_args,
-                     size_t a_arity, size_t a_step_limit, size_t a_size_limit)
+std::optional<bool> eval_binning_program(
+    const std::unique_ptr<lambda::expr>& a_binning_program,
+    const std::unique_ptr<lambda::expr>* a_args, size_t a_arity,
+    const std::chrono::milliseconds& a_time_limit, size_t a_size_limit)
 {
     using namespace lambda;
 
@@ -42,26 +43,32 @@ eval_binning_program(const std::unique_ptr<lambda::expr>& a_binning_program,
         l_norm_operand = a(std::move(l_norm_operand), a_args[i]->clone());
 
     // normalize the application with step and size limits
-    bool step_excess = false;
-    bool size_excess = false;
+    bool l_time_excess = false;
+    bool l_size_excess = false;
 
-    size_t l_step_count = 0;
+    // start the timer
+    auto l_start_time = std::chrono::high_resolution_clock::now();
 
-    for(; l_step_count < a_step_limit && reduce_one_step(l_norm_operand);
-        ++l_step_count)
+    while(reduce_one_step(l_norm_operand))
     {
+        // check if the time limit has been exceeded
+        if(std::chrono::high_resolution_clock::now() - l_start_time >
+           a_time_limit)
+        {
+            l_time_excess = true;
+            break;
+        }
+
+        // check if the size limit has been exceeded
         if(l_norm_operand->m_size > a_size_limit)
         {
-            size_excess = true;
+            l_size_excess = true;
             break;
         }
     }
 
-    if(l_step_count == a_step_limit)
-        step_excess = true;
-
     // if the evaluation is too complex, return std::nullopt
-    if(step_excess || size_excess)
+    if(l_time_excess || l_size_excess)
         return std::nullopt;
 
     // boolify the result
@@ -89,7 +96,7 @@ model::model(std::unique_ptr<lambda::expr>&& a_func,
 std::optional<bool>
 model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
             const std::unique_ptr<lambda::expr>* a_args, size_t a_arity,
-            size_t a_step_limit, size_t a_size_limit)
+            const std::chrono::milliseconds& a_time_limit, size_t a_size_limit)
 {
     using namespace lambda;
 
@@ -103,7 +110,7 @@ model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 
     // evaluate the binning program
     auto l_binning_result = eval_binning_program(l_program, a_args, a_arity,
-                                                 a_step_limit, a_size_limit);
+                                                 a_time_limit, a_size_limit);
 
     // if the binning program evaluation is too complex, return std::nullopt
     if(!l_binning_result.has_value())
@@ -114,7 +121,7 @@ model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
         (*l_binning_result) ? m_positive_child : m_negative_child;
 
     // evaluate the child
-    return l_child->eval(a_helpers, a_args, a_arity, a_step_limit,
+    return l_child->eval(a_helpers, a_args, a_arity, a_time_limit,
                          a_size_limit);
 }
 
@@ -293,8 +300,8 @@ build_function(const size_t a_binder_depth, const size_t a_arity,
 std::unique_ptr<model>
 build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
             const std::vector<const data_point*>& a_data,
-            const size_t& a_step_limit, const size_t& a_size_limit,
-            const size_t& a_arity,
+            const std::chrono::milliseconds& a_time_limit,
+            const size_t& a_size_limit, const size_t& a_arity,
             monte_carlo::simulation<choice, std::mt19937>& a_simulation,
             const size_t& a_recursion_limit)
 {
@@ -379,7 +386,7 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
             // evaluate the binning program
             auto l_normalize_result =
                 eval_binning_program(l_program, l_data_point->m_inputs.data(),
-                                     a_arity, a_step_limit, a_size_limit);
+                                     a_arity, a_time_limit, a_size_limit);
 
             // if the evaluation is too complex, set normalization complex flag
             // then break to prevent evaluating any more data points.
@@ -403,12 +410,12 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 
     // construct the positive child
     std::unique_ptr<model> l_positive_child =
-        build_model(a_helpers, l_positive_bin, a_step_limit, a_size_limit,
+        build_model(a_helpers, l_positive_bin, a_time_limit, a_size_limit,
                     a_arity, a_simulation, a_recursion_limit);
 
     // construct the negative child
     std::unique_ptr<model> l_negative_child =
-        build_model(a_helpers, l_negative_bin, a_step_limit, a_size_limit,
+        build_model(a_helpers, l_negative_bin, a_time_limit, a_size_limit,
                     a_arity, a_simulation, a_recursion_limit);
 
     // construct the final node
@@ -419,9 +426,9 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 std::unique_ptr<model>
 learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
             const std::vector<const data_point*>& a_data,
-            const size_t& a_step_limit, const size_t& a_size_limit,
-            const size_t& a_arity, const size_t& a_iterations,
-            const size_t& a_recursion_limit,
+            const std::chrono::milliseconds& a_time_limit,
+            const size_t& a_size_limit, const size_t& a_arity,
+            const size_t& a_iterations, const size_t& a_recursion_limit,
             const double& a_exploration_constant)
 {
     std::mt19937 l_rnd_gen(27);
@@ -440,7 +447,7 @@ learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 
         // construct the model
         std::unique_ptr<model> l_model =
-            build_model(a_helpers, a_data, a_step_limit, a_size_limit, a_arity,
+            build_model(a_helpers, a_data, a_time_limit, a_size_limit, a_arity,
                         l_sim, a_recursion_limit);
 
         // // compute the reward (negative descriptive length)
@@ -513,28 +520,32 @@ void test_eval_binning_program()
     // var 0, step limit 1000, size limit 1000
     {
         std::unique_ptr<lambda::expr> l_binning_program = v(0);
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        assert(eval_binning_program(l_binning_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 1000)
                    .value() == true);
     }
 
     // var 1, step limit 1000, size limit 1000
     {
         std::unique_ptr<lambda::expr> l_binning_program = v(1);
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        assert(eval_binning_program(l_binning_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 1000)
                    .value() == false);
     }
 
     // func 0, step limit 1000, size limit 1000
     {
         std::unique_ptr<lambda::expr> l_binning_program = f(v(0));
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        assert(eval_binning_program(l_binning_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 1000)
                    .value() == true);
     }
 
     // func 1, step limit 1000, size limit 1000
     {
         std::unique_ptr<lambda::expr> l_binning_program = f(v(1));
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 1000, 1000)
+        assert(eval_binning_program(l_binning_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 1000)
                    .value() == false);
     }
 
@@ -543,8 +554,9 @@ void test_eval_binning_program()
     {
         std::unique_ptr<lambda::expr> l_binning_program =
             a(f(a(v(0), v(0))), f(a(v(0), v(0))));
-        assert(eval_binning_program(l_binning_program, nullptr, 0, 100, 100) ==
-               std::nullopt);
+        assert(eval_binning_program(l_binning_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000),
+                                    100) == std::nullopt);
     }
 
     // church bools, (make sure true is truthy and false is falsy)
@@ -571,11 +583,13 @@ void test_eval_binning_program()
             l_helpers.begin(), l_helpers.end(), FALSE->clone());
 
         // evaluate the binning function
-        assert(eval_binning_program(l_true_program, nullptr, 0, 100, 100)
+        assert(eval_binning_program(l_true_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 100)
                    .value() == true);
 
         // evaluate the binning function
-        assert(eval_binning_program(l_false_program, nullptr, 0, 100, 100)
+        assert(eval_binning_program(l_false_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 100)
                    .value() == false);
     }
 
@@ -605,13 +619,14 @@ void test_eval_binning_program()
                               a(SUCC->clone(), ZERO->clone()));
 
         // evaluate the binning program
-        assert(eval_binning_program(l_zero_program, nullptr, 0, 100, 100)
+        assert(eval_binning_program(l_zero_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 100)
                    .value() == false);
 
         // evaluate the binning program
-        assert(
-            eval_binning_program(l_one_program, nullptr, 0, 100, 100).value() ==
-            true);
+        assert(eval_binning_program(l_one_program, nullptr, 0,
+                                    std::chrono::milliseconds(1000), 100)
+                   .value() == true);
     }
 
     // succ of zero, step limit 4, size limit 100, should be too complex to eval
@@ -638,8 +653,9 @@ void test_eval_binning_program()
                               a(SUCC->clone(), ZERO->clone()));
 
         // evaluate the binning program
-        assert(eval_binning_program(l_succ_zero_program, nullptr, 0, 4, 100) ==
-               std::nullopt);
+        assert(eval_binning_program(l_succ_zero_program, nullptr, 0,
+                                    std::chrono::milliseconds(0),
+                                    100) == std::nullopt);
     }
 
     // succ of zero, step limit 100, size limit 10, should be too complex to
@@ -667,8 +683,9 @@ void test_eval_binning_program()
                               a(SUCC->clone(), ZERO->clone()));
 
         // evaluate the binning program
-        assert(eval_binning_program(l_succ_zero_program, nullptr, 0, 100, 10) ==
-               std::nullopt);
+        assert(eval_binning_program(l_succ_zero_program, nullptr, 0,
+                                    std::chrono::milliseconds(100),
+                                    10) == std::nullopt);
     }
 }
 
@@ -765,7 +782,9 @@ void test_model_eval()
         std::unique_ptr<model> l_model = m(false);
 
         // evaluate the model
-        bool l_result = l_model->eval({}, nullptr, 0, 1000, 1000).value();
+        bool l_result =
+            l_model->eval({}, nullptr, 0, std::chrono::milliseconds(1000), 1000)
+                .value();
 
         // check the result
         assert(l_result == false);
@@ -776,7 +795,9 @@ void test_model_eval()
         std::unique_ptr<model> l_model = m(true);
 
         // evaluate the model
-        bool l_result = l_model->eval({}, nullptr, 0, 1000, 1000).value();
+        bool l_result =
+            l_model->eval({}, nullptr, 0, std::chrono::milliseconds(1000), 1000)
+                .value();
 
         // check the result
         assert(l_result == true);
@@ -789,11 +810,17 @@ void test_model_eval()
         auto l_truthy_arg = v(54);
         auto l_falsy_arg = v(55);
         // evaluate the model
-        bool l_result = l_model->eval({}, &l_truthy_arg, 1, 1000, 1000).value();
+        bool l_result = l_model
+                            ->eval({}, &l_truthy_arg, 1,
+                                   std::chrono::milliseconds(1000), 1000)
+                            .value();
         // check the result
         assert(l_result == true);
         // evaluate the model
-        l_result = l_model->eval({}, &l_falsy_arg, 1, 1000, 1000).value();
+        l_result = l_model
+                       ->eval({}, &l_falsy_arg, 1,
+                              std::chrono::milliseconds(1000), 1000)
+                       .value();
         // check the result
         assert(l_result == false);
     }
@@ -805,11 +832,17 @@ void test_model_eval()
         auto l_truthy_arg = v(54);
         auto l_falsy_arg = v(55);
         // evaluate the model
-        bool l_result = l_model->eval({}, &l_truthy_arg, 1, 1000, 1000).value();
+        bool l_result = l_model
+                            ->eval({}, &l_truthy_arg, 1,
+                                   std::chrono::milliseconds(1000), 1000)
+                            .value();
         // check the result
         assert(l_result == false);
         // evaluate the model
-        l_result = l_model->eval({}, &l_falsy_arg, 1, 1000, 1000).value();
+        l_result = l_model
+                       ->eval({}, &l_falsy_arg, 1,
+                              std::chrono::milliseconds(1000), 1000)
+                       .value();
         // check the result
         assert(l_result == true);
     }
@@ -833,17 +866,18 @@ void test_model_eval()
         l_falsy_args.push_back(v(54));
         l_falsy_args.push_back(v(55));
         // evaluate the model
-        bool l_result = l_model
-                            ->eval({}, l_truthy_args.data(),
-                                   l_truthy_args.size(), 1000, 1000)
-                            .value();
+        bool l_result =
+            l_model
+                ->eval({}, l_truthy_args.data(), l_truthy_args.size(),
+                       std::chrono::milliseconds(1000), 1000)
+                .value();
         // check the result
         assert(l_result == true);
         // evaluate the model
-        l_result =
-            l_model
-                ->eval({}, l_falsy_args.data(), l_falsy_args.size(), 1000, 1000)
-                .value();
+        l_result = l_model
+                       ->eval({}, l_falsy_args.data(), l_falsy_args.size(),
+                              std::chrono::milliseconds(1000), 1000)
+                       .value();
         // check the result
         assert(l_result == false);
     }
@@ -905,7 +939,10 @@ void test_model_eval()
 
         // evaluate the model
         auto l_row_result = [&l_model](auto& a_args) -> std::optional<bool>
-        { return l_model->eval({}, a_args.data(), a_args.size(), 1000, 1000); };
+        {
+            return l_model->eval({}, a_args.data(), a_args.size(),
+                                 std::chrono::milliseconds(1000), 1000);
+        };
 
         // evaluate the rows
         assert(l_row_result(l_row_0) == true);
@@ -1040,7 +1077,10 @@ void test_model_eval()
         // evaluate the model
         auto l_row_result = [&l_helpers,
                              &l_model](const auto& a_arg) -> std::optional<bool>
-        { return l_model->eval(l_helpers, &a_arg, 1, 10000, 10000); };
+        {
+            return l_model->eval(l_helpers, &a_arg, 1,
+                                 std::chrono::milliseconds(10000), 10000);
+        };
 
         // evaluate the rows (is input less than 24?)
         assert(l_row_result(l_input_0) == true);   // 7 < 24
@@ -1178,7 +1218,10 @@ void test_model_eval()
         // evaluate the model
         auto l_row_result = [&l_helpers,
                              &l_model](const auto& a_arg) -> std::optional<bool>
-        { return l_model->eval(l_helpers, &a_arg, 1, 10000, 10000); };
+        {
+            return l_model->eval(l_helpers, &a_arg, 1,
+                                 std::chrono::milliseconds(10000), 10000);
+        };
 
         // evaluate the rows ((18 < input < 24) || (28 < input))
         assert(l_row_result(l_input_0) == true);   // 20 ∈ (18,24)
@@ -1293,7 +1336,9 @@ void test_build_model()
                    std::back_inserter(l_data_pointers),
                    [](const auto& a_data_point) { return &a_data_point; });
 
-    auto l_model = build_model({}, l_data_pointers, 1000, 1000, 2, l_sim, 5);
+    auto l_model =
+        build_model({}, l_data_pointers, std::chrono::milliseconds(1000), 1000,
+                    2, l_sim, 5);
     std::cout << "model: " << *l_model << std::endl;
 }
 
@@ -1337,7 +1382,8 @@ void test_learn_model()
                        [](const auto& a_data_point) { return &a_data_point; });
 
         auto l_model =
-            learn_model({}, l_data_pointers, 1000, 1000, 2, 1000, 5, 5);
+            learn_model({}, l_data_pointers, std::chrono::milliseconds(10),
+                        1000, 2, 1000, 5, 5);
         std::cout << "model: " << *l_model << std::endl;
     }
 
@@ -1403,7 +1449,8 @@ void test_learn_model()
                        [](const auto& a_data_point) { return &a_data_point; });
 
         auto l_model =
-            learn_model({}, l_data_pointers, 1000, 1000, 3, 1000, 5, 20);
+            learn_model({}, l_data_pointers, std::chrono::milliseconds(10),
+                        1000, 3, 1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 
@@ -1489,8 +1536,9 @@ void test_learn_model()
         l_helpers.emplace_back(dml::predef::binary_add(l_helpers.size()));
         l_helpers.emplace_back(dml::predef::binary_compare(l_helpers.size()));
 
-        auto l_model = learn_model(l_helpers, l_data_pointers, 1000, 10000, 3,
-                                   1000, 5, 20);
+        auto l_model =
+            learn_model(l_helpers, l_data_pointers,
+                        std::chrono::milliseconds(10), 10000, 3, 1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 }

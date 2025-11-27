@@ -456,8 +456,10 @@ learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
         // compute the reward (negative descriptive length)
         double l_reward = -static_cast<double>(l_model->size());
 
-        std::cout << "model: " << *l_model << std::endl;
-        std::cout << "reward: " << l_reward << std::endl;
+        // std::cout << "model: " << *l_model << std::endl;
+        // std::cout << "reward: " << l_reward << std::endl;
+
+        std::cout << "new model!" << std::endl;
 
         // save best model
         if(l_reward > l_best_reward)
@@ -1382,8 +1384,8 @@ void test_learn_model()
                        [](const auto& a_data_point) { return &a_data_point; });
 
         auto l_model =
-            learn_model({}, l_data_pointers, std::chrono::milliseconds(10),
-                        1000, 2, 1000, 5, 5);
+            learn_model({}, l_data_pointers, std::chrono::milliseconds(1), 1000,
+                        2, 1000, 5, 5);
         std::cout << "model: " << *l_model << std::endl;
     }
 
@@ -1449,8 +1451,8 @@ void test_learn_model()
                        [](const auto& a_data_point) { return &a_data_point; });
 
         auto l_model =
-            learn_model({}, l_data_pointers, std::chrono::milliseconds(10),
-                        1000, 3, 1000, 5, 20);
+            learn_model({}, l_data_pointers, std::chrono::milliseconds(1), 1000,
+                        3, 1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 
@@ -1536,9 +1538,9 @@ void test_learn_model()
         l_helpers.emplace_back(dml::predef::binary_add(l_helpers.size()));
         l_helpers.emplace_back(dml::predef::binary_compare(l_helpers.size()));
 
-        auto l_model =
-            learn_model(l_helpers, l_data_pointers,
-                        std::chrono::milliseconds(10), 10000, 3, 1000, 5, 20);
+        auto l_model = learn_model(l_helpers, l_data_pointers,
+                                   std::chrono::milliseconds(10), 10000000, 3,
+                                   1000, 200, 50);
         std::cout << "model: " << *l_model << std::endl;
     }
 }

@@ -693,7 +693,8 @@ void test_y_combinator()
                             f(a(v(depth), a(v(depth + 1), v(depth + 1))))));
         assert(l_y->equals(expected));
 
-        auto l_y_of_v10_result = a(l_y->clone(), v(depth + 10));
+        auto l_y_of_v10_result =
+            wrap_lambdas(a(l_y->clone(), v(depth + 10)), depth);
 
         // apply Y to v(10) (MUST have step limit or will run forever)
         // this should build a tower of applications of v(10) basically

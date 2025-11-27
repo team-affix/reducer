@@ -3684,276 +3684,214 @@ void test_binary_subtract()
         auto l_five = a(binary_succ(a_depth), l_four->clone());
 
         // compute 0-0
-        auto l_zero_minus_zero =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_zero->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_zero_minus_zero = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_zero->clone(), l_zero->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_minus_zero))
+            ;
         auto l_zero_minus_zero_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_zero_minus_zero_expected))
+            ;
         // std::cout << *l_zero_minus_zero_expected << std::endl;
         assert(l_zero_minus_zero->equals(l_zero_minus_zero_expected));
 
         // compute 0-1
-        auto l_zero_minus_one =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_one->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_minus_one_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_zero_minus_one = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_zero->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_minus_one))
+            ;
+        auto l_zero_minus_one_expected = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_zero_minus_one_expected))
+            ;
         // std::cout << *l_zero_minus_one_expected << std::endl;
         assert(l_zero_minus_one->equals(l_zero_minus_one_expected));
 
         // compute 0-2
-        auto l_zero_minus_two =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_two->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_zero_minus_two_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_zero_minus_two = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_zero->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_minus_two))
+            ;
+        auto l_zero_minus_two_expected = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_zero_minus_two_expected))
+            ;
         //         std::cout << *l_zero_minus_zero_expected << std::endl;
         assert(l_zero_minus_two->equals(l_zero_minus_two_expected));
 
         // compute 0-3
-        auto l_zero_minus_three =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_zero->clone(),
-                               l_three->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_zero_minus_three = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_zero->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_zero_minus_three))
+            ;
         auto l_zero_minus_three_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_zero_minus_three_expected))
+            ;
         //         std::cout << *l_zero_minus_zero_expected << std::endl;
         assert(l_zero_minus_three->equals(l_zero_minus_three_expected));
 
         // compute 1-0
-        auto l_one_minus_zero =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_one->clone(),
-                               l_zero->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_minus_zero_expected =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        auto l_one_minus_zero = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_one->clone(), l_zero->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_minus_zero))
+            ;
+        auto l_one_minus_zero_expected = wrap_lambdas(l_one->clone(), a_depth);
+        while(reduce_one_step(l_one_minus_zero_expected))
+            ;
         //         std::cout << *l_one_minus_zero_expected << std::endl;
         assert(l_one_minus_zero->equals(l_one_minus_zero_expected));
 
         // compute 1-1
-        auto l_one_minus_one =
-            wrap_lambdas(
-                a_twr(binary_subtract(a_depth), l_one->clone(), l_one->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_minus_one_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_one_minus_one = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_one->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_minus_one))
+            ;
+        auto l_one_minus_one_expected = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_one_minus_one_expected))
+            ;
         //         std::cout << *l_one_minus_one_expected << std::endl;
         assert(l_one_minus_one->equals(l_one_minus_one_expected));
 
         // compute 1-2
-        auto l_one_minus_two =
-            wrap_lambdas(
-                a_twr(binary_subtract(a_depth), l_one->clone(), l_two->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_one_minus_two_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_one_minus_two = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_one->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_one_minus_two))
+            ;
+        auto l_one_minus_two_expected = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_one_minus_two_expected))
+            ;
         //         std::cout << *l_one_minus_two_expected << std::endl;
         assert(l_one_minus_two->equals(l_one_minus_two_expected));
 
         // compute 2-0
-        auto l_two_minus_zero =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_two->clone(),
-                               l_zero->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_minus_zero_expected =
-            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        auto l_two_minus_zero = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_two->clone(), l_zero->clone()),
+            a_depth);
+        while(reduce_one_step(l_two_minus_zero))
+            ;
+        auto l_two_minus_zero_expected = wrap_lambdas(l_two->clone(), a_depth);
+        while(reduce_one_step(l_two_minus_zero_expected))
+            ;
         //         std::cout << *l_two_minus_zero_expected << std::endl;
         assert(l_two_minus_zero->equals(l_two_minus_zero_expected));
 
         // compute 2-1
-        auto l_two_minus_one =
-            wrap_lambdas(
-                a_twr(binary_subtract(a_depth), l_two->clone(), l_one->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_minus_one_expected =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        auto l_two_minus_one = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_two->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_two_minus_one))
+            ;
+        auto l_two_minus_one_expected = wrap_lambdas(l_one->clone(), a_depth);
+        while(reduce_one_step(l_two_minus_one_expected))
+            ;
         //         std::cout << *l_two_minus_one_expected << std::endl;
         assert(l_two_minus_one->equals(l_two_minus_one_expected));
 
         // compute 2-2 = 0
-        auto l_two_minus_two =
-            wrap_lambdas(
-                a_twr(binary_subtract(a_depth), l_two->clone(), l_two->clone()),
-                a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_two_minus_two_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+        auto l_two_minus_two = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_two->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_two_minus_two))
+            ;
+        auto l_two_minus_two_expected = wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_two_minus_two_expected))
+            ;
         //         std::cout << *l_two_minus_two_expected << std::endl;
         assert(l_two_minus_two->equals(l_two_minus_two_expected));
 
         // compute 3-1 = 2
-        auto l_three_minus_one =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_three->clone(),
-                               l_one->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_three_minus_one_expected =
-            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+        auto l_three_minus_one = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_three->clone(), l_one->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_minus_one))
+            ;
+        auto l_three_minus_one_expected = wrap_lambdas(l_two->clone(), a_depth);
+        while(reduce_one_step(l_three_minus_one_expected))
+            ;
         //         std::cout << *l_three_minus_one_expected << std::endl;
         assert(l_three_minus_one->equals(l_three_minus_one_expected));
 
         // compute 3-2 = 1
-        auto l_three_minus_two =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_three->clone(),
-                               l_two->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_three_minus_two_expected =
-            wrap_lambdas(l_one->clone(), a_depth)->normalize().m_expr;
+        auto l_three_minus_two = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_three->clone(), l_two->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_minus_two))
+            ;
+        auto l_three_minus_two_expected = wrap_lambdas(l_one->clone(), a_depth);
+        while(reduce_one_step(l_three_minus_two_expected))
+            ;
         //         std::cout << *l_three_minus_two_expected << std::endl;
         assert(l_three_minus_two->equals(l_three_minus_two_expected));
 
         // compute 3-3 = 0
-        auto l_three_minus_three =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_three->clone(),
-                               l_three->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_three_minus_three = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_three->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_minus_three))
+            ;
         auto l_three_minus_three_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_three_minus_three_expected))
+            ;
         //         std::cout << *l_three_minus_three_expected << std::endl;
         assert(l_three_minus_three->equals(l_three_minus_three_expected));
 
         // compute 3-5 = 0 (saturation)
-        auto l_three_minus_five =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_three->clone(),
-                               l_five->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_three_minus_five = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_three->clone(), l_five->clone()),
+            a_depth);
+        while(reduce_one_step(l_three_minus_five))
+            ;
         auto l_three_minus_five_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_three_minus_five_expected))
+            ;
         //         std::cout << *l_three_minus_five_expected << std::endl;
         assert(l_three_minus_five->equals(l_three_minus_five_expected));
 
         // compute 5-3 = 2
-        auto l_five_minus_three =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_five->clone(),
-                               l_three->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_five_minus_three = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_five->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_five_minus_three))
+            ;
         auto l_five_minus_three_expected =
-            wrap_lambdas(l_two->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_two->clone(), a_depth);
+        while(reduce_one_step(l_five_minus_three_expected))
+            ;
         //         std::cout << *l_five_minus_three_expected << std::endl;
         assert(l_five_minus_three->equals(l_five_minus_three_expected));
 
         // compute 7-3 = 4
         auto l_seven = build_binary({true, true, true}); // 7 = 0b111
-        auto l_seven_minus_three =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_seven->clone(),
-                               l_three->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_seven_minus_three = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_seven->clone(), l_three->clone()),
+            a_depth);
+        while(reduce_one_step(l_seven_minus_three))
+            ;
         auto l_seven_minus_three_expected =
-            wrap_lambdas(l_four->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_four->clone(), a_depth);
+        while(reduce_one_step(l_seven_minus_three_expected))
+            ;
         //         std::cout << *l_seven_minus_three_expected << std::endl;
         assert(l_seven_minus_three->equals(l_seven_minus_three_expected));
 
         // compute 10-5 = 5
         auto l_ten = build_binary({false, true, false, true}); // 10 = 0b1010
-        auto l_ten_minus_five =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_ten->clone(),
-                               l_five->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
-        auto l_ten_minus_five_expected =
-            wrap_lambdas(l_five->clone(), a_depth)->normalize().m_expr;
+        auto l_ten_minus_five = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_ten->clone(), l_five->clone()),
+            a_depth);
+        while(reduce_one_step(l_ten_minus_five))
+            ;
+        auto l_ten_minus_five_expected = wrap_lambdas(l_five->clone(), a_depth);
+        while(reduce_one_step(l_ten_minus_five_expected))
+            ;
         //         std::cout << *l_ten_minus_five_expected << std::endl;
         assert(l_ten_minus_five->equals(l_ten_minus_five_expected));
 
@@ -3963,33 +3901,28 @@ void test_binary_subtract()
         auto l_fifteen_minus_seven =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_fifteen->clone(),
                                l_seven->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_fifteen_minus_seven))
+            ;
         auto l_fifteen_minus_seven_expected =
-            wrap_lambdas(l_eight->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_eight->clone(), a_depth);
+        while(reduce_one_step(l_fifteen_minus_seven_expected))
+            ;
         //         std::cout << *l_fifteen_minus_seven_expected << std::endl;
         assert(l_fifteen_minus_seven->equals(l_fifteen_minus_seven_expected));
 
         // compute 20-10 = 10
         auto l_twenty =
             build_binary({false, false, true, false, true}); // 20 = 0b10100
-        auto l_twenty_minus_ten =
-            wrap_lambdas(a_twr(binary_subtract(a_depth), l_twenty->clone(),
-                               l_ten->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+        auto l_twenty_minus_ten = wrap_lambdas(
+            a_twr(binary_subtract(a_depth), l_twenty->clone(), l_ten->clone()),
+            a_depth);
+        while(reduce_one_step(l_twenty_minus_ten))
+            ;
         auto l_twenty_minus_ten_expected =
-            wrap_lambdas(l_ten->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_ten->clone(), a_depth);
+        while(reduce_one_step(l_twenty_minus_ten_expected))
+            ;
         //         std::cout << *l_twenty_minus_ten_expected << std::endl;
         assert(l_twenty_minus_ten->equals(l_twenty_minus_ten_expected));
 
@@ -4001,15 +3934,13 @@ void test_binary_subtract()
         auto l_thirtyone_minus_fifteen =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_thirtyone->clone(),
                                l_fifteen->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_thirtyone_minus_fifteen))
+            ;
         auto l_thirtyone_minus_fifteen_expected =
-            wrap_lambdas(l_sixteen->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixteen->clone(), a_depth);
+        while(reduce_one_step(l_thirtyone_minus_fifteen_expected))
+            ;
         //         std::cout << *l_thirtyone_minus_fifteen_expected <<
         //         std::endl;
         assert(l_thirtyone_minus_fifteen->equals(
@@ -4023,15 +3954,13 @@ void test_binary_subtract()
         auto l_hundred_minus_fifty =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_hundred->clone(),
                                l_fifty->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_hundred_minus_fifty))
+            ;
         auto l_hundred_minus_fifty_expected =
-            wrap_lambdas(l_fifty->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_fifty->clone(), a_depth);
+        while(reduce_one_step(l_hundred_minus_fifty_expected))
+            ;
         //         std::cout << *l_hundred_minus_fifty_expected << std::endl;
         assert(l_hundred_minus_fifty->equals(l_hundred_minus_fifty_expected));
 
@@ -4039,15 +3968,13 @@ void test_binary_subtract()
         auto l_fifty_minus_hundred =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_fifty->clone(),
                                l_hundred->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_fifty_minus_hundred))
+            ;
         auto l_fifty_minus_hundred_expected =
-            wrap_lambdas(l_zero->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_zero->clone(), a_depth);
+        while(reduce_one_step(l_fifty_minus_hundred_expected))
+            ;
         //         std::cout << *l_fifty_minus_hundred_expected << std::endl;
         assert(l_fifty_minus_hundred->equals(l_fifty_minus_hundred_expected));
 
@@ -4059,15 +3986,13 @@ void test_binary_subtract()
         auto l_sixtyfour_minus_one =
             wrap_lambdas(a_twr(binary_subtract(a_depth), l_sixtyfour->clone(),
                                l_one->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_sixtyfour_minus_one))
+            ;
         auto l_sixtyfour_minus_one_expected =
-            wrap_lambdas(l_sixtythree->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixtythree->clone(), a_depth);
+        while(reduce_one_step(l_sixtyfour_minus_one_expected))
+            ;
         //         std::cout << *l_sixtyfour_minus_one_expected << std::endl;
         assert(l_sixtyfour_minus_one->equals(l_sixtyfour_minus_one_expected));
 
@@ -4078,15 +4003,13 @@ void test_binary_subtract()
         auto l_onetwentyeight_minus_sixtyfour =
             wrap_lambdas(a_twr(binary_subtract(a_depth),
                                l_onetwentyeight->clone(), l_sixtyfour->clone()),
-                         a_depth)
-                ->normalize(
-                    std::numeric_limits<size_t>::max(),
-                    std::numeric_limits<size_t>::max(),
-                    [](const std::unique_ptr<lambda::expr>&
-                           a_expr) { /*std::cout << *a_expr << std::endl;*/ })
-                .m_expr;
+                         a_depth);
+        while(reduce_one_step(l_onetwentyeight_minus_sixtyfour))
+            ;
         auto l_onetwentyeight_minus_sixtyfour_expected =
-            wrap_lambdas(l_sixtyfour->clone(), a_depth)->normalize().m_expr;
+            wrap_lambdas(l_sixtyfour->clone(), a_depth);
+        while(reduce_one_step(l_onetwentyeight_minus_sixtyfour_expected))
+            ;
         //         std::cout << *l_onetwentyeight_minus_sixtyfour_expected <<
         //         std::endl;
         assert(l_onetwentyeight_minus_sixtyfour->equals(

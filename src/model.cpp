@@ -18,11 +18,11 @@ bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
     while(true)
     {
         if(const var* l_var = dynamic_cast<const var*>(l_expr->get()))
-            return l_var->index() % 2 == 0;
+            return l_var->m_index % 2 == 0;
         else if(const app* l_app = dynamic_cast<const app*>(l_expr->get()))
-            l_expr = &l_app->lhs();
+            l_expr = &l_app->m_lhs;
         else if(const func* l_func = dynamic_cast<const func*>(l_expr->get()))
-            l_expr = &l_func->body();
+            l_expr = &l_func->m_body;
         else
             throw std::runtime_error("Error: invalid expression in boolify.");
     }
@@ -41,16 +41,31 @@ eval_binning_program(const std::unique_ptr<lambda::expr>& a_binning_program,
     for(size_t i = 0; i < a_arity; ++i)
         l_norm_operand = a(std::move(l_norm_operand), a_args[i]->clone());
 
-    // normalize the application
-    auto l_normalize_result =
-        l_norm_operand->normalize(a_step_limit, a_size_limit);
+    // normalize the application with step and size limits
+    bool step_excess = false;
+    bool size_excess = false;
+
+    size_t l_step_count = 0;
+
+    for(; l_step_count < a_step_limit && reduce_one_step(l_norm_operand);
+        ++l_step_count)
+    {
+        if(l_norm_operand->m_size > a_size_limit)
+        {
+            size_excess = true;
+            break;
+        }
+    }
+
+    if(l_step_count == a_step_limit)
+        step_excess = true;
 
     // if the evaluation is too complex, return std::nullopt
-    if(l_normalize_result.m_step_excess || l_normalize_result.m_size_excess)
+    if(step_excess || size_excess)
         return std::nullopt;
 
     // boolify the result
-    bool l_binning_result = boolify(l_normalize_result.m_expr);
+    bool l_binning_result = boolify(l_norm_operand);
 
     // return the result
     return l_binning_result;
@@ -109,7 +124,7 @@ size_t model::size() const
         // this is a leaf node, still counts
         return 1;
 
-    return 1 + m_func->size() + m_positive_child->size() +
+    return 1 + m_func->m_size + m_positive_child->size() +
            m_negative_child->size();
 }
 

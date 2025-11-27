@@ -1489,8 +1489,8 @@ void test_learn_model()
         l_helpers.emplace_back(dml::predef::binary_add(l_helpers.size()));
         l_helpers.emplace_back(dml::predef::binary_compare(l_helpers.size()));
 
-        auto l_model =
-            learn_model(l_helpers, l_data_pointers, 500, 10000, 3, 1000, 5, 20);
+        auto l_model = learn_model(l_helpers, l_data_pointers, 1000, 10000, 3,
+                                   1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 }

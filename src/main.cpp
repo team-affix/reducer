@@ -1,8 +1,8 @@
 #include "test_utils.hpp"
 
-extern void model_test_main();
 extern void predef_test_main();
 extern void encode_test_main();
+extern void model_test_main();
 
 void unit_test_main()
 {
@@ -11,9 +11,9 @@ void unit_test_main()
     // TEST(scope_test_main);
     // TEST(func_test_main);
     // TEST(program_test_main);
-    // TEST(model_test_main); // Disabled: hangs during execution
     TEST(predef_test_main);
     TEST(encode_test_main);
+    TEST(model_test_main); // Disabled: hangs during execution
     // TEST(reduce_test_main);
 }
 

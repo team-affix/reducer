@@ -103,6 +103,16 @@ model::eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
                          a_size_limit);
 }
 
+size_t model::size() const
+{
+    if(m_func == nullptr)
+        // this is a leaf node, still counts
+        return 1;
+
+    return 1 + m_func->size() + m_positive_child->size() +
+           m_negative_child->size();
+}
+
 ////////////////////////////////////////////////////
 //////////////// FACTORY FUNCTIONS /////////////////
 ////////////////////////////////////////////////////
@@ -137,7 +147,7 @@ std::ostream& operator<<(std::ostream& a_ostream, const model& a_model)
 
 bool operator<(const place_var_node& a_lhs, const place_var_node& a_rhs)
 {
-    return a_lhs.m_index < a_rhs.m_index;
+    return false;
 }
 bool operator<(const place_func_node&, const place_func_node&)
 {
@@ -146,6 +156,10 @@ bool operator<(const place_func_node&, const place_func_node&)
 bool operator<(const place_app_node&, const place_app_node&)
 {
     return false;
+}
+bool operator<(const select_var_index& a_lhs, const select_var_index& a_rhs)
+{
+    return a_lhs.m_index < a_rhs.m_index;
 }
 bool operator<(const add_helper&, const add_helper&)
 {
@@ -191,9 +205,8 @@ build_function_body(const size_t a_binder_depth,
     // declare the choice list
     std::vector<choice> l_choices;
 
-    // add var choices
-    for(size_t i = 0; i < a_binder_depth; ++i)
-        l_choices.push_back(place_var_node{i});
+    // add var choice always (assume we have available var always)
+    l_choices.push_back(place_var_node{});
 
     if(a_recursion_limit > 0)
     {
@@ -210,7 +223,18 @@ build_function_body(const size_t a_binder_depth,
     // handle the choice
     if(const auto* l_var_node = std::get_if<place_var_node>(&l_choice))
     {
-        return v(l_var_node->m_index);
+        // get the specific var it wants to choose
+        l_choices.clear();
+        for(size_t i = 0; i < a_binder_depth; ++i)
+            l_choices.push_back(select_var_index{i});
+        l_choice = a_simulation.choose(l_choices);
+
+        // cast it since we know it's a select_var_index
+        select_var_index l_select_var_index =
+            std::get<select_var_index>(l_choice);
+
+        // return the variable
+        return v(l_select_var_index.m_index);
     }
     else if(std::holds_alternative<place_func_node>(l_choice))
     {
@@ -305,6 +329,15 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
     while(l_positive_bin.empty() || l_negative_bin.empty() ||
           l_normalization_complex)
     {
+        // if(l_normalization_complex)
+        // {
+        //     std::cout << "normalization complex" << std::endl;
+        // }
+        // if(l_positive_bin.empty() || l_negative_bin.empty())
+        // {
+        //     std::cout << "noncontingent" << std::endl;
+        // }
+
         // clear BOTH bins in case one contains items
         l_positive_bin.clear();
         l_negative_bin.clear();
@@ -315,8 +348,6 @@ build_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
         // on) each data point]
         l_binning_function = build_function(a_helpers.size(), a_arity,
                                             a_simulation, a_recursion_limit);
-
-        std::cout << *l_binning_function << std::endl;
 
         // construct the program
         auto l_program = construct_program(a_helpers.begin(), a_helpers.end(),
@@ -397,8 +428,11 @@ learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
             build_model(a_helpers, a_data, a_step_limit, a_size_limit, a_arity,
                         l_sim, a_recursion_limit);
 
+        // // compute the reward (negative descriptive length)
+        // double l_reward = -static_cast<double>(l_sim.length());
+
         // compute the reward (negative descriptive length)
-        double l_reward = -static_cast<double>(l_sim.length());
+        double l_reward = -static_cast<double>(l_model->size());
 
         std::cout << "model: " << *l_model << std::endl;
         std::cout << "reward: " << l_reward << std::endl;
@@ -1438,9 +1472,10 @@ void test_learn_model()
 
         // insert the 'add' helper
         l_helpers.emplace_back(dml::predef::binary_add(l_helpers.size()));
+        l_helpers.emplace_back(dml::predef::binary_compare(l_helpers.size()));
 
-        auto l_model = learn_model(l_helpers, l_data_pointers, 500, 100000, 3,
-                                   1000, 5, 20);
+        auto l_model =
+            learn_model(l_helpers, l_data_pointers, 500, 10000, 3, 1000, 5, 20);
         std::cout << "model: " << *l_model << std::endl;
     }
 }

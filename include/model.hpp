@@ -17,6 +17,7 @@ struct model
     eval(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
          const std::unique_ptr<lambda::expr>* a_args, size_t a_arity,
          size_t a_step_limit, size_t a_size_limit);
+    size_t size() const;
 
   private:
     // constructor for homogenous models
@@ -60,13 +61,16 @@ std::ostream& operator<<(std::ostream& a_ostream, const model& a_model);
 ////////////////////////////////////////////////////
 struct place_var_node
 {
-    size_t m_index;
 };
 struct place_func_node
 {
 };
 struct place_app_node
 {
+};
+struct select_var_index
+{
+    size_t m_index;
 };
 struct add_helper
 {
@@ -76,12 +80,13 @@ struct terminate
 };
 
 using choice = std::variant<place_var_node, place_func_node, place_app_node,
-                            add_helper, terminate>;
+                            select_var_index, add_helper, terminate>;
 
 // less than comparisons
 bool operator<(const place_var_node&, const place_var_node&);
 bool operator<(const place_func_node&, const place_func_node&);
 bool operator<(const place_app_node&, const place_app_node&);
+bool operator<(const select_var_index&, const select_var_index&);
 bool operator<(const add_helper&, const add_helper&);
 bool operator<(const terminate&, const terminate&);
 

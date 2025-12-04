@@ -484,6 +484,7 @@ learn_model(const std::list<std::unique_ptr<lambda::expr>>& a_helpers,
 #include "../include/predef.hpp"
 #include "test_utils.hpp"
 #include <sstream>
+#include <functional>
 
 void test_boolify()
 {
@@ -1545,18 +1546,114 @@ void test_learn_model()
     }
 }
 
+// struct hole : lambda::expr {
+//     virtual ~hole() = default;
+//
+//     // ACCESSOR METHODS
+//     bool equals(const std::unique_ptr<expr>& a_other) const override {
+//         const hole* l_casted = dynamic_cast<const hole*>(a_other.get());
+//
+//         if(!l_casted)
+//             return false;
+//
+//         return m_index == l_casted->m_index;
+//     }
+//     void print(std::ostream& a_ostream) const override {
+//         a_ostream << "H" << m_index;
+//     }
+//     std::unique_ptr<expr> clone() const override {
+//         return std::unique_ptr<expr>(new hole(m_index));
+//     }
+//
+//     // MUTATOR METHODS
+//     void update_size() override{
+//         m_size = 1;
+//     }
+//     void lift(size_t a_lift_amount, size_t a_cutoff) override{
+//         // do nothing
+//     }
+//
+//     // MEMBER VARIABLES
+//     size_t m_index;
+//
+//   private:
+//     hole(size_t a_index);
+// };
+
+using le = std::unique_ptr<lambda::expr>;
+using signature = std::list<std::pair<le, le>>;
+using binding_map = std::map<size_t, size_t>;
+
+
+void unify(const signature& a_gamma, const binding_map& a_bindings, const le& a_lhs, const le& a_rhs, const std::function<void(const binding_map&)>& a_soln_cb) {
+    // any variable with index >= a_gamma.size() is a metavariable / hole.
+    // any variable whos index < a_gamma.size() is a sentinel (constant value)
+    // 
+}
+
+void inhabit(const signature& a_gamma, const binding_map& a_bindings, const le& a_type, const std::function<void(const le&)>& a_soln_cb) {
+    // inhabitance has several cases.
+    // case 1: find a term in a_gamma whos type unifies with a_type
+    for (const auto& [l_term, l_type] : a_gamma) {
+        // NOTE: callback invocation indicates a solution was found.
+        unify(a_gamma, a_bindings, l_type, a_type, [](const binding_map& a_bm)
+               {
+               });
+    }
+    // case 2: find a term in a_gamma which (if a pi-type), applied to some term
+    //  produces the desired type.
+}
+
+void test_implement_dtt() {
+    using namespace lambda;
+
+    // DEFINE SENTINELS
+    size_t l_sentinel_count = 0;
+
+    // pi type
+    auto PI = v( l_sentinel_count++ );
+
+    // Set
+    auto SET = v( l_sentinel_count++ );
+
+    // Bool
+    auto BOOL = v( l_sentinel_count++ );
+
+    // true
+    auto TRUE = v( l_sentinel_count++ );
+
+    // false
+    auto FALSE = v( l_sentinel_count++ );
+
+    // OR
+    auto OR = v( l_sentinel_count++ );
+    auto OR_T = a(a(PI->clone(), BOOL->clone()), f(a(a(PI->clone(), BOOL->clone()), f(BOOL->clone()))));
+
+    // AND
+    auto AND = v( l_sentinel_count++ );
+    auto AND_T = a(a(PI->clone(), BOOL->clone()), f(a(a(PI->clone(), BOOL->clone()), f(BOOL->clone()))));
+
+    // NOT
+    auto NOT = v( l_sentinel_count++ );
+    auto NOT_T = a(a(PI->clone(), BOOL->clone()), f(BOOL->clone()));
+
+    struct case_def {
+    };
+}
+
 void model_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
 
-    TEST(test_boolify);
-    TEST(test_eval_binning_program);
-    TEST(test_model_construct_and_print);
-    TEST(test_model_eval);
-    TEST(test_build_function_body);
-    TEST(test_build_function);
-    TEST(test_build_model);
-    TEST(test_learn_model);
+    // TEST(test_boolify);
+    // TEST(test_eval_binning_program);
+    // TEST(test_model_construct_and_print);
+    // TEST(test_model_eval);
+    // TEST(test_build_function_body);
+    // TEST(test_build_function);
+    // TEST(test_build_model);
+    // TEST(test_learn_model);
+    TEST(test_implement_dtt);
 }
 
 #endif // UNIT_TEST

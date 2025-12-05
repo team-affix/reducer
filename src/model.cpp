@@ -2,8 +2,10 @@
 #include "../mcts/include/mcts.hpp"
 #include <algorithm>
 #include <cassert>
+#include <exception>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 
 bool boolify(const std::unique_ptr<lambda::expr>& a_expr)
 {
@@ -1580,25 +1582,82 @@ void test_learn_model()
 //     hole(size_t a_index);
 // };
 
-using le = std::unique_ptr<lambda::expr>;
-using signature = std::list<std::pair<le, le>>;
-using binding_map = std::map<size_t, size_t>;
+using lce = std::unique_ptr<lambda::expr>;
+using signature = std::list<std::pair<lce, lce>>;
+using binding_map = std::map<size_t, lce>;
+struct terminate_search : std::exception {};
 
-
-void unify(const signature& a_gamma, const binding_map& a_bindings, const le& a_lhs, const le& a_rhs, const std::function<void(const binding_map&)>& a_soln_cb) {
-    // any variable with index >= a_gamma.size() is a metavariable / hole.
-    // any variable whos index < a_gamma.size() is a sentinel (constant value)
-    // 
+// NOTE: this function conditionally computes the metavariable index given a variable index
+bool try_get_meta_index(size_t a_binder_depth, size_t a_var_index, size_t& a_result) {
+    if (a_var_index < a_binder_depth)
+        return false;
+    a_result = a_var_index - a_binder_depth;
+    return true;
 }
 
-void inhabit(const signature& a_gamma, const binding_map& a_bindings, const le& a_type, const std::function<void(const le&)>& a_soln_cb) {
+// NOTE: This is kind of like a expression traversal algorithm (similar to reduce_one_step.)
+void resolve(const size_t a_binder_depth, binding_map& a_bindings, lce& a_expr) {
+    using namespace lambda;
+    // if a_expr is a var, it could be:
+    // 1. a sentinel,
+    // 2. a local lambda variable,
+    // 3. a metavariable.
+    if (var* l_var = dynamic_cast<var*>(a_expr.get())) {
+        // if the var is a sentinel or local var, then it is fully resolved.
+        size_t l_meta_index;
+        if (!try_get_meta_index(a_binder_depth, l_var->m_index, l_meta_index))
+            return;
+
+        // 1. look up the meta in the binding map
+        auto l_it = a_bindings.find(l_meta_index);
+
+        // 2. if the binding does not contain the meta, initialize to point to itself
+        if (l_it == a_bindings.end())
+            l_it = a_bindings.insert({l_meta_index, l_var->clone()}).first;
+
+        // 3. if the binding points to itself, then resolution has terminated.
+        if (l_var->equals(l_it->second))
+            return;
+
+        // 4. the result of resolving x is the result of resolving y if x points to y.
+        resolve(a_binder_depth, a_bindings, l_it->second);
+
+        // make sure to return the resolved expression
+        a_expr = l_it->second->clone();
+
+        return;
+    }
+
+    // if a_expr is a func, then resolve body.
+    if (func* l_func = dynamic_cast<func*>(a_expr.get())) {
+        // resolve inside
+        resolve(a_binder_depth + 1, a_bindings, l_func->m_body);
+        return;
+    }
+
+    // if a_expr is an app, resolve lhs and rhs
+    if (app* l_app = dynamic_cast<app*>(a_expr.get())) {
+        // resolve lhs
+        resolve(a_binder_depth, a_bindings, l_app->m_lhs);
+        resolve(a_binder_depth, a_bindings, l_app->m_rhs);
+        return;
+    }
+
+    throw std::runtime_error("Unknown type during resolution.");
+}
+
+void unify(const size_t& a_sentinel_count, const binding_map& a_bindings, const lce& a_lhs, const lce& a_rhs, const std::function<void(const binding_map&)>& a_soln_cb) {
+    // if the 
+}
+
+void inhabit(const signature& a_gamma, const binding_map& a_bindings, const lce& a_type, const std::function<void(const lce&)>& a_soln_cb) {
     // inhabitance has several cases.
     // case 1: find a term in a_gamma whos type unifies with a_type
     for (const auto& [l_term, l_type] : a_gamma) {
         // NOTE: callback invocation indicates a solution was found.
-        unify(a_gamma, a_bindings, l_type, a_type, [](const binding_map& a_bm)
-               {
-               });
+        unify(a_gamma.size(), a_bindings, l_type, a_type, [](const binding_map& a_bm) {
+            
+        });
     }
     // case 2: find a term in a_gamma which (if a pi-type), applied to some term
     //  produces the desired type.

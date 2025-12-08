@@ -1,6 +1,6 @@
 # rough draft
 
-In this document, I will attempt to specify a potential route in which DML can be implemented so as to balance efficency of search, and completeness of existential solutions.
+In this document, I will attempt to specify a potential route in which AML can be implemented so as to balance efficency of search, and completeness of existential solutions.
 
 ## Dependent Types
 
@@ -20,5 +20,13 @@ Another thing to mention is that we could technically allow for forward polling 
 
 ## Helper Functions
 
+In order to conduct AML, there needs to be a capacity to reuse subroutines (hellpers) across many different parts of the model. The ability to do functional distribution is one of the sources of strength for AML over other machine learning techniques, due to the fact that reuse of helpers allows us to approach occams razor which gives us hope for generality, but also that in reusing a definition in multiple places, the correctness of the definition is thereby informed by the influence that each occurrance has on the reward (non-local generalization).
 
+However, if the goal is to get as close to occams razor representation as possible, we need to open up some generic toolsets to the machine learning system for it to use to its benefit. One toolset is **abstraction**, or the ability to construct subroutines. Previously mentioned (nonlocal generalization) is yielded through **application** of a subroutine in multiple places, but in order to make the subroutines themselves optimal, it requires that they be derived as well.
+
+In this system, there are several types of functions, and types.
+
+- Templatted { functions / types }
+- Primitive  { functions / types }
+- Derived    { functions / types }
 

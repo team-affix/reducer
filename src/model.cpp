@@ -1,5 +1,6 @@
 #include "../include/model.hpp"
 #include "../mcts/include/mcts.hpp"
+#include "lambda.hpp"
 #include <algorithm>
 #include <cassert>
 #include <exception>
@@ -1584,185 +1585,68 @@ void test_learn_model()
 
 using lce = std::unique_ptr<lambda::expr>;
 using signature = std::list<std::pair<lce, lce>>;
-using binding_map = std::vector<lce>;
-struct terminate_search : std::exception {};
 
-// ideas
-// 1. resolution needs to be relative to the binder depth
-// 2. need new_meta function, initializes a new metavariable (self-loop in bindings)
-// 3. need get_meta function, which gets the ith meta, at a given binder depth
-
-// NOTE: this function conditionally computes the metavariable index given a variable index
-bool try_get_meta_index(size_t a_binder_depth, size_t a_var_index, size_t& a_result) {
-    if (a_var_index < a_binder_depth)
-        return false;
-    a_result = a_var_index - a_binder_depth;
-    return true;
-}
-
-void new_meta(binding_map& a_bindings) {
-    // pushes back 
-}
-
-// NOTE: This is kind of like a expression traversal algorithm (similar to reduce_one_step.)
-void resolve(const size_t a_binder_depth, binding_map& a_bindings, lce& a_expr) {
+lce prim_ty(size_t a_binder_depth) {
     using namespace lambda;
-    // if a_expr is a var, it could be:
-    // 1. a sentinel,
-    // 2. a local lambda variable,
-    // 3. a metavariable.
-    if (var* l_var = dynamic_cast<var*>(a_expr.get())) {
-        // if the var is a sentinel or local var, then it is fully resolved.
-        size_t l_meta_index;
-        if (!try_get_meta_index(a_binder_depth, l_var->m_index, l_meta_index))
-            return;
-
-        // 1. look up the meta in the binding map
-        lce& l_mapped = a_bindings[l_meta_index];
-
-        // 2 if the binding points to itself, then resolution has terminated.
-        if (l_var->equals(l_mapped))
-            return;
-
-        // 3. the result of resolving x is the result of resolving y if x points to y.
-        resolve(a_binder_depth, a_bindings, l_mapped);
-
-        // make sure to return the resolved expression
-        a_expr = l_mapped->clone();
-
-        return;
-    }
-
-    // if a_expr is a func, then resolve body.
-    if (func* l_func = dynamic_cast<func*>(a_expr.get())) {
-        // resolve inside
-        resolve(a_binder_depth + 1, a_bindings, l_func->m_body);
-        return;
-    }
-
-    // if a_expr is an app, resolve lhs and rhs
-    if (app* l_app = dynamic_cast<app*>(a_expr.get())) {
-        // resolve lhs
-        resolve(a_binder_depth, a_bindings, l_app->m_lhs);
-        resolve(a_binder_depth, a_bindings, l_app->m_rhs);
-        return;
-    }
-
-    throw std::runtime_error("Unknown type during resolution.");
+    return f(f(f(f(f(
+        a(
+            v(a_binder_depth + 1),
+            v(a_binder_depth)
+        )
+    )))));
 }
 
-// NOTE: try_unify modifies its arguments. It does NOT invoke a callback.
-bool try_unify(const size_t& a_binder_depth, binding_map& a_bindings, lce& a_lhs, lce& a_rhs) {
+lce app_ty(size_t a_binder_depth) {
     using namespace lambda;
-    // 1. resolve lhs and rhs.
-    resolve(a_binder_depth, a_bindings, a_lhs);
-    resolve(a_binder_depth, a_bindings, a_rhs);
-
-    // 2. lhs is a meta?
-    if(var* l_lhs_var = dynamic_cast<var*>(a_lhs.get())) {
-        size_t l_meta_index;
-        if (try_get_meta_index(a_binder_depth, l_lhs_var->m_index, l_meta_index)) {
-            // if lhs is a meta, bind lhs to rhs
-            a_bindings[l_lhs_var->m_index] = a_rhs->clone();
-            return true;
-        }
-    }
-
-    // 3. rhs is a meta?
-    if(var* l_rhs_var = dynamic_cast<var*>(a_rhs.get())) {
-        size_t l_meta_index;
-        if (try_get_meta_index(a_binder_depth, l_rhs_var->m_index, l_meta_index)) {
-            a_bindings[l_rhs_var->m_index] = a_lhs->clone();
-            return true;
-        }
-    }
-
-    // 4. both funcs?
-    if(func* l_lhs_func = dynamic_cast<func*>(a_lhs.get())) {
-        func* l_rhs_func = dynamic_cast<func*>(a_rhs.get());
-        if (!l_rhs_func)
-            return false;
-        return try_unify(a_binder_depth + 1, a_bindings, l_lhs_func->m_body, l_rhs_func->m_body);
-    }
-
-    // 5. both apps?
-    if(app* l_lhs_app = dynamic_cast<app*>(a_lhs.get())) {
-        app* l_rhs_app = dynamic_cast<app*>(a_rhs.get());
-        if (!l_rhs_app)
-            return false;
-        return 
-            try_unify(a_binder_depth, a_bindings, l_lhs_app->m_lhs, l_rhs_app->m_lhs) &&
-            try_unify(a_binder_depth, a_bindings, l_lhs_app->m_rhs, l_rhs_app->m_rhs);
-    }
-
-    // 6. both bound vars?
-    return a_lhs->equals(a_rhs);
+    return f(f(f(f(f(f(
+        a(
+            a(
+                v(a_binder_depth + 3),
+                v(a_binder_depth)
+            ),
+            v(a_binder_depth + 1)
+        )
+    ))))));
 }
 
-// NOTE: unify does NOT change its arguments. Instead, it attempts to unify the arguments and if successful,
-// the callback will be invoked with the updated bindings.
-void unify(const size_t& a_binder_depth, const binding_map& a_bindings, const lce& a_lhs, const lce& a_rhs, const std::function<void(const binding_map&)>& a_callback) {
-    // 1. make copies of the information
-    binding_map l_bindings = a_bindings;
-    lce l_lhs = a_lhs->clone();
-    lce l_rhs = a_rhs->clone();
-
-    // 2. invoke try_unify
-    bool l_unification_succeeded = try_unify(a_binder_depth, l_bindings, l_lhs, l_rhs);
-
-    // 3. if successful, invoke callback
-    if (l_unification_succeeded)
-        a_callback(l_bindings);
-}
-
-void inhabit(const signature& a_gamma, const binding_map& a_bindings, const lce& a_type, const std::function<void(const lce&)>& a_soln_cb) {
-    // inhabitance has several cases.
-    // case 1: find a term in a_gamma whos type unifies with a_type
-    for (const auto& [l_term, l_type] : a_gamma) {
-        // NOTE: callback invocation indicates a solution was found.
-        unify(a_gamma.size(), a_bindings, l_type, a_type, [](const binding_map& a_bm) {
-            
-        });
-    }
-    // case 2: find a term in a_gamma which (if a pi-type), applied to some term
-    //  produces the desired type.
-}
-
-void test_implement_dtt() {
+lce func_ty(size_t a_binder_depth) {
     using namespace lambda;
+    return f(f(f(f(f(f(
+        a(
+            a(
+                v(a_binder_depth + 4),
+                v(a_binder_depth)
+            ),
+            v(a_binder_depth + 1)
+        )
+    ))))));
+}
 
-    // DEFINE SENTINELS
-    size_t l_sentinel_count = 0;
+lce pi_ty(size_t a_binder_depth) {
+    using namespace lambda;
+    return f(f(f(f(f(f(
+        a(
+            a(
+                v(a_binder_depth + 5),
+                v(a_binder_depth)
+            ),
+            v(a_binder_depth + 1)
+        )
+    ))))));
+}
 
-    // pi type
-    auto PI = v( l_sentinel_count++ );
+struct dfb_key {
+    lce m_type;
+    size_t m_min_depth_requirement;
+    bool operator<(const dfb_key& a_other) {
+        if (m_type < a_other.m_type) return true;
+        if (a_other.m_type < m_type) return false;
+        return m_min_depth_requirement < a_other.m_min_depth_requirement;
+    }
+};
 
-    // Set
-    auto SET = v( l_sentinel_count++ );
+std::multimap<dfb_key, lce> curry_sample(const signature& a_signature) {
 
-    // Bool
-    auto BOOL = v( l_sentinel_count++ );
-
-    // true
-    auto TRUE = v( l_sentinel_count++ );
-
-    // false
-    auto FALSE = v( l_sentinel_count++ );
-
-    // OR
-    auto OR = v( l_sentinel_count++ );
-    auto OR_T = a(a(PI->clone(), BOOL->clone()), f(a(a(PI->clone(), BOOL->clone()), f(BOOL->clone()))));
-
-    // AND
-    auto AND = v( l_sentinel_count++ );
-    auto AND_T = a(a(PI->clone(), BOOL->clone()), f(a(a(PI->clone(), BOOL->clone()), f(BOOL->clone()))));
-
-    // NOT
-    auto NOT = v( l_sentinel_count++ );
-    auto NOT_T = a(a(PI->clone(), BOOL->clone()), f(BOOL->clone()));
-
-    struct case_def {
-    };
 }
 
 void model_test_main()

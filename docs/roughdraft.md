@@ -30,3 +30,46 @@ In this system, there are several types of functions, and types.
 - Primitive  { functions / types }
 - Derived    { functions / types }
 
+
+
+
+
+
+
+
+
+
+
+Maybe, we can, given any inhabitant I, compute all curries of I (assuming that inhabitation of the parameters is possible), and push those curries into the type-map, assuming each parameter type has a nullary inhabitant which can be argued.
+
+Example, given declaration:
+`size : (T : Set) -> List T -> Nat`, we can push into the map the following:
+
+```
+((T:Set)->List T->Nat, true) -> size
+(List Int->Nat, true) -> (size Int)
+(Nat, false) -> (size Int)
+(Nat, true) -> (size Int (nil Int))
+```
+
+In the above, we omitted the following entry:
+`(List Int->Nat, false) -> size`
+
+The reason is, due to the fact that for some arguments supplied to `size`, the type `List Int->Nat` is actually unreachable. And this map is supposed to contain definite ways of reaching desired types. Long term description of what is happening here is: the first argument to `size` actually CHANGES the type signature of the return type. This is the essence of a pi-type. In general, we do not consider pi-types as being a function to which arguments may be supplied to get a *defininte* type output. However, for function `->` types, this restriction does not apply.
+
+Also, the existence of types is inferred by the type-signatures of inhabitants, and this is also when we add these types to the map. We may not require external declarations of types themselves since all types (including Set) inhabit the `Set` universe.
+
+Maybe, an example of this could be, given the above scenario, we might add the following entries to the map as well:
+```
+(Set, true) -> ((T:Set)->List T->Nat),
+(Set, true) -> (List Int->Nat)
+(Set, true) -> (Nat)
+```
+
+
+I think this might actually bloat the system in terms of information, if we push every single type ever visited into the map.
+
+Maybe instead, we can actually make it manual, but allow for not every type to require a nullary inhabitant. The lack of the nullary inhabitant for a type T would be recognized when T is a parameter of a function, and we cannot supply a nullary inhabitant of T to curry the function. Given that we cannot find a nullary inhab of T does NOT mean that the whole function type itself is unreachable through this specific object, just that its curry is unreachable. Thus we can still push as many curries as possible to the map before running into the unsuppliable param. Another reason why we can allow for declaration of types to be separate from declaration of functions that use those types is that they are not actually dependent on each other. Declaration of types creates inhabitants of Set. Regardless of whether these entries in the map are present, the functions inhabiting these types should be able to function.
+
+
+

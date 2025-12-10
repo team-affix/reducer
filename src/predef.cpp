@@ -4093,14 +4093,128 @@ void test_dtt_prim()
 
 void test_dtt_app()
 {
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create lhs and rhs for the application
+        auto l_lhs = v(depth + 10);
+        auto l_rhs = v(depth + 11);
+
+        // Apply dtt_app to both arguments
+        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (appCase lhs rhs)
+        auto l_dtt_application =
+            a(a(dtt_app(depth), l_lhs->clone()), l_rhs->clone());
+
+        // Apply all 4 case handlers to the dtt_application
+        // Case handlers are just variables
+        auto l_result = wrap_lambdas(a_twr(l_dtt_application->clone(),
+                                           v(depth + 20),  // primCase
+                                           v(depth + 30),  // appCase
+                                           v(depth + 40),  // fnCase
+                                           v(depth + 50)), // piCase
+                                     depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            ;
+
+        // The result should be appCase applied to lhs and rhs
+        // which is: (v(depth + 30) v(depth + 10)) v(depth + 11)
+        auto l_expected = wrap_lambdas(
+            a(a(v(depth + 30), v(depth + 10)), v(depth + 11)), depth);
+
+        assert(l_result->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
 }
 
 void test_dtt_fn()
 {
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create domain and codomain for the function type
+        auto l_domain = v(depth + 10);
+        auto l_codomain = v(depth + 11);
+
+        // Apply dtt_fn to both arguments
+        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (fnCase domain
+        // codomain)
+        auto l_dtt_function =
+            a(a(dtt_fn(depth), l_domain->clone()), l_codomain->clone());
+
+        // Apply all 4 case handlers to the dtt_function
+        // Case handlers are just variables
+        auto l_result = wrap_lambdas(a_twr(l_dtt_function->clone(),
+                                           v(depth + 20),  // primCase
+                                           v(depth + 30),  // appCase
+                                           v(depth + 40),  // fnCase
+                                           v(depth + 50)), // piCase
+                                     depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            ;
+
+        // The result should be fnCase applied to domain and codomain
+        // which is: (v(depth + 40) v(depth + 10)) v(depth + 11)
+        auto l_expected = wrap_lambdas(
+            a(a(v(depth + 40), v(depth + 10)), v(depth + 11)), depth);
+
+        assert(l_result->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
 }
 
 void test_dtt_pi()
 {
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create parameter type and binder function for the pi type
+        // Pi type is represented as (param_type, λx. return_type)
+        auto l_param_type = v(depth + 10);
+        auto l_binder = v(depth + 11);
+
+        // Apply dtt_pi to both arguments
+        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (piCase param_type
+        // binder)
+        auto l_dtt_pi_type =
+            a(a(dtt_pi(depth), l_param_type->clone()), l_binder->clone());
+
+        // Apply all 4 case handlers to the dtt_pi_type
+        // Case handlers are just variables
+        auto l_result = wrap_lambdas(a_twr(l_dtt_pi_type->clone(),
+                                           v(depth + 20),  // primCase
+                                           v(depth + 30),  // appCase
+                                           v(depth + 40),  // fnCase
+                                           v(depth + 50)), // piCase
+                                     depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            std::cout << *l_result << std::endl;
+
+        // The result should be piCase applied to param_type and binder
+        // which is: (v(depth + 50) v(depth + 10)) v(depth + 11)
+        auto l_expected = wrap_lambdas(
+            a(a(v(depth + 50), v(depth + 10)), v(depth + 11)), depth);
+
+        assert(l_result->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
 }
 
 void predef_test_main()

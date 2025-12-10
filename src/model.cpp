@@ -1586,68 +1586,19 @@ void test_learn_model()
 using lce = std::unique_ptr<lambda::expr>;
 using signature = std::list<std::pair<lce, lce>>;
 
-lce prim_ty(size_t a_binder_depth) {
-    using namespace lambda;
-    return f(f(f(f(f(
-        a(
-            v(a_binder_depth + 1),
-            v(a_binder_depth)
-        )
-    )))));
-}
-
-lce app_ty(size_t a_binder_depth) {
-    using namespace lambda;
-    return f(f(f(f(f(f(
-        a(
-            a(
-                v(a_binder_depth + 3),
-                v(a_binder_depth)
-            ),
-            v(a_binder_depth + 1)
-        )
-    ))))));
-}
-
-lce func_ty(size_t a_binder_depth) {
-    using namespace lambda;
-    return f(f(f(f(f(f(
-        a(
-            a(
-                v(a_binder_depth + 4),
-                v(a_binder_depth)
-            ),
-            v(a_binder_depth + 1)
-        )
-    ))))));
-}
-
-lce pi_ty(size_t a_binder_depth) {
-    using namespace lambda;
-    return f(f(f(f(f(f(
-        a(
-            a(
-                v(a_binder_depth + 5),
-                v(a_binder_depth)
-            ),
-            v(a_binder_depth + 1)
-        )
-    ))))));
-}
-
-struct dfb_key {
-    lce m_type;
-    size_t m_min_depth_requirement;
-    bool operator<(const dfb_key& a_other) {
-        if (m_type < a_other.m_type) return true;
-        if (a_other.m_type < m_type) return false;
-        return m_min_depth_requirement < a_other.m_min_depth_requirement;
-    }
-};
-
-std::multimap<dfb_key, lce> curry_sample(const signature& a_signature) {
-
-}
+// struct dfb_key {
+//     lce m_type;
+//     size_t m_min_depth_requirement;
+//     bool operator<(const dfb_key& a_other) {
+//         if (*m_type < *a_other.m_type) return true;
+//         if (a_other.m_type < m_type) return false;
+//         return m_min_depth_requirement < a_other.m_min_depth_requirement;
+//     }
+// };
+//
+// std::multimap<dfb_key, lce> curry_sample(const signature& a_signature) {
+//
+// }
 
 void model_test_main()
 {
@@ -1661,7 +1612,7 @@ void model_test_main()
     // TEST(test_build_function);
     // TEST(test_build_model);
     // TEST(test_learn_model);
-    TEST(test_implement_dtt);
+    // TEST(test_implement_dtt);
 }
 
 #endif // UNIT_TEST

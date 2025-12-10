@@ -665,6 +665,37 @@ std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth)
                     church_false(a_binder_depth + 2)))));
 }
 
+// primitive dtt constructor
+std::unique_ptr<lambda::expr> dtt_prim(size_t a_binder_depth)
+{
+    using namespace lambda;
+    return f(f(f(f(f(a(v(a_binder_depth + 1), v(a_binder_depth)))))));
+}
+
+// app dtt constructor
+std::unique_ptr<lambda::expr> dtt_app(size_t a_binder_depth)
+{
+    using namespace lambda;
+    return f(f(f(f(f(f(a(a(v(a_binder_depth + 3), v(a_binder_depth)),
+                         v(a_binder_depth + 1))))))));
+}
+
+// fn dtt constructor
+std::unique_ptr<lambda::expr> dtt_fn(size_t a_binder_depth)
+{
+    using namespace lambda;
+    return f(f(f(f(f(f(a(a(v(a_binder_depth + 4), v(a_binder_depth)),
+                         v(a_binder_depth + 1))))))));
+}
+
+// pi dtt constructor
+std::unique_ptr<lambda::expr> dtt_pi(size_t a_binder_depth)
+{
+    using namespace lambda;
+    return f(f(f(f(f(f(a(a(v(a_binder_depth + 5), v(a_binder_depth)),
+                         v(a_binder_depth + 1))))))));
+}
+
 } // namespace predef
 } // namespace dml
 
@@ -4022,6 +4053,56 @@ void test_binary_subtract()
     }
 }
 
+void test_dtt_prim()
+{
+    using namespace dml::predef;
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create a primitive value - using a variable with custom index 10
+        auto l_primitive = v(depth + 10);
+
+        // Apply dtt_prim to the primitive
+        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (primCase
+        // primitive)
+        auto l_dtt_primitive = a(dtt_prim(depth), l_primitive->clone());
+
+        // Apply all 4 case handlers to the dtt_primitive
+        // Case handlers are just variables
+        auto l_result = wrap_lambdas(a_twr(l_dtt_primitive->clone(),
+                                           v(depth + 20),  // primCase
+                                           v(depth + 30),  // appCase
+                                           v(depth + 40),  // fnCase
+                                           v(depth + 50)), // piCase
+                                     depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            ;
+
+        // The result should be primCase applied to the primitive
+        // which is: v(depth + 20) v(depth + 10)
+        auto l_expected = wrap_lambdas(a(v(depth + 20), v(depth + 10)), depth);
+        assert(l_result->equals(l_expected));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_dtt_app()
+{
+}
+
+void test_dtt_fn()
+{
+}
+
+void test_dtt_pi()
+{
+}
+
 void predef_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -4057,6 +4138,10 @@ void predef_test_main()
     TEST(test_binary_pred);
     TEST(test_binary_add);
     TEST(test_binary_subtract);
+    TEST(test_dtt_prim);
+    TEST(test_dtt_app);
+    TEST(test_dtt_fn);
+    TEST(test_dtt_pi);
 }
 
 #endif // UNIT_TEST

@@ -31,6 +31,15 @@ scott_list(size_t a_binder_depth,
 std::unique_ptr<lambda::expr> binary_numeral(size_t a_binder_depth,
                                              size_t a_numeral);
 
+// dtt primitive
+std::unique_ptr<lambda::expr> dv(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_prim);
+
+// dtt application
+std::unique_ptr<lambda::expr> da(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_lhs, std::unique_ptr<lambda::expr>&& a_rhs);
+
+// dtt pi type
+std::unique_ptr<lambda::expr> df(size_t a_binder_depth, std::unique_ptr<lambda::expr>&& a_type, std::unique_ptr<lambda::expr>&& a_binder);
+
 } // namespace encode
 } // namespace dml
 

@@ -669,31 +669,23 @@ std::unique_ptr<lambda::expr> binary_subtract(size_t a_binder_depth)
 std::unique_ptr<lambda::expr> dtt_prim(size_t a_binder_depth)
 {
     using namespace lambda;
-    return f(f(f(f(f(a(v(a_binder_depth + 1), v(a_binder_depth)))))));
+    return f(f(f(f(a(v(a_binder_depth + 1), v(a_binder_depth))))));
 }
 
 // app dtt constructor
 std::unique_ptr<lambda::expr> dtt_app(size_t a_binder_depth)
 {
     using namespace lambda;
-    return f(f(f(f(f(f(a(a(v(a_binder_depth + 3), v(a_binder_depth)),
-                         v(a_binder_depth + 1))))))));
-}
-
-// fn dtt constructor
-std::unique_ptr<lambda::expr> dtt_fn(size_t a_binder_depth)
-{
-    using namespace lambda;
-    return f(f(f(f(f(f(a(a(v(a_binder_depth + 4), v(a_binder_depth)),
-                         v(a_binder_depth + 1))))))));
+    return f(f(f(f(f(a(a(v(a_binder_depth + 3), v(a_binder_depth)),
+                       v(a_binder_depth + 1)))))));
 }
 
 // pi dtt constructor
 std::unique_ptr<lambda::expr> dtt_pi(size_t a_binder_depth)
 {
     using namespace lambda;
-    return f(f(f(f(f(f(a(a(v(a_binder_depth + 5), v(a_binder_depth)),
-                         v(a_binder_depth + 1))))))));
+    return f(f(f(f(f(a(a(v(a_binder_depth + 4), v(a_binder_depth)),
+                       v(a_binder_depth + 1)))))));
 }
 
 } // namespace predef
@@ -4062,17 +4054,15 @@ void test_dtt_prim()
         auto l_primitive = v(depth + 10);
 
         // Apply dtt_prim to the primitive
-        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (primCase
-        // primitive)
+        // This creates: λprimCase.λappCase.λpiCase. (primCase primitive)
         auto l_dtt_primitive = a(dtt_prim(depth), l_primitive->clone());
 
-        // Apply all 4 case handlers to the dtt_primitive
+        // Apply all 3 case handlers to the dtt_primitive
         // Case handlers are just variables
         auto l_result = wrap_lambdas(a_twr(l_dtt_primitive->clone(),
                                            v(depth + 20),  // primCase
                                            v(depth + 30),  // appCase
-                                           v(depth + 40),  // fnCase
-                                           v(depth + 50)), // piCase
+                                           v(depth + 40)), // piCase
                                      depth);
 
         // Reduce to normal form
@@ -4101,17 +4091,16 @@ void test_dtt_app()
         auto l_rhs = v(depth + 11);
 
         // Apply dtt_app to both arguments
-        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (appCase lhs rhs)
+        // This creates: λprimCase.λappCase.λpiCase. (appCase lhs rhs)
         auto l_dtt_application =
             a(a(dtt_app(depth), l_lhs->clone()), l_rhs->clone());
 
-        // Apply all 4 case handlers to the dtt_application
+        // Apply all 3 case handlers to the dtt_application
         // Case handlers are just variables
         auto l_result = wrap_lambdas(a_twr(l_dtt_application->clone(),
                                            v(depth + 20),  // primCase
                                            v(depth + 30),  // appCase
-                                           v(depth + 40),  // fnCase
-                                           v(depth + 50)), // piCase
+                                           v(depth + 40)), // piCase
                                      depth);
 
         // Reduce to normal form
@@ -4122,48 +4111,6 @@ void test_dtt_app()
         // which is: (v(depth + 30) v(depth + 10)) v(depth + 11)
         auto l_expected = wrap_lambdas(
             a(a(v(depth + 30), v(depth + 10)), v(depth + 11)), depth);
-
-        assert(l_result->equals(l_expected));
-    };
-
-    for(size_t depth = 0; depth <= 5; ++depth)
-    {
-        test_at_depth(depth);
-    }
-}
-
-void test_dtt_fn()
-{
-    using namespace dml::predef;
-    auto test_at_depth = [](size_t depth)
-    {
-        // Create domain and codomain for the function type
-        auto l_domain = v(depth + 10);
-        auto l_codomain = v(depth + 11);
-
-        // Apply dtt_fn to both arguments
-        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (fnCase domain
-        // codomain)
-        auto l_dtt_function =
-            a(a(dtt_fn(depth), l_domain->clone()), l_codomain->clone());
-
-        // Apply all 4 case handlers to the dtt_function
-        // Case handlers are just variables
-        auto l_result = wrap_lambdas(a_twr(l_dtt_function->clone(),
-                                           v(depth + 20),  // primCase
-                                           v(depth + 30),  // appCase
-                                           v(depth + 40),  // fnCase
-                                           v(depth + 50)), // piCase
-                                     depth);
-
-        // Reduce to normal form
-        while(reduce_one_step(l_result))
-            ;
-
-        // The result should be fnCase applied to domain and codomain
-        // which is: (v(depth + 40) v(depth + 10)) v(depth + 11)
-        auto l_expected = wrap_lambdas(
-            a(a(v(depth + 40), v(depth + 10)), v(depth + 11)), depth);
 
         assert(l_result->equals(l_expected));
     };
@@ -4185,28 +4132,26 @@ void test_dtt_pi()
         auto l_binder = v(depth + 11);
 
         // Apply dtt_pi to both arguments
-        // This creates: λprimCase.λappCase.λfnCase.λpiCase. (piCase param_type
-        // binder)
+        // This creates: λprimCase.λappCase.λpiCase. (piCase param_type binder)
         auto l_dtt_pi_type =
             a(a(dtt_pi(depth), l_param_type->clone()), l_binder->clone());
 
-        // Apply all 4 case handlers to the dtt_pi_type
+        // Apply all 3 case handlers to the dtt_pi_type
         // Case handlers are just variables
         auto l_result = wrap_lambdas(a_twr(l_dtt_pi_type->clone(),
                                            v(depth + 20),  // primCase
                                            v(depth + 30),  // appCase
-                                           v(depth + 40),  // fnCase
-                                           v(depth + 50)), // piCase
+                                           v(depth + 40)), // piCase
                                      depth);
 
         // Reduce to normal form
         while(reduce_one_step(l_result))
-            std::cout << *l_result << std::endl;
+            ;
 
         // The result should be piCase applied to param_type and binder
-        // which is: (v(depth + 50) v(depth + 10)) v(depth + 11)
+        // which is: (v(depth + 40) v(depth + 10)) v(depth + 11)
         auto l_expected = wrap_lambdas(
-            a(a(v(depth + 50), v(depth + 10)), v(depth + 11)), depth);
+            a(a(v(depth + 40), v(depth + 10)), v(depth + 11)), depth);
 
         assert(l_result->equals(l_expected));
     };
@@ -4254,7 +4199,6 @@ void predef_test_main()
     TEST(test_binary_subtract);
     TEST(test_dtt_prim);
     TEST(test_dtt_app);
-    TEST(test_dtt_fn);
     TEST(test_dtt_pi);
 }
 

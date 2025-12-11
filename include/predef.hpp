@@ -110,9 +110,6 @@ std::unique_ptr<lambda::expr> dtt_prim(size_t a_binder_depth);
 // app dtt constructor
 std::unique_ptr<lambda::expr> dtt_app(size_t a_binder_depth);
 
-// fn dtt constructor
-std::unique_ptr<lambda::expr> dtt_fn(size_t a_binder_depth);
-
 // pi dtt constructor
 std::unique_ptr<lambda::expr> dtt_pi(size_t a_binder_depth);
 

@@ -86,6 +86,29 @@ std::unique_ptr<lambda::expr> binary_numeral(size_t a_binder_depth,
     return l_result;
 }
 
+// dtt primitive
+std::unique_ptr<lambda::expr> dv(size_t a_binder_depth,
+                                 std::unique_ptr<lambda::expr>&& a_prim)
+{
+    return a(dtt_prim(a_binder_depth), std::move(a_prim));
+}
+
+// dtt application
+std::unique_ptr<lambda::expr> da(size_t a_binder_depth,
+                                 std::unique_ptr<lambda::expr>&& a_lhs,
+                                 std::unique_ptr<lambda::expr>&& a_rhs)
+{
+    return a(a(dtt_app(a_binder_depth), std::move(a_lhs)), std::move(a_rhs));
+}
+
+// dtt pi type
+std::unique_ptr<lambda::expr> df(size_t a_binder_depth,
+                                 std::unique_ptr<lambda::expr>&& a_type,
+                                 std::unique_ptr<lambda::expr>&& a_binder)
+{
+    return a(a(dtt_pi(a_binder_depth), std::move(a_type)), std::move(a_binder));
+}
+
 } // namespace encode
 } // namespace dml
 
@@ -481,6 +504,138 @@ void test_encode_binary_numeral()
     }
 }
 
+void test_encode_dv()
+{
+    using namespace dml::encode;
+    using namespace dml::predef;
+
+    // Test encoding at various depths
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create a primitive value - using a variable
+        auto l_prim = v(depth + 10);
+
+        // Encode it using dv
+        auto l_dv_encoded = dv(depth, l_prim->clone());
+
+        // Test structure: should equal applying dtt_prim to the primitive
+        auto l_expected = a(dtt_prim(depth), l_prim->clone());
+        assert(l_dv_encoded->equals(l_expected));
+
+        // Test behavior: observe with case handlers
+        auto l_result = wrap_lambdas(
+            a(a(a(l_dv_encoded->clone(), v(depth + 20)), // primCase
+                v(depth + 30)),                          // appCase
+              v(depth + 40)),                            // piCase
+            depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            ;
+
+        // Should invoke primCase with the primitive
+        // Result: v(depth + 20) v(depth + 10)
+        auto l_expected_behavior =
+            wrap_lambdas(a(v(depth + 20), v(depth + 10)), depth);
+
+        assert(l_result->equals(l_expected_behavior));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_encode_da()
+{
+    using namespace dml::encode;
+    using namespace dml::predef;
+
+    // Test encoding at various depths
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create lhs and rhs for the application
+        auto l_lhs = v(depth + 10);
+        auto l_rhs = v(depth + 11);
+
+        // Encode it using da
+        auto l_da_encoded = da(depth, l_lhs->clone(), l_rhs->clone());
+
+        // Test structure: should equal applying dtt_app to lhs and rhs
+        auto l_expected = a(a(dtt_app(depth), l_lhs->clone()), l_rhs->clone());
+        assert(l_da_encoded->equals(l_expected));
+
+        // Test behavior: observe with case handlers
+        auto l_result = wrap_lambdas(
+            a(a(a(l_da_encoded->clone(), v(depth + 20)), // primCase
+                v(depth + 30)),                          // appCase
+              v(depth + 40)),                            // piCase
+            depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            ;
+
+        // Should invoke appCase with lhs and rhs
+        // Result: (v(depth + 30) v(depth + 10)) v(depth + 11)
+        auto l_expected_behavior = wrap_lambdas(
+            a(a(v(depth + 30), v(depth + 10)), v(depth + 11)), depth);
+
+        assert(l_result->equals(l_expected_behavior));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
+void test_encode_df()
+{
+    using namespace dml::encode;
+    using namespace dml::predef;
+
+    // Test encoding at various depths
+    auto test_at_depth = [](size_t depth)
+    {
+        // Create parameter type and binder for the pi type
+        auto l_param_type = v(depth + 10);
+        auto l_binder = v(depth + 11);
+
+        // Encode it using df
+        auto l_df_encoded = df(depth, l_param_type->clone(), l_binder->clone());
+
+        // Test structure: should equal applying dtt_pi to param_type and binder
+        auto l_expected =
+            a(a(dtt_pi(depth), l_param_type->clone()), l_binder->clone());
+        assert(l_df_encoded->equals(l_expected));
+
+        // Test behavior: observe with case handlers
+        auto l_result = wrap_lambdas(
+            a(a(a(l_df_encoded->clone(), v(depth + 20)), // primCase
+                v(depth + 30)),                          // appCase
+              v(depth + 40)),                            // piCase
+            depth);
+
+        // Reduce to normal form
+        while(reduce_one_step(l_result))
+            ;
+
+        // Should invoke piCase with param_type and binder
+        // Result: (v(depth + 40) v(depth + 10)) v(depth + 11)
+        auto l_expected_behavior = wrap_lambdas(
+            a(a(v(depth + 40), v(depth + 10)), v(depth + 11)), depth);
+
+        assert(l_result->equals(l_expected_behavior));
+    };
+
+    for(size_t depth = 0; depth <= 5; ++depth)
+    {
+        test_at_depth(depth);
+    }
+}
+
 void encode_test_main()
 {
     constexpr bool ENABLE_DEBUG_LOGS = true;
@@ -490,6 +645,9 @@ void encode_test_main()
     TEST(test_encode_church_pair);
     TEST(test_encode_scott_list);
     TEST(test_encode_binary_numeral);
+    TEST(test_encode_dv);
+    TEST(test_encode_da);
+    TEST(test_encode_df);
 }
 
 #endif // UNIT_TEST
